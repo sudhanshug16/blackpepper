@@ -1,6 +1,6 @@
-# Blackpepper
+# blackpepper
 
-Blackpepper is a terminal orchestrator for TUI coding agents. It embeds provider
+blackpepper is a terminal orchestrator for TUI coding agents. It embeds provider
 UIs (Codex, Claude Code, OpenCode, and future agents) inside a unified TUI with
 shared sidebar controls, shortcuts, and workspace management.
 
