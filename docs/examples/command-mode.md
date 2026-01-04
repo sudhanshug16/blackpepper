@@ -12,6 +12,7 @@ Modes:
 Examples:
 
 ```text
+:create
 :create otter
 :destroy otter
 :create-pr
@@ -23,4 +24,5 @@ Examples:
 Notes:
 
 - Commands are entered from the sidebar prompt and dispatched per workspace.
+- `:create` without a name picks the first unused animal from `src/lib/animals.ts`.
 - Available commands are defined in `src/cli/commands.ts`.

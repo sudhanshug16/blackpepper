@@ -1,5 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
+import { joinPath } from "@/lib/path";
 
 export const DEFAULT_TOGGLE_MODE = "ctrl+g";
 
@@ -16,12 +15,13 @@ type RawConfig = {
   };
 };
 
-function readTomlFile(filePath: string): RawConfig | null {
-  if (!fs.existsSync(filePath)) {
+async function readTomlFile(filePath: string): Promise<RawConfig | null> {
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) {
     return null;
   }
 
-  const raw = fs.readFileSync(filePath, "utf-8");
+  const raw = await file.text();
   if (!raw.trim()) {
     return null;
   }
@@ -45,13 +45,15 @@ function mergeConfig(user: RawConfig | null, workspace: RawConfig | null): Confi
   };
 }
 
-export function loadConfig(cwd = process.cwd()): Config {
-  const workspacePath = path.join(cwd, ".config", "blackpepper", "pepper.toml");
-  const homeDir = process.env.HOME ?? "";
-  const userPath = homeDir ? path.join(homeDir, ".config", "blackpepper", "pepper.toml") : "";
+export async function loadConfig(cwd = import.meta.dir): Promise<Config> {
+  const workspacePath = joinPath(cwd, ".config", "blackpepper", "pepper.toml");
+  const homeDir = Bun.env.HOME ?? "";
+  const userPath = homeDir ? joinPath(homeDir, ".config", "blackpepper", "pepper.toml") : "";
 
-  const userConfig = userPath ? readTomlFile(userPath) : null;
-  const workspaceConfig = readTomlFile(workspacePath);
+  const [userConfig, workspaceConfig] = await Promise.all([
+    userPath ? readTomlFile(userPath) : Promise.resolve(null),
+    readTomlFile(workspacePath),
+  ]);
 
   return mergeConfig(userConfig, workspaceConfig);
 }

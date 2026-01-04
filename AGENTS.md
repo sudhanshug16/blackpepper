@@ -2,30 +2,27 @@
 
 ## Overview
 
-Blackpepper orchestrates TUI coding agents by embedding provider UIs (Codex,
-Claude Code, OpenCode) inside a shell with sidebar controls.
+Blackpepper embeds provider UIs (Codex, Claude Code, OpenCode) inside a TUI.
 
 ## Project Structure & Module Organization
 
 - `src/`: runtime code, organized into `src/orchestrator/`, `src/workspaces/`,
   `src/providers/`, and `src/cli/`.
-- `docs/`: design notes, ADRs in `docs/adr/`, and examples in `docs/examples/`.
-- `package.json`, `tsconfig.json`: tooling and TypeScript configuration.
+- `docs/`: ADRs and examples.
 
 ## Workspace & Task Model
 
 - Workspaces are created with `git worktree` under `./workspaces/<animal>`;
-  keep them out of `node_modules/` and avoid nesting.
+  avoid nesting under `node_modules/`.
 - Workspace branches start with animal names (e.g., `otter`, `lynx`) and are
   renamed after the first task is defined.
-- A workspace can run multiple agent tabs; each tab may target a different
-  provider.
-- Workspace lifecycle is manual via command mode: `:create`, `:destroy`,
-  `:create-pr`, `:open-pr`, `:merge-pr`.
+- A workspace can run multiple agent tabs; each tab may target a provider.
+- Workspace lifecycle is manual via `:create`, `:destroy`, `:create-pr`,
+  `:open-pr`, `:merge-pr`.
 
 ## CLI & Command Mode
 
-- The primary entry point is `pepper` (no subcommands yet).
+- Entry point is `pepper` (no subcommands).
 - Command mode uses `:` prefixes for workspace and PR actions.
 
 ## Build, Test, and Development Commands
@@ -43,9 +40,17 @@ Claude Code, OpenCode) inside a shell with sidebar controls.
 - TypeScript with ESM (`type: "module"`).
 - Formatting: Prettier. Linting: ESLint.
 - Indentation: 2 spaces; keep trailing commas where already used.
+- Use `@/` import aliases for `src/` paths.
 - Naming: PascalCase for types/classes, camelCase for functions/variables, and
   lowercase/kebab-case for filenames. Provider adapters live under
   `src/providers/`.
+
+## Runtime APIs
+
+- Prefer Bun APIs in `src/` (e.g., `Bun.file`, `Bun.write`, `Bun.spawn`).
+- Avoid `node:*` imports in runtime code unless Bun has no equivalent.
+- Tests may use `node:*` when Bun lacks an alternative, especially for typed
+  filesystem helpers (e.g., `fs.promises.rm`).
 
 ## Configuration & Secrets
 
@@ -61,7 +66,6 @@ Claude Code, OpenCode) inside a shell with sidebar controls.
 
 ## Testing Guidelines
 
-- Use `bun test`.
 - Place tests under `tests/` or `src/__tests__/` using `*.test.ts`.
 - Prioritize coverage for worktree creation, tab management, provider launch,
   and config merge rules.
@@ -70,10 +74,9 @@ Claude Code, OpenCode) inside a shell with sidebar controls.
 
 - Use Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`,
   `test:`).
-- PRs should include a short summary, run instructions, linked issues, and CLI
-  output samples for UX changes. Add ADRs and `docs/` examples for new commands.
+- PRs should include a summary, run instructions, linked issues, and UX
+  samples. Add ADRs and `docs/` examples for new commands.
 
 ## AI Contribution Notes
 
 - Record validation steps and assumptions in PRs or notes.
-- Prefer dry-run paths for destructive git actions when available.

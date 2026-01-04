@@ -1,4 +1,4 @@
-import { COMMANDS } from "./commands";
+import { COMMANDS } from "@/cli/commands";
 
 type CommandMatch = {
   ok: true;

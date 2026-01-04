@@ -1,4 +1,4 @@
-import path from "node:path";
+import { joinPath } from "@/lib/path";
 
 const WORKSPACE_ROOT = "workspaces";
 
@@ -11,7 +11,16 @@ export function workspacePath(name: string): string {
     throw new Error("Workspace name must not include path separators.");
   }
 
-  return path.join(WORKSPACE_ROOT, name);
+  return joinPath(WORKSPACE_ROOT, name);
+}
+
+export function workspaceRootPath(repoRoot: string): string {
+  return joinPath(repoRoot, WORKSPACE_ROOT);
+}
+
+export async function ensureWorkspaceRoot(repoRoot: string): Promise<void> {
+  const markerPath = joinPath(workspaceRootPath(repoRoot), ".pepper-keep");
+  await Bun.write(markerPath, "", { createPath: true });
 }
 
 export function buildCreateWorktreeCommand(name: string, baseRef = "HEAD"): string[] {
@@ -24,8 +33,4 @@ export function buildRemoveWorktreeCommand(name: string): string[] {
 
 export function buildPruneWorktreeCommand(): string[] {
   return ["git", "worktree", "prune"];
-}
-
-export function formatCommand(parts: string[]): string {
-  return parts.join(" ");
 }

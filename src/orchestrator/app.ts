@@ -4,11 +4,11 @@ import {
   InputRenderableEvents,
   TextRenderable,
 } from "@opentui/core";
-import { parseCommand } from "../cli/commandMode";
-import { runCommand } from "../cli/commandRunner";
-import { matchesChord, parseKeyChord } from "../cli/keymap";
-import { DEFAULT_TOGGLE_MODE, loadConfig } from "../config/loadConfig";
-import { buildLayout } from "./layout";
+import { parseCommand } from "@/cli/commandMode";
+import { runCommand } from "@/cli/commandRunner";
+import { matchesChord, parseKeyChord } from "@/cli/keymap";
+import { DEFAULT_TOGGLE_MODE, loadConfig } from "@/config/loadConfig";
+import { buildLayout } from "@/orchestrator/layout";
 
 const COMMAND_INPUT_ID = "command-input";
 const COMMAND_OUTPUT_ID = "command-output";
@@ -56,7 +56,7 @@ export async function runApp() {
 
   let mode: Mode = "normal";
   let commandLineOpen = false;
-  const config = loadConfig();
+  const config = await loadConfig();
   const toggleChord = parseKeyChord(config.keymap.toggleMode) ?? parseKeyChord(DEFAULT_TOGGLE_MODE);
 
   const setMode = (nextMode: Mode) => {
@@ -116,7 +116,7 @@ export async function runApp() {
     enterNormalMode();
   };
 
-  commandInput.on(InputRenderableEvents.ENTER, (value: string) => {
+  commandInput.on(InputRenderableEvents.ENTER, async (value: string) => {
     const parsed = parseCommand(value);
     if (!parsed.ok) {
       setOutput(`Error: ${parsed.error}`);
@@ -124,7 +124,7 @@ export async function runApp() {
       return;
     }
 
-    const result = runCommand(parsed.name, parsed.args);
+    const result = await runCommand(parsed.name, parsed.args);
     setOutput(result.message);
     hideCommandLine();
   });

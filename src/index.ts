@@ -1,3 +1,3 @@
-import { runApp } from "./orchestrator/app";
+import { runApp } from "@/orchestrator/app";
 
 await runApp();
