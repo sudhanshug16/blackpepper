@@ -1,0 +1,7 @@
+node_modules
+bun.lock
+coverage
+dist
+out
+/workspaces
+.config/blackpepper

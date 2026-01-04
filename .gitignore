@@ -27,6 +27,10 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .cache
 *.tsbuildinfo
 
+# workspaces + local config
+/workspaces
+.config/blackpepper
+
 # IntelliJ based IDEs
 .idea
 
