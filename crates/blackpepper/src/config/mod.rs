@@ -1,3 +1,12 @@
+//! Configuration loading and merging.
+//!
+//! Config is loaded from two sources with workspace taking precedence:
+//! 1. User-level: `~/.blackpepper/config.toml`
+//! 2. Workspace-level: `<repo>/.blackpepper/config.toml`
+//!
+//! Supports keymap customization, terminal command override, and
+//! workspace root configuration. Uses TOML format with serde.
+
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -131,4 +140,109 @@ pub fn load_config(root: &Path) -> Config {
     let user_config = user_path.and_then(|path| read_toml(&path));
 
     merge_config(user_config, workspace_config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_config;
+    use std::env;
+    use std::fs;
+    use std::path::Path;
+    use std::sync::{Mutex, OnceLock};
+    use tempfile::TempDir;
+
+    static HOME_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn home_lock() -> std::sync::MutexGuard<'static, ()> {
+        HOME_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
+
+    fn write_config(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create config dir");
+        }
+        fs::write(path, contents).expect("write config");
+    }
+
+    #[test]
+    fn load_config_uses_defaults_when_empty() {
+        let _guard = home_lock();
+        let original_home = env::var("HOME").ok();
+        let home = TempDir::new().expect("temp home");
+        env::set_var("HOME", home.path());
+
+        let repo = TempDir::new().expect("temp repo");
+        let config = load_config(repo.path());
+
+        assert_eq!(config.keymap.toggle_mode, "ctrl+g");
+        assert_eq!(config.keymap.switch_workspace, "ctrl+p");
+        assert_eq!(config.keymap.switch_tab, "ctrl+o");
+        assert_eq!(config.terminal.command, None);
+        assert!(config.terminal.args.is_empty());
+        assert_eq!(config.workspace.root, Path::new(".blackpepper/workspaces"));
+
+        if let Some(home) = original_home {
+            env::set_var("HOME", home);
+        } else {
+            env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn load_config_merges_user_and_workspace() {
+        let _guard = home_lock();
+        let original_home = env::var("HOME").ok();
+        let home = TempDir::new().expect("temp home");
+        env::set_var("HOME", home.path());
+
+        let user_config_path = home.path().join(".blackpepper").join("config.toml");
+        write_config(
+            &user_config_path,
+            r#"
+[keymap]
+toggle_mode = "ctrl+x"
+switch_workspace = "ctrl+u"
+
+[terminal]
+command = "zsh"
+args = ["-l"]
+
+[workspace]
+root = "user/workspaces"
+"#,
+        );
+
+        let repo = TempDir::new().expect("temp repo");
+        let workspace_config_path = repo
+            .path()
+            .join(".blackpepper")
+            .join("config.toml");
+        write_config(
+            &workspace_config_path,
+            r#"
+[keymap]
+toggle_mode = "ctrl+y"
+
+[terminal]
+command = "fish"
+
+[workspace]
+root = ".pepper/workspaces"
+"#,
+        );
+
+        let config = load_config(repo.path());
+
+        assert_eq!(config.keymap.toggle_mode, "ctrl+y");
+        assert_eq!(config.keymap.switch_workspace, "ctrl+u");
+        assert_eq!(config.terminal.command, Some("fish".to_string()));
+        assert_eq!(config.terminal.args, vec!["-l".to_string()]);
+        assert_eq!(config.workspace.root, Path::new(".pepper/workspaces"));
+
+        if let Some(home) = original_home {
+            env::set_var("HOME", home);
+        } else {
+            env::remove_var("HOME");
+        }
+    }
 }
