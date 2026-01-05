@@ -4,12 +4,49 @@ on:
   push:
     tags:
       - "v*"
+  workflow_run:
+    workflows: ["Auto Tag Release"]
+    types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      should_release: ${{ steps.tag.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          VERSION=$(sed -nE 's/^version\s*=\s*"([^"]+)".*/\1/p' crates/blackpepper/Cargo.toml | head -n1)
+          if [ -z "$VERSION" ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TAG="v$VERSION"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_release=false" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: resolve
+    if: needs.resolve.outputs.should_release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +81,8 @@ jobs:
           path: dist/${{ matrix.asset }}
 
   release:
-    needs: build
+    needs: [resolve, build]
+    if: needs.resolve.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -56,4 +94,6 @@ jobs:
           find dist -type f -name "*.tar.gz" -exec cp {} release/ \;
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          name: ${{ needs.resolve.outputs.tag }}
           files: release/*
