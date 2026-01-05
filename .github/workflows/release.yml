@@ -31,13 +31,29 @@ jobs:
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          VERSION=$(sed -nE 's/^version\s*=\s*"([^"]+)".*/\1/p' crates/blackpepper/Cargo.toml | head -n1)
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            SHA="${{ github.sha }}"
+          fi
+
+          VERSION=$(git show "$SHA":crates/blackpepper/Cargo.toml | sed -nE 's/^version\s*=\s*"([^"]+)".*/\1/p' | head -n1)
           if [ -z "$VERSION" ]; then
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           TAG="v$VERSION"
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            TAG_SHA=$(git rev-parse "$TAG")
+            if [ "$TAG_SHA" != "$SHA" ]; then
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "tag=$TAG" >> "$GITHUB_OUTPUT"
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             exit 0
