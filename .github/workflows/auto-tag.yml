@@ -21,7 +21,7 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          VERSION=$(rg -n '^version\s*=\s*"' crates/blackpepper/Cargo.toml | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION=$(sed -nE 's/^version\s*=\s*"([^"]+)".*/\1/p' crates/blackpepper/Cargo.toml | head -n1)
           if [ -z "$VERSION" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
