@@ -520,10 +520,22 @@ impl App {
 
     fn body_lines(&self) -> Vec<Line<'_>> {
         let mut lines = Vec::new();
-        lines.push(Line::from(vec![
-            Span::styled("Blackpepper", Style::default().fg(Color::Yellow)),
-            Span::raw("  Rust TUI"),
-        ]));
+        lines.push(Line::from(Span::styled(
+            "                _     _  _       ",
+            Style::default().fg(Color::Yellow),
+        )));
+        lines.push(Line::from(Span::styled(
+            "|_  |  _  _  | |_) _ |_)|_) _  __",
+            Style::default().fg(Color::Yellow),
+        )));
+        lines.push(Line::from(Span::styled(
+            "|_) | (_|(_  |<|  (/_|  |  (/_ | ",
+            Style::default().fg(Color::Yellow),
+        )));
+        lines.push(Line::from(Span::styled(
+            "Rust TUI",
+            Style::default().fg(Color::Yellow),
+        )));
         lines.push(Line::raw(""));
         if let Some(workspace) = &self.active_workspace {
             lines.push(Line::raw(format!("Active workspace: {workspace}")));

@@ -24,9 +24,23 @@
         padding: 80px 24px 120px;
       }
       h1 {
-        font-size: clamp(2.4rem, 4vw, 3.6rem);
-        margin: 0 0 16px;
-        letter-spacing: -0.02em;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .logo {
+        font-family: "Fira Code", "Cascadia Code", "Source Code Pro", monospace;
+        font-size: clamp(1.2rem, 2.4vw, 1.7rem);
+        line-height: 1.1;
+        color: var(--ink);
+        margin: 0 0 24px;
+        white-space: pre;
       }
       p {
         font-size: 1.1rem;
@@ -60,6 +74,9 @@
   <body>
     <main>
       <h1>blackpepper</h1>
+      <pre class="logo">                _     _  _       
+|_  |  _  _  | |_) _ |_)|_) _  __
+|_) | (_|(_  |<|  (/_|  |  (/_ | </pre>
       <p>
         Terminal orchestration for TUI coding agents. One UI, multiple providers, shared
         workspaces, and fast context switching.
