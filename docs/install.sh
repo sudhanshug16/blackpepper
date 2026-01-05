@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="anomalyco/blackpepper"
+REPO="sudhanshug16/blackpepper"
 BIN_NAME="bp"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
