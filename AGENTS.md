@@ -2,12 +2,12 @@
 
 ## Overview
 
-Blackpepper embeds provider UIs (Codex, Claude Code, OpenCode) inside a TUI.
+Blackpepper embeds provider UIs (Codex, Claude Code, OpenCode) inside a Rust TUI
+with an embedded shell per workspace.
 
 ## Project Structure & Module Organization
 
-- `src/`: runtime code, organized into `src/orchestrator/`, `src/workspaces/`,
-  `src/providers/`, and `src/cli/`.
+- `crates/blackpepper/src/`: Rust runtime code (TUI, workspaces, config, PTY).
 - `docs/`: ADRs and examples.
 
 ## Workspace & Task Model
@@ -27,30 +27,23 @@ Blackpepper embeds provider UIs (Codex, Claude Code, OpenCode) inside a TUI.
 
 ## Build, Test, and Development Commands
 
-- `bun install`: install dependencies.
-- `bun dev`: run locally in watch mode (see `package.json` for the entry point).
-- `bun run build`: bundle the CLI to `dist/`.
-- `bun test`: run tests.
-- `bun run lint`: run ESLint.
-- `bun run format`: format with Prettier.
-- `bun run format:check`: verify formatting.
+- `cargo run -p blackpepper`: run the TUI.
+- `cargo build -p blackpepper`: build the binary.
+- `cargo test -p blackpepper`: run tests.
+- `cargo fmt`: format Rust sources.
+- `cargo clippy --workspace -- -D warnings`: lint.
 
 ## Coding Style & Naming Conventions
 
-- TypeScript with ESM (`type: "module"`).
-- Formatting: Prettier. Linting: ESLint.
-- Indentation: 2 spaces; keep trailing commas where already used.
-- Use `@/` import aliases for `src/` paths.
-- Naming: PascalCase for types/classes, camelCase for functions/variables, and
-  lowercase/kebab-case for filenames. Provider adapters live under
-  `src/providers/`.
+- Rust 2021 edition. Formatting: `rustfmt`. Linting: `clippy`.
+- Indentation: 4 spaces (rustfmt defaults).
+- Naming: `snake_case` for modules/functions, `CamelCase` for types, `SCREAMING_SNAKE_CASE` for consts.
 
 ## Runtime APIs
 
-- Prefer Bun APIs in `src/` (e.g., `Bun.file`, `Bun.write`, `Bun.spawn`).
-- Avoid `node:*` imports in runtime code unless Bun has no equivalent.
-- Tests may use `node:*` when Bun lacks an alternative, especially for typed
-  filesystem helpers (e.g., `fs.promises.rm`).
+- Prefer Rust stdlib; use `portable-pty` for PTY access and `vt100` (or equivalent)
+  for ANSI parsing when rendering terminals.
+- Avoid shelling out unless necessary; centralize git/worktree calls.
 
 ## Configuration & Secrets
 
@@ -66,7 +59,7 @@ Blackpepper embeds provider UIs (Codex, Claude Code, OpenCode) inside a TUI.
 
 ## Testing Guidelines
 
-- Place tests under `tests/` or `src/__tests__/` using `*.test.ts`.
+- Place tests under `crates/blackpepper/tests/` or module `mod tests` blocks.
 - Prioritize coverage for worktree creation, tab management, provider launch,
   and config merge rules.
 

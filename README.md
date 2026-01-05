@@ -2,18 +2,34 @@
 
 blackpepper is a terminal orchestrator for TUI coding agents. It embeds provider
 UIs (Codex, Claude Code, OpenCode, and future agents) inside a unified TUI with
-shared sidebar controls, shortcuts, and workspace management.
+shared controls, shortcuts, and workspace management.
 
-## Quickstart
+## Status
+
+We are migrating the stack to Rust. The current crate includes a basic TUI with
+command mode, worktree management, and a wired PTY/ANSI terminal renderer.
+
+## Quickstart (Rust)
 
 ```bash
-bun install
-bun dev
+cargo run -p blackpepper
 ```
+
+## Tooling
+
+- `cargo build -p blackpepper`: build the binary.
+- `cargo test -p blackpepper`: run tests.
+- `cargo fmt`: format Rust sources.
+- `cargo clippy --workspace -- -D warnings`: lint.
+
+Terminal stack:
+
+- PTY: `portable-pty`
+- ANSI parsing: `vt100`
 
 ## Configuration
 
-Config is resolved in this order:
+Config resolution order:
 
 1. `./.config/blackpepper/pepper.toml`
 2. `~/.config/blackpepper/pepper.toml`
@@ -23,6 +39,25 @@ Example:
 ```toml
 [keymap]
 toggle_mode = "ctrl+g"
+switch_workspace = "ctrl+p"
+
+[terminal]
+command = "/bin/zsh"
+args = ["-l"]
+```
+
+If `[terminal]` is omitted, Blackpepper uses `$SHELL` (or `bash`/`cmd.exe`).
+
+State:
+
+- Active workspaces are tracked in `~/.config/blackpepper/state.toml` under `[active_workspaces]`.
+- Each entry maps a project root (git common dir) to the last active worktree path.
+
+Example:
+
+```toml
+[active_workspaces]
+"/path/to/blackpepper" = "/path/to/blackpepper/workspaces/otter"
 ```
 
 ## Workspaces
@@ -30,12 +65,16 @@ toggle_mode = "ctrl+g"
 Workspaces are created via `git worktree` under `./workspaces/<animal>` and can
 host multiple agent tabs in parallel.
 
+Selecting a workspace starts an embedded terminal in that worktree. Customize
+the shell with `[terminal]`.
+
 ## Modes
 
-- Normal mode keeps focus in the main TUI.
-- Control mode enables the sidebar (`Ctrl+G` to toggle).
-- Use `:` in Control mode to open the command line.
-- Use `Esc` to close the command line or return to Normal mode.
+- Work mode forwards input to the embedded terminal.
+- Manage mode enables global controls (`Ctrl+G` to toggle).
+- Use `:` in Manage mode to open the command line (hidden by default).
+- Use `Ctrl+P` to open the workspace switcher overlay.
+- Use `Esc` to close the command line or return to Work mode.
 
 ## Docs
 

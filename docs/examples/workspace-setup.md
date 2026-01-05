@@ -14,4 +14,4 @@ Notes:
 
 - Keep worktrees outside `node_modules/` and do not nest them.
 - Cleanup is manual via command mode (`:destroy`).
-- The CLI will surface these as dry-run commands via `:create <animal>`.
+- The CLI wraps these via `:create <animal>` and `:destroy <animal>`.
