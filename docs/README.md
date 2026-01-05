@@ -1,7 +1,11 @@
 # Docs
 
-Use this folder for design notes, architectural decision records (ADRs), and
-working examples.
+This folder contains supplementary documentation for Blackpepper.
 
-- `adr/`: decisions and trade-offs in short, numbered ADRs.
-- `examples/`: runnable or copy/paste snippets for CLI flows and commands.
+See [ARCHITECTURE.md](../ARCHITECTURE.md) at the repository root for the overall
+system design and module structure.
+
+## Contents
+
+- `index.html` - Landing page for web docs
+- `install.sh` - Installation script

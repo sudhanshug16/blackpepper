@@ -6,10 +6,10 @@ shared controls, shortcuts, and workspace management.
 
 ## Status
 
-We are migrating the stack to Rust. The current crate includes a basic TUI with
+We are migrating the stack. The current crate includes a basic TUI with
 command mode, worktree management, and a wired PTY/ANSI terminal renderer.
 
-## Quickstart (Rust)
+## Quickstart
 
 ```bash
 cargo run -p blackpepper
@@ -21,7 +21,7 @@ If installed, run `bp` to launch the TUI.
 
 - `cargo build -p blackpepper`: build the binary.
 - `cargo test -p blackpepper`: run tests.
-- `cargo fmt`: format Rust sources.
+- `cargo fmt`: format sources.
 - `cargo clippy --workspace -- -D warnings`: lint.
 
 Terminal stack:

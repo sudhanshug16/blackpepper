@@ -1,3 +1,4 @@
+mod animals;
 mod app;
 mod commands;
 mod config;
@@ -7,7 +8,6 @@ mod keymap;
 mod state;
 mod terminal;
 mod workspaces;
-mod animals;
 
 fn main() -> std::io::Result<()> {
     let mut args = std::env::args();
