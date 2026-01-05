@@ -21,6 +21,12 @@ pub struct TerminalSession {
     cols: u16,
 }
 
+pub struct RenderOverlay<'a> {
+    pub selection: Option<&'a [Vec<(u16, u16)>]>,
+    pub search: Option<&'a [Vec<(u16, u16)>]>,
+    pub active_search: Option<(u16, u16, u16)>,
+}
+
 impl TerminalSession {
     pub fn spawn(
         id: u64,
@@ -67,6 +73,7 @@ impl TerminalSession {
                     Err(_) => break,
                 }
             }
+            let _ = output_tx.send(AppEvent::PtyExit(id));
         });
 
         Ok(Self {
@@ -91,6 +98,73 @@ impl TerminalSession {
 
     pub fn title(&self) -> &str {
         self.parser.screen().title()
+    }
+
+    pub fn alternate_screen(&self) -> bool {
+        self.parser.screen().alternate_screen()
+    }
+
+    pub fn rows(&self) -> u16 {
+        self.rows
+    }
+
+    pub fn cols(&self) -> u16 {
+        self.cols
+    }
+
+    pub fn scrollback(&self) -> usize {
+        self.parser.screen().scrollback()
+    }
+
+    pub fn scroll_lines(&mut self, delta: isize) {
+        if delta == 0 {
+            return;
+        }
+        let max_offset = self.max_scrollback_offset();
+        let current = self.parser.screen().scrollback() as isize;
+        let next = (current + delta).max(0).min(max_offset as isize) as usize;
+        self.parser.set_scrollback(next);
+    }
+
+    pub fn scroll_to_top(&mut self) {
+        let max_offset = self.max_scrollback_offset();
+        self.parser.set_scrollback(max_offset);
+    }
+
+    pub fn scroll_to_bottom(&mut self) {
+        self.parser.set_scrollback(0);
+    }
+
+    fn max_scrollback_offset(&self) -> usize {
+        self.rows as usize
+    }
+
+    pub fn visible_rows_text(&self, rows: u16, cols: u16) -> Vec<String> {
+        self.parser
+            .screen()
+            .rows(0, cols.max(1))
+            .take(rows.max(1) as usize)
+            .collect()
+    }
+
+    pub fn contents_between(
+        &self,
+        start_row: u16,
+        start_col: u16,
+        end_row: u16,
+        end_col: u16,
+    ) -> String {
+        self.parser
+            .screen()
+            .contents_between(start_row, start_col, end_row, end_col)
+    }
+
+    pub fn scrollback_contents(&mut self) -> String {
+        let current = self.parser.screen().scrollback();
+        self.parser.set_scrollback(usize::MAX);
+        let contents = self.parser.screen().contents();
+        self.parser.set_scrollback(current);
+        contents
     }
 
     pub fn process_bytes(&mut self, bytes: &[u8]) {
@@ -123,12 +197,17 @@ impl TerminalSession {
         }
     }
 
-    pub fn render_lines(&self, rows: u16, cols: u16) -> Vec<Line<'static>> {
+    pub fn render_lines_with_overlay(
+        &self,
+        rows: u16,
+        cols: u16,
+        overlay: RenderOverlay<'_>,
+    ) -> Vec<Line<'static>> {
         let rows = rows.max(1);
         let cols = cols.max(1);
         let screen = self.parser.screen();
         let (cursor_row, cursor_col) = screen.cursor_position();
-        let show_cursor = !screen.hide_cursor();
+        let show_cursor = !screen.hide_cursor() && screen.scrollback() == 0;
 
         let mut lines = Vec::with_capacity(rows as usize);
         for row in 0..rows {
@@ -158,6 +237,13 @@ impl TerminalSession {
                 }
 
                 let mut style = style_for_cell(cell);
+                if in_ranges(overlay.selection, row, col) {
+                    style = style.bg(Color::White).fg(Color::Black);
+                } else if in_active_search(overlay.active_search, row, col) {
+                    style = style.bg(Color::Yellow).fg(Color::Black);
+                } else if in_ranges(overlay.search, row, col) {
+                    style = style.bg(Color::Blue).fg(Color::White);
+                }
                 if show_cursor && row == cursor_row && col == cursor_col {
                     style = style.add_modifier(Modifier::REVERSED);
                 }
@@ -189,6 +275,25 @@ impl TerminalSession {
 
         lines
     }
+}
+
+fn in_ranges(ranges: Option<&[Vec<(u16, u16)>]>, row: u16, col: u16) -> bool {
+    let Some(ranges) = ranges else {
+        return false;
+    };
+    let Some(row_ranges) = ranges.get(row as usize) else {
+        return false;
+    };
+    row_ranges
+        .iter()
+        .any(|(start, end)| col >= *start && col < *end)
+}
+
+fn in_active_search(active: Option<(u16, u16, u16)>, row: u16, col: u16) -> bool {
+    let Some((active_row, start, end)) = active else {
+        return false;
+    };
+    row == active_row && col >= start && col < end
 }
 
 pub fn key_event_to_bytes(key: KeyEvent) -> Option<Vec<u8>> {
@@ -237,10 +342,18 @@ pub fn mouse_event_to_bytes(
         | MouseEventKind::ScrollLeft
         | MouseEventKind::ScrollRight => true,
         MouseEventKind::Down(_) => true,
-        MouseEventKind::Up(_) => {
-            matches!(mode, MouseProtocolMode::PressRelease | MouseProtocolMode::ButtonMotion | MouseProtocolMode::AnyMotion)
-        }
-        MouseEventKind::Drag(_) => matches!(mode, MouseProtocolMode::ButtonMotion | MouseProtocolMode::AnyMotion),
+        MouseEventKind::Up(_) => matches!(
+            mode,
+            MouseProtocolMode::PressRelease
+                | MouseProtocolMode::ButtonMotion
+                | MouseProtocolMode::AnyMotion
+        ),
+        MouseEventKind::Drag(_) => matches!(
+            mode,
+            MouseProtocolMode::PressRelease
+                | MouseProtocolMode::ButtonMotion
+                | MouseProtocolMode::AnyMotion
+        ),
         MouseEventKind::Moved => mode == MouseProtocolMode::AnyMotion,
     };
 
@@ -258,7 +371,17 @@ pub fn mouse_event_to_bytes(
             MouseButton::Middle => 1,
             MouseButton::Right => 2,
         },
-        MouseEventKind::Up(_) => 3,
+        MouseEventKind::Up(button) => {
+            if encoding == MouseProtocolEncoding::Sgr {
+                match button {
+                    MouseButton::Left => 0,
+                    MouseButton::Middle => 1,
+                    MouseButton::Right => 2,
+                }
+            } else {
+                3
+            }
+        }
         MouseEventKind::Drag(button) => match button {
             MouseButton::Left => 32,
             MouseButton::Middle => 33,

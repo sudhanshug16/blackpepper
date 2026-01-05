@@ -19,6 +19,7 @@ pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "workspace",
     "tab",
     "pr",
+    "export",
     "init",
     "debug",
     "help",
@@ -42,6 +43,10 @@ pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "workspace destroy",
         description: "Destroy a workspace worktree and delete its branch (defaults to active)",
+    },
+    CommandSpec {
+        name: "export",
+        description: "Export current tab scrollback into a vi/vim buffer in a new tab",
     },
     CommandSpec {
         name: "init",

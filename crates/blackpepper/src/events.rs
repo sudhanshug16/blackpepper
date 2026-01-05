@@ -4,6 +4,7 @@ use crossterm::event::{KeyEvent, MouseEvent};
 pub enum AppEvent {
     Input(KeyEvent),
     PtyOutput(u64, Vec<u8>),
+    PtyExit(u64),
     Mouse(MouseEvent),
     #[allow(dead_code)]
     Resize(u16, u16),
