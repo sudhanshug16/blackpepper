@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 
 use crate::git::run_git;
 
-const WORKSPACE_ROOT: &str = "workspaces";
-
 pub fn is_valid_workspace_name(name: &str) -> bool {
     let mut chars = name.chars();
     let Some(first) = chars.next() else { return false };
@@ -19,30 +17,34 @@ pub fn is_valid_workspace_name(name: &str) -> bool {
     true
 }
 
-pub fn workspace_path(name: &str) -> PathBuf {
+pub fn workspace_path(workspace_root: &Path, name: &str) -> PathBuf {
     if name.contains('/') || name.contains('\\') {
         panic!("Workspace name must not include path separators.");
     }
-    PathBuf::from(WORKSPACE_ROOT).join(name)
+    workspace_root.join(name)
 }
 
-pub fn workspace_root_path(repo_root: &Path) -> PathBuf {
-    repo_root.join(WORKSPACE_ROOT)
+pub fn workspace_root_path(repo_root: &Path, workspace_root: &Path) -> PathBuf {
+    if workspace_root.is_absolute() {
+        workspace_root.to_path_buf()
+    } else {
+        repo_root.join(workspace_root)
+    }
 }
 
-pub fn workspace_absolute_path(repo_root: &Path, name: &str) -> PathBuf {
-    repo_root.join(workspace_path(name))
+pub fn workspace_absolute_path(repo_root: &Path, workspace_root: &Path, name: &str) -> PathBuf {
+    workspace_root_path(repo_root, workspace_root).join(name)
 }
 
-pub fn ensure_workspace_root(repo_root: &Path) -> std::io::Result<()> {
-    let marker = workspace_root_path(repo_root).join(".pepper-keep");
+pub fn ensure_workspace_root(repo_root: &Path, workspace_root: &Path) -> std::io::Result<()> {
+    let marker = workspace_root_path(repo_root, workspace_root).join(".pepper-keep");
     if let Some(parent) = marker.parent() {
         fs::create_dir_all(parent)?;
     }
     fs::write(marker, "")
 }
 
-pub fn list_workspace_names(repo_root: &Path) -> Vec<String> {
+pub fn list_workspace_names(repo_root: &Path, workspace_root: &Path) -> Vec<String> {
     let result = run_git(["worktree", "list", "--porcelain"].as_ref(), repo_root);
     if !result.ok {
         return Vec::new();
@@ -52,7 +54,7 @@ pub fn list_workspace_names(repo_root: &Path) -> Vec<String> {
     for line in result.stdout.lines() {
         let line = line.trim();
         if let Some(rest) = line.strip_prefix("worktree ") {
-            if let Some(name) = workspace_name_from_path(rest) {
+            if let Some(name) = workspace_name_from_path(repo_root, workspace_root, Path::new(rest)) {
                 if !names.contains(&name) {
                     names.push(name);
                 }
@@ -64,21 +66,22 @@ pub fn list_workspace_names(repo_root: &Path) -> Vec<String> {
     names
 }
 
-pub fn workspace_name_from_path(worktree_path: &str) -> Option<String> {
-    let normalized = worktree_path.replace('\\', "/");
-    let trimmed = normalized.strip_prefix("./").unwrap_or(&normalized);
-    let marker = "/workspaces/";
-
-    if let Some(index) = trimmed.rfind(marker) {
-        let remainder = &trimmed[index + marker.len()..];
-        let name = remainder.split('/').next().unwrap_or("");
-        return if name.is_empty() { None } else { Some(name.to_string()) };
+pub fn workspace_name_from_path(
+    repo_root: &Path,
+    workspace_root: &Path,
+    worktree_path: &Path,
+) -> Option<String> {
+    let root = workspace_root_path(repo_root, workspace_root);
+    let absolute = if worktree_path.is_absolute() {
+        worktree_path.to_path_buf()
+    } else {
+        repo_root.join(worktree_path)
+    };
+    let remainder = absolute.strip_prefix(&root).ok()?;
+    let name = remainder.iter().next()?.to_string_lossy();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
     }
-
-    if let Some(rest) = trimmed.strip_prefix("workspaces/") {
-        let name = rest.split('/').next().unwrap_or("");
-        return if name.is_empty() { None } else { Some(name.to_string()) };
-    }
-
-    None
 }

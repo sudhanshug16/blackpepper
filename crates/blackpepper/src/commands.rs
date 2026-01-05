@@ -1,9 +1,13 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fs, io};
 
 use crate::animals::ANIMAL_NAMES;
 use crate::git::{run_git, ExecResult, resolve_repo_root};
-use crate::workspaces::{ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_path};
+use crate::workspaces::{
+    ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_path,
+};
 
 #[derive(Debug, Clone)]
 pub struct CommandSpec {
@@ -11,7 +15,16 @@ pub struct CommandSpec {
     pub description: &'static str,
 }
 
-pub const TOP_LEVEL_COMMANDS: &[&str] = &["workspace", "tab", "pr", "debug", "help", "quit", "q"];
+pub const TOP_LEVEL_COMMANDS: &[&str] = &[
+    "workspace",
+    "tab",
+    "pr",
+    "init",
+    "debug",
+    "help",
+    "quit",
+    "q",
+];
 
 pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
@@ -28,7 +41,11 @@ pub const COMMANDS: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "workspace destroy",
-        description: "Destroy a workspace worktree (defaults to active)",
+        description: "Destroy a workspace worktree and delete its branch (defaults to active)",
+    },
+    CommandSpec {
+        name: "init",
+        description: "Initialize project config and gitignore",
     },
     CommandSpec {
         name: "tab new",
@@ -111,6 +128,8 @@ pub struct CommandResult {
 #[derive(Debug, Clone)]
 pub struct CommandContext {
     pub cwd: PathBuf,
+    pub repo_root: Option<PathBuf>,
+    pub workspace_root: PathBuf,
 }
 
 pub fn parse_command(input: &str) -> CommandParseResult {
@@ -317,16 +336,24 @@ fn unique_animal_names() -> Vec<String> {
 }
 
 fn pick_unused_animal_name(used: &HashSet<String>) -> Option<String> {
-    for name in unique_animal_names() {
-        if !used.contains(&name) {
-            return Some(name);
-        }
+    let unused: Vec<String> = unique_animal_names()
+        .into_iter()
+        .filter(|name| !used.contains(name))
+        .collect();
+    if unused.is_empty() {
+        return None;
     }
-    None
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let index = (nanos % unused.len() as u128) as usize;
+    unused.get(index).cloned()
 }
 
 pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> CommandResult {
     match name {
+        "init" => init_project(args, ctx),
         "help" => CommandResult {
             ok: true,
             message: command_help_lines().join("\n"),
@@ -405,18 +432,21 @@ pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> Command
 }
 
 fn workspace_create(args: &[String], ctx: &CommandContext) -> CommandResult {
-    let repo_root = match resolve_repo_root(&ctx.cwd) {
-        Some(root) => root,
-        None => {
-            return CommandResult {
-                ok: false,
-                message: "Not inside a git repository.".to_string(),
-                data: None,
-            }
-        }
+    let repo_root = ctx
+        .repo_root
+        .clone()
+        .or_else(|| resolve_repo_root(&ctx.cwd))
+        .ok_or_else(|| CommandResult {
+            ok: false,
+            message: "Not inside a git repository.".to_string(),
+            data: None,
+        });
+    let repo_root = match repo_root {
+        Ok(root) => root,
+        Err(result) => return result,
     };
 
-    if let Err(error) = ensure_workspace_root(&repo_root) {
+    if let Err(error) = ensure_workspace_root(&repo_root, &ctx.workspace_root) {
         return CommandResult {
             ok: false,
             message: format!("Failed to create workspace root: {error}"),
@@ -424,7 +454,8 @@ fn workspace_create(args: &[String], ctx: &CommandContext) -> CommandResult {
         };
     }
 
-    let used_names: HashSet<String> = list_workspace_names(&repo_root).into_iter().collect();
+    let used_names: HashSet<String> =
+        list_workspace_names(&repo_root, &ctx.workspace_root).into_iter().collect();
     let mut workspace_name = args.get(0).cloned();
     if workspace_name.is_none() {
         workspace_name = pick_unused_animal_name(&used_names);
@@ -459,7 +490,7 @@ fn workspace_create(args: &[String], ctx: &CommandContext) -> CommandResult {
         };
     }
 
-    let worktree_path = workspace_path(&workspace_name);
+    let worktree_path = workspace_path(&ctx.workspace_root, &workspace_name);
     let worktree_path_str = worktree_path.to_string_lossy().to_string();
     let args = [
         "worktree",
@@ -486,10 +517,103 @@ fn workspace_create(args: &[String], ctx: &CommandContext) -> CommandResult {
         ok: true,
         message: format!(
             "Created workspace '{workspace_name}' at {}.{details}",
-            workspace_path(&workspace_name).to_string_lossy()
+            worktree_path.to_string_lossy()
         ),
         data: Some(workspace_name),
     }
+}
+
+fn init_project(args: &[String], ctx: &CommandContext) -> CommandResult {
+    if !args.is_empty() {
+        return CommandResult {
+            ok: false,
+            message: "Usage: :init".to_string(),
+            data: None,
+        };
+    }
+    let repo_root = ctx
+        .repo_root
+        .clone()
+        .or_else(|| resolve_repo_root(&ctx.cwd))
+        .ok_or_else(|| CommandResult {
+            ok: false,
+            message: "Not inside a git repository.".to_string(),
+            data: None,
+        });
+    let repo_root = match repo_root {
+        Ok(root) => root,
+        Err(result) => return result,
+    };
+
+    let mut actions = Vec::new();
+    let gitignore_path = repo_root.join(".gitignore");
+    match ensure_gitignore_entries(&gitignore_path, &[".blackpepper/workspaces/"]) {
+        Ok(true) => actions.push("updated .gitignore"),
+        Ok(false) => actions.push(".gitignore already up to date"),
+        Err(err) => {
+            return CommandResult {
+                ok: false,
+                message: format!("Failed to update .gitignore: {err}"),
+                data: None,
+            }
+        }
+    }
+
+    let config_path = repo_root.join(".blackpepper").join("config.toml");
+    match ensure_project_config(&config_path) {
+        Ok(true) => actions.push("created .blackpepper/config.toml"),
+        Ok(false) => actions.push("project config already exists"),
+        Err(err) => {
+            return CommandResult {
+                ok: false,
+                message: format!("Failed to create project config: {err}"),
+                data: None,
+            }
+        }
+    }
+
+    CommandResult {
+        ok: true,
+        message: format!("Initialized Blackpepper project: {}.", actions.join(", ")),
+        data: None,
+    }
+}
+
+fn ensure_gitignore_entries(path: &Path, entries: &[&str]) -> io::Result<bool> {
+    let existing = fs::read_to_string(path).unwrap_or_default();
+    let mut known: HashSet<String> = existing.lines().map(|line| line.trim().to_string()).collect();
+    let mut output = existing;
+    let mut changed = false;
+
+    if !output.is_empty() && !output.ends_with('\n') {
+        output.push('\n');
+        changed = true;
+    }
+
+    for entry in entries {
+        if !known.contains(*entry) {
+            output.push_str(entry);
+            output.push('\n');
+            known.insert((*entry).to_string());
+            changed = true;
+        }
+    }
+
+    if changed {
+        fs::write(path, output)?;
+    }
+    Ok(changed)
+}
+
+fn ensure_project_config(path: &Path) -> io::Result<bool> {
+    if path.exists() {
+        return Ok(false);
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, "")?;
+    Ok(true)
 }
 
 fn workspace_destroy(args: &[String], ctx: &CommandContext) -> CommandResult {
@@ -507,18 +631,23 @@ fn workspace_destroy(args: &[String], ctx: &CommandContext) -> CommandResult {
             data: None,
         };
     }
-    let repo_root = match resolve_repo_root(&ctx.cwd) {
-        Some(root) => root,
-        None => {
-            return CommandResult {
-                ok: false,
-                message: "Not inside a git repository.".to_string(),
-                data: None,
-            }
-        }
+    let repo_root = ctx
+        .repo_root
+        .clone()
+        .or_else(|| resolve_repo_root(&ctx.cwd))
+        .ok_or_else(|| CommandResult {
+            ok: false,
+            message: "Not inside a git repository.".to_string(),
+            data: None,
+        });
+    let repo_root = match repo_root {
+        Ok(root) => root,
+        Err(result) => return result,
     };
 
-    let worktree_path_str = workspace_path(name).to_string_lossy().to_string();
+    let worktree_path_str = workspace_path(&ctx.workspace_root, name)
+        .to_string_lossy()
+        .to_string();
     let args = ["worktree", "remove", worktree_path_str.as_str()];
     let result = run_git(args.as_ref(), &repo_root);
     if !result.ok {
@@ -531,14 +660,39 @@ fn workspace_destroy(args: &[String], ctx: &CommandContext) -> CommandResult {
         };
     }
 
+    let mut deleted_branch = false;
+    if branch_exists(&repo_root, name) {
+        let args = ["branch", "-D", name.as_str()];
+        let result = run_git(args.as_ref(), &repo_root);
+        if !result.ok {
+            let output = format_exec_output(&result);
+            let details = if output.is_empty() { "".to_string() } else { format!("\n{output}") };
+            return CommandResult {
+                ok: false,
+                message: format!(
+                    "Removed workspace '{name}', but failed to delete branch '{name}'.{details}"
+                ),
+                data: None,
+            };
+        }
+        deleted_branch = true;
+    }
+
     let output = format_exec_output(&result);
     let details = if output.is_empty() { "".to_string() } else { format!("\n{output}") };
     CommandResult {
         ok: true,
-        message: format!(
-            "Removed workspace '{name}' from {}.{details}",
-            workspace_path(name).to_string_lossy()
-        ),
+        message: if deleted_branch {
+            format!(
+                "Removed workspace '{name}' from {} and deleted its branch.{details}",
+                workspace_path(&ctx.workspace_root, name).to_string_lossy()
+            )
+        } else {
+            format!(
+                "Removed workspace '{name}' from {}.{details}",
+                workspace_path(&ctx.workspace_root, name).to_string_lossy()
+            )
+        },
         data: None,
     }
 }

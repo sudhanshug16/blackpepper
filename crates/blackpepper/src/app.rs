@@ -43,13 +43,14 @@ struct WorkspaceOverlay {
 #[derive(Debug, Default)]
 struct TabOverlay {
     visible: bool,
-    items: Vec<String>,
+    items: Vec<usize>,
     selected: usize,
 }
 
 struct WorkspaceTab {
     id: u64,
     name: String,
+    explicit_name: bool,
     terminal: TerminalSession,
 }
 
@@ -91,6 +92,8 @@ struct App {
     mouse_debug: bool,
     loading: Option<String>,
 }
+
+const MAX_TAB_LABEL_LEN: usize = 20;
 
 pub fn run() -> io::Result<()> {
     let mut stdout = io::stdout();
@@ -140,19 +143,23 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
 impl App {
     fn new(event_tx: Sender<AppEvent>) -> Self {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let config = load_config(&cwd);
+        let mut repo_root = resolve_repo_root(&cwd);
+        let config_root = repo_root.as_deref().unwrap_or(&cwd);
+        let config = load_config(config_root);
         let toggle_chord = parse_key_chord(&config.keymap.toggle_mode);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
         let switch_tab_chord = parse_key_chord(&config.keymap.switch_tab);
 
-        let mut repo_root = resolve_repo_root(&cwd);
         let mut active_workspace = None;
         let mut app_cwd = cwd.clone();
 
         if let (Some(root), Some(state)) = (repo_root.as_ref(), load_state()) {
             if let Some(path) = get_active_workspace(&state, root) {
-                let path_string = path.to_string_lossy().to_string();
-                if let Some(name) = workspace_name_from_path(&path_string) {
+                if let Some(name) = workspace_name_from_path(
+                    root,
+                    &config.workspace.root,
+                    &path,
+                ) {
                     active_workspace = Some(name);
                     app_cwd = path;
                     repo_root = resolve_repo_root(&app_cwd).or(repo_root);
@@ -344,22 +351,27 @@ impl App {
     fn render_tab_overlay(&self, frame: &mut ratatui::Frame, area: Rect) {
         let overlay_rect = centered_rect(50, 40, area);
         let mut lines = Vec::new();
-        let active_index = self
+        let tabs = self
             .active_workspace
             .as_deref()
-            .and_then(|workspace| self.tabs.get(workspace))
-            .map(|tabs| tabs.active);
-        for (idx, name) in self.tab_overlay.items.iter().enumerate() {
-            let mut label = name.clone();
-            if Some(idx) == active_index {
-                label = format!("{label} (active)");
+            .and_then(|workspace| self.tabs.get(workspace));
+        if let Some(tabs) = tabs {
+            for (idx, tab_index) in self.tab_overlay.items.iter().enumerate() {
+                let mut label = tabs
+                    .tabs
+                    .get(*tab_index)
+                    .map(|tab| self.tab_display_label(tab))
+                    .unwrap_or_else(|| "tab".to_string());
+                if Some(*tab_index) == Some(tabs.active) {
+                    label = format!("{label} (active)");
+                }
+                let style = if idx == self.tab_overlay.selected {
+                    Style::default().fg(Color::Black).bg(Color::White)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                lines.push(Line::from(Span::styled(label, style)));
             }
-            let style = if idx == self.tab_overlay.selected {
-                Style::default().fg(Color::Black).bg(Color::White)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            lines.push(Line::from(Span::styled(label, style)));
         }
         let block = Block::default().borders(Borders::ALL).title("Tabs");
         frame.render_widget(Paragraph::new(lines).block(block), overlay_rect);
@@ -446,7 +458,7 @@ impl App {
             if index > 0 {
                 spans.push(Span::raw("  "));
             }
-            let label = format!("{}:{}", index + 1, tab.name);
+            let label = format!("{}:{}", index + 1, self.tab_display_label(tab));
             let style = if index == tabs.active {
                 Style::default().fg(Color::Black).bg(Color::White)
             } else {
@@ -691,9 +703,8 @@ impl App {
                 self.close_tab_overlay();
             }
             KeyCode::Enter => {
-                if let Some(name) = self.tab_overlay.items.get(self.tab_overlay.selected) {
-                    let name = name.clone();
-                    self.tab_select_by_arg(&name);
+                if let Some(index) = self.tab_overlay.items.get(self.tab_overlay.selected) {
+                    self.tab_select(*index);
                 }
                 self.close_tab_overlay();
             }
@@ -740,13 +751,26 @@ impl App {
             self.set_output("No tabs yet.".to_string());
             return;
         }
-        self.tab_overlay.items = tabs.tabs.iter().map(|tab| tab.name.clone()).collect();
+        self.tab_overlay.items = (0..tabs.tabs.len()).collect();
         self.tab_overlay.selected = tabs.active;
         self.tab_overlay.visible = true;
     }
 
     fn close_tab_overlay(&mut self) {
         self.tab_overlay.visible = false;
+    }
+
+    fn tab_display_label(&self, tab: &WorkspaceTab) -> String {
+        if tab.explicit_name {
+            return truncate_label(&tab.name, MAX_TAB_LABEL_LEN);
+        }
+        let title = tab.terminal.title().trim();
+        if title.is_empty() {
+            truncate_label(&tab.name, MAX_TAB_LABEL_LEN)
+        } else {
+            let title = simplify_title(title);
+            truncate_label(&title, MAX_TAB_LABEL_LEN)
+        }
     }
 
     fn overlay_visible(&self) -> bool {
@@ -783,6 +807,8 @@ impl App {
         self.loading = Some(label);
         let ctx = CommandContext {
             cwd: self.cwd.clone(),
+            repo_root: self.repo_root.clone(),
+            workspace_root: self.config.workspace.root.clone(),
         };
         let tx = self.event_tx.clone();
         let name = name.to_string();
@@ -894,7 +920,7 @@ impl App {
             }
         };
 
-        let names = list_workspace_names(&root);
+        let names = list_workspace_names(&root, &self.config.workspace.root);
         if names.is_empty() {
             self.overlay.message = Some("No workspaces yet.".to_string());
             self.overlay.items.clear();
@@ -994,6 +1020,8 @@ impl App {
             &parsed.args,
             &CommandContext {
                 cwd: self.cwd.clone(),
+                repo_root: self.repo_root.clone(),
+                workspace_root: self.config.workspace.root.clone(),
             },
         );
         self.set_output(result.message);
@@ -1007,15 +1035,15 @@ impl App {
             Some(root) => root.clone(),
             None => return Err("Not inside a git repository.".to_string()),
         };
-        let names = list_workspace_names(&root);
+        let names = list_workspace_names(&root, &self.config.workspace.root);
         if !names.iter().any(|entry| entry == name) {
             return Err(format!("Workspace '{name}' not found."));
         }
-        let workspace_path = workspace_absolute_path(&root, name);
+        let workspace_path = workspace_absolute_path(&root, &self.config.workspace.root, name);
         self.cwd = workspace_path.clone();
         self.active_workspace = Some(name.to_string());
         let _ = record_active_workspace(&root, &workspace_path);
-        self.config = load_config(&self.cwd);
+        self.config = load_config(&root);
         self.ensure_active_workspace_tabs(24, 80)
     }
 
@@ -1119,22 +1147,23 @@ impl App {
         };
 
         let tabs = self.tabs.entry(workspace).or_insert_with(WorkspaceTabs::new);
-        let name = match desired_name {
+        let (name, explicit_name) = match desired_name {
             Some(name) => {
                 if tabs.tabs.iter().any(|tab| tab.name == name) {
                     return Err(format!("Tab '{name}' already exists."));
                 }
-                name
+                (name, true)
             }
             None => {
                 let name = format!("tab-{}", tabs.next_index);
                 tabs.next_index += 1;
-                name
+                (name, false)
             }
         };
         tabs.tabs.push(WorkspaceTab {
             id: session.id(),
             name: name.clone(),
+            explicit_name,
             terminal: session,
         });
         tabs.active = tabs.tabs.len().saturating_sub(1);
@@ -1222,6 +1251,7 @@ impl App {
             .get_mut(tabs.active)
             .ok_or_else(|| "No active tab.".to_string())?;
         tab.name = name.to_string();
+        tab.explicit_name = true;
         Ok(())
     }
 
@@ -1295,6 +1325,33 @@ fn spawn_input_thread(sender: Sender<AppEvent>) {
     });
 }
 
+fn simplify_title(title: &str) -> String {
+    let mut cleaned = title.trim();
+    if let Some((head, _)) = cleaned.split_once(" - ") {
+        cleaned = head.trim();
+    }
+    if let Some(idx) = cleaned.rfind(&['/', '\\'][..]) {
+        let tail = cleaned[idx + 1..].trim();
+        if !tail.is_empty() {
+            return tail.to_string();
+        }
+    }
+    cleaned.to_string()
+}
+
+fn truncate_label(label: &str, max_len: usize) -> String {
+    let len = label.chars().count();
+    if len <= max_len {
+        return label.to_string();
+    }
+    if max_len <= 3 {
+        return label.chars().take(max_len).collect();
+    }
+    let keep = max_len - 3;
+    let mut out: String = label.chars().take(keep).collect();
+    out.push_str("...");
+    out
+}
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let vertical = Layout::default()

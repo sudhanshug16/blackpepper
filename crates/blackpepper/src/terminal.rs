@@ -89,6 +89,10 @@ impl TerminalSession {
         (screen.mouse_protocol_mode(), screen.mouse_protocol_encoding())
     }
 
+    pub fn title(&self) -> &str {
+        self.parser.screen().title()
+    }
+
     pub fn process_bytes(&mut self, bytes: &[u8]) {
         self.parser.process(bytes);
     }

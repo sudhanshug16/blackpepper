@@ -31,7 +31,7 @@ Terminal stack:
 
 Config resolution order:
 
-1. `./.config/blackpepper/pepper.toml`
+1. `./.blackpepper/config.toml`
 2. `~/.config/blackpepper/pepper.toml`
 
 Example:
@@ -44,6 +44,9 @@ switch_workspace = "ctrl+p"
 [terminal]
 command = "/bin/zsh"
 args = ["-l"]
+
+[workspace]
+root = ".blackpepper/workspaces"
 ```
 
 If `[terminal]` is omitted, Blackpepper uses `$SHELL` (or `bash`/`cmd.exe`).
@@ -57,13 +60,17 @@ Example:
 
 ```toml
 [active_workspaces]
-"/path/to/blackpepper" = "/path/to/blackpepper/workspaces/otter"
+"/path/to/blackpepper" = "/path/to/blackpepper/.blackpepper/workspaces/otter"
 ```
 
 ## Workspaces
 
-Workspaces are created via `git worktree` under `./workspaces/<animal>` and can
-host multiple agent tabs in parallel.
+Workspaces are created via `git worktree` under `./.blackpepper/workspaces/<animal>`
+by default and can host multiple agent tabs in parallel. Override the root
+with `[workspace].root` in `config.toml`.
+
+Run `pepper init` (or `:init` inside the TUI) to add gitignore entries and
+create an empty project config at `./.blackpepper/config.toml`.
 
 Selecting a workspace starts an embedded terminal in that worktree. Customize
 the shell with `[terminal]`.

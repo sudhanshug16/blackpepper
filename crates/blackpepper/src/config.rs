@@ -5,11 +5,13 @@ use std::path::{Path, PathBuf};
 const DEFAULT_TOGGLE_MODE: &str = "ctrl+g";
 const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+p";
 const DEFAULT_SWITCH_TAB: &str = "ctrl+o";
+const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub keymap: KeymapConfig,
     pub terminal: TerminalConfig,
+    pub workspace: WorkspaceConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -25,10 +27,16 @@ pub struct TerminalConfig {
     pub args: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct WorkspaceConfig {
+    pub root: PathBuf,
+}
+
 #[derive(Debug, Default, Deserialize)]
 struct RawConfig {
     keymap: Option<RawKeymap>,
     terminal: Option<RawTerminal>,
+    workspace: Option<RawWorkspace>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -45,6 +53,11 @@ struct RawKeymap {
 struct RawTerminal {
     command: Option<String>,
     args: Option<Vec<String>>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RawWorkspace {
+    root: Option<String>,
 }
 
 fn read_toml(path: &Path) -> Option<RawConfig> {
@@ -73,6 +86,8 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
 
     let workspace_terminal = workspace.as_ref().and_then(|c| c.terminal.as_ref());
     let user_terminal = user.as_ref().and_then(|c| c.terminal.as_ref());
+    let workspace_workspace = workspace.as_ref().and_then(|c| c.workspace.as_ref());
+    let user_workspace = user.as_ref().and_then(|c| c.workspace.as_ref());
 
     let command = workspace_terminal
         .and_then(|t| t.command.clone())
@@ -81,6 +96,10 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         .and_then(|t| t.args.clone())
         .or_else(|| user_terminal.and_then(|t| t.args.clone()))
         .unwrap_or_default();
+    let workspace_root = workspace_workspace
+        .and_then(|w| w.root.clone())
+        .or_else(|| user_workspace.and_then(|w| w.root.clone()))
+        .unwrap_or_else(|| DEFAULT_WORKSPACE_ROOT.to_string());
 
     Config {
         keymap: KeymapConfig {
@@ -89,11 +108,14 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
             switch_tab,
         },
         terminal: TerminalConfig { command, args },
+        workspace: WorkspaceConfig {
+            root: PathBuf::from(workspace_root),
+        },
     }
 }
 
 fn config_path_from_root(root: &Path) -> PathBuf {
-    root.join(".config").join("blackpepper").join("pepper.toml")
+    root.join(".blackpepper").join("config.toml")
 }
 
 fn user_config_path() -> Option<PathBuf> {
@@ -101,8 +123,8 @@ fn user_config_path() -> Option<PathBuf> {
     Some(config_path_from_root(&home))
 }
 
-pub fn load_config(cwd: &Path) -> Config {
-    let workspace_path = config_path_from_root(cwd);
+pub fn load_config(root: &Path) -> Config {
+    let workspace_path = config_path_from_root(root);
     let user_path = user_config_path();
 
     let workspace_config = read_toml(&workspace_path);

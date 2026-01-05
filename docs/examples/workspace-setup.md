@@ -1,11 +1,11 @@
 # Workspace Setup
 
-Workspaces are created with `git worktree` under `./workspaces/<animal>`.
+Workspaces are created with `git worktree` under `./.blackpepper/workspaces/<animal>`.
 
 Example flow:
 
 ```bash
-git worktree add workspaces/otter -b otter
+git worktree add .blackpepper/workspaces/otter -b otter
 # later, after the first task is defined
 # git branch -m otter task-123
 ```

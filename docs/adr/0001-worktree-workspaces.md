@@ -13,7 +13,7 @@ full repositories for each task.
 
 ## Decision
 
-Use `git worktree` to create workspace copies under `./workspaces/<animal>`.
+Use `git worktree` to create workspace copies under `./.blackpepper/workspaces/<animal>`.
 Branches start as animal names and are renamed after the first task is defined.
 
 ## Consequences
