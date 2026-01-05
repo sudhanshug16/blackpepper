@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>blackpepper</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f2e8;
+        --ink: #1f1b16;
+        --muted: #6e6256;
+        --accent: #d08b2f;
+      }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+        background: radial-gradient(circle at 20% 20%, #fff7e4, #f5eee1 50%, #efe3d0 100%);
+        color: var(--ink);
+      }
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 80px 24px 120px;
+      }
+      h1 {
+        font-size: clamp(2.4rem, 4vw, 3.6rem);
+        margin: 0 0 16px;
+        letter-spacing: -0.02em;
+      }
+      p {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        color: var(--muted);
+        margin: 0 0 24px;
+      }
+      .cta {
+        border: 1px solid rgba(31, 27, 22, 0.1);
+        background: rgba(255, 255, 255, 0.6);
+        padding: 18px 22px;
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+      }
+      code {
+        display: block;
+        background: #201a14;
+        color: #f5efe5;
+        padding: 16px;
+        border-radius: 10px;
+        font-family: "Fira Code", "Cascadia Code", "Source Code Pro", monospace;
+        font-size: 0.95rem;
+        overflow-x: auto;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>blackpepper</h1>
+      <p>
+        Terminal orchestration for TUI coding agents. One UI, multiple providers, shared
+        workspaces, and fast context switching.
+      </p>
+      <div class="cta">
+        <strong>Install in one line</strong>
+        <code>curl -fsSL https://anomalyco.github.io/blackpepper/install.sh | bash</code>
+      </div>
+      <p>
+        Docs and source: <a href="https://github.com/anomalyco/blackpepper">github.com/anomalyco/blackpepper</a>
+      </p>
+    </main>
+  </body>
+</html>

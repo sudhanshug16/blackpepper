@@ -15,6 +15,8 @@ command mode, worktree management, and a wired PTY/ANSI terminal renderer.
 cargo run -p blackpepper
 ```
 
+If installed, run `bp` to launch the TUI.
+
 ## Tooling
 
 - `cargo build -p blackpepper`: build the binary.
@@ -69,7 +71,7 @@ Workspaces are created via `git worktree` under `./.blackpepper/workspaces/<anim
 by default and can host multiple agent tabs in parallel. Override the root
 with `[workspace].root` in `config.toml`.
 
-Run `pepper init` (or `:init` inside the TUI) to add gitignore entries and
+Run `bp init` (or `:init` inside the TUI) to add gitignore entries and
 create an empty project config at `./.blackpepper/config.toml`.
 
 Selecting a workspace starts an embedded terminal in that worktree. Customize

@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Terminal orchestrator for TUI coding agents with isolated workspaces."
 
+[[bin]]
+name = "bp"
+path = "src/main.rs"
+
 [dependencies]
 crossterm = "0.27"
 ratatui = "0.29"
