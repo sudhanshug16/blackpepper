@@ -1,3 +1,11 @@
+//! Application event types.
+//!
+//! Defines the event enum used for communication between the input
+//! thread, PTY reader threads, and the main event loop.
+//!
+//! Events are sent via mpsc channels and processed sequentially
+//! in the main loop to update app state and trigger re-renders.
+
 use crossterm::event::{KeyEvent, MouseEvent};
 
 #[derive(Debug)]

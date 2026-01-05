@@ -1,8 +1,15 @@
+//! Persistent application state.
+//!
+//! Stores state that persists across sessions in:
+//! `~/.config/blackpepper/state.toml`
+//!
+//! Currently tracks which workspace was last active per repository,
+//! allowing the app to restore the previous context on startup.
+
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-
 
 #[derive(Debug, Clone, Default)]
 pub struct AppState {
@@ -104,11 +111,22 @@ pub fn record_active_workspace(repo_root: &Path, workspace_path: &Path) -> std::
     save_state(&state)
 }
 
+pub fn remove_active_workspace(repo_root: &Path) -> std::io::Result<()> {
+    if repo_root.as_os_str().is_empty() {
+        return Ok(());
+    }
+    let normalized_root = canonicalize_path(repo_root);
+    let key = normalized_root.to_string_lossy().to_string();
+
+    let mut state = load_state().unwrap_or_default();
+    if state.active_workspaces.remove(&key).is_some() {
+        save_state(&state)?;
+    }
+    Ok(())
+}
+
 pub fn get_active_workspace(state: &AppState, repo_root: &Path) -> Option<PathBuf> {
     let normalized_root = canonicalize_path(repo_root);
     let key = normalized_root.to_string_lossy();
-    state
-        .active_workspaces
-        .get(key.as_ref())
-        .map(|value| PathBuf::from(value))
+    state.active_workspaces.get(key.as_ref()).map(PathBuf::from)
 }

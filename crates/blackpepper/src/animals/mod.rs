@@ -1,3 +1,9 @@
+//! Animal name list for auto-generated workspace names.
+//!
+//! When creating a workspace without specifying a name, one is
+//! randomly selected from this list. Names are filtered to only
+//! include valid workspace names (lowercase, no special chars).
+
 pub const ANIMAL_NAMES: &[&str] = &[
     "canidae",
     "felidae",

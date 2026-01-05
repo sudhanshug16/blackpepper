@@ -1,3 +1,10 @@
+//! Key chord parsing and matching.
+//!
+//! Parses key chord strings like "ctrl+p" or "alt+shift+t" from config
+//! and matches them against crossterm KeyEvents at runtime.
+//!
+//! Used for configurable keybindings (toggle mode, switch workspace, etc.).
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[derive(Debug, Clone)]
