@@ -142,8 +142,13 @@ impl App {
             }
         }
 
+        let mode = if active_workspace.is_some() {
+            Mode::Work
+        } else {
+            Mode::Manage
+        };
         let mut app = Self {
-            mode: Mode::Work,
+            mode,
             command_active: false,
             command_input: String::new(),
             output: None,

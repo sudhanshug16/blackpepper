@@ -28,6 +28,9 @@ use super::state::{
     App, CellPos, Mode, SearchMatch, WorkspaceTab, WorkspaceTabs, MAX_TAB_LABEL_LEN, SCROLL_LINES,
 };
 
+const NO_ACTIVE_WORKSPACE_HINT: &str =
+    "No active workspace yet. Create one with :workspace create <name>.";
+
 /// Main event dispatcher.
 pub fn handle_event(app: &mut App, event: AppEvent) {
     match event {
@@ -53,7 +56,7 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
                                 app.set_output(format!("Active workspace: {name}"));
                             }
                         }
-                        app.mode = Mode::Work;
+                        enter_work_mode(app);
                     }
                     if subcommand == "destroy" && result.ok {
                         if let Some(name) = args.get(1) {
@@ -63,6 +66,7 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
                                 if let Some(root) = &app.repo_root {
                                     app.cwd = root.clone();
                                 }
+                                ensure_manage_mode_without_workspace(app);
                             }
                         }
                     }
@@ -118,11 +122,11 @@ fn handle_key(app: &mut App, key: KeyEvent) {
     // Toggle mode chord
     if let Some(chord) = &app.toggle_chord {
         if matches_chord(key, chord) {
-            app.mode = if app.mode == Mode::Work {
-                Mode::Manage
+            if app.mode == Mode::Work {
+                app.mode = Mode::Manage;
             } else {
-                Mode::Work
-            };
+                enter_work_mode(app);
+            }
             return;
         }
     }
@@ -197,7 +201,7 @@ fn handle_key(app: &mut App, key: KeyEvent) {
 
     // Manage mode: escape returns to work mode
     if app.mode == Mode::Manage && key.code == KeyCode::Esc {
-        app.mode = Mode::Work;
+        enter_work_mode(app);
         return;
     }
 
@@ -536,7 +540,7 @@ fn handle_tab_command(app: &mut App, args: &[String]) {
             match create_tab_for_active(app, 24, 80, name) {
                 Ok(name) => {
                     app.set_output(format!("Opened tab: {name}"));
-                    app.mode = Mode::Work;
+                    enter_work_mode(app);
                 }
                 Err(err) => app.set_output(err),
             }
@@ -928,6 +932,7 @@ fn prune_missing_active_workspace(app: &mut App, names: &[String]) {
     app.tabs.remove(&active);
     app.cwd = root.clone();
     let _ = remove_active_workspace(root);
+    ensure_manage_mode_without_workspace(app);
 }
 
 pub fn set_active_workspace(app: &mut App, name: &str) -> Result<(), String> {
@@ -953,6 +958,22 @@ pub fn set_active_workspace(app: &mut App, name: &str) -> Result<(), String> {
     let _ = record_active_workspace(&root, &workspace_path);
     app.config = load_config(&root);
     ensure_active_workspace_tabs(app, 24, 80)
+}
+
+fn ensure_manage_mode_without_workspace(app: &mut App) {
+    if app.active_workspace.is_none() {
+        app.mode = Mode::Manage;
+    }
+}
+
+fn enter_work_mode(app: &mut App) -> bool {
+    if app.active_workspace.is_none() {
+        app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
+        app.mode = Mode::Manage;
+        return false;
+    }
+    app.mode = Mode::Work;
+    true
 }
 
 fn open_workspace_overlay(app: &mut App) {

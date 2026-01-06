@@ -11,7 +11,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use crate::commands::command_hint_lines;
+use crate::commands::{command_help_lines, command_hint_lines};
 use crate::terminal::RenderOverlay;
 
 use super::input::{
@@ -235,10 +235,40 @@ fn body_lines(app: &App) -> Vec<Line<'_>> {
         lines.push(Line::raw(format!("Active workspace: {workspace}")));
         lines.push(Line::raw(format!("Path: {}", app.cwd.to_string_lossy())));
     } else {
-        lines.push(Line::raw("No workspace selected."));
-        lines.push(Line::raw("Use Ctrl+P or :workspace."));
+        let toggle_mode = keymap_label(&app.config.keymap.toggle_mode);
+        let switch_workspace = keymap_label(&app.config.keymap.switch_workspace);
+        let switch_tab = keymap_label(&app.config.keymap.switch_tab);
+
+        lines.push(Line::raw("No active workspace."));
+        lines.push(Line::raw("Quick start:"));
+        lines.push(Line::raw(
+            "- Modes: Manage (app commands/navigation), Work (keys to terminal).",
+        ));
+        lines.push(Line::raw(format!("- Toggle mode: {toggle_mode}")));
+        lines.push(Line::raw("- Work mode requires an active workspace."));
+        lines.push(Line::raw("- Open command bar (Manage): :"));
+        lines.push(Line::raw(format!(
+            "- Switch workspace: {switch_workspace} or :workspace list"
+        )));
+        lines.push(Line::raw("- Create workspace: :workspace create [name]"));
+        lines.push(Line::raw(format!("- Switch tab: {switch_tab}")));
+        lines.push(Line::raw("- Quit: q (Manage) or :quit"));
+        lines.push(Line::raw(""));
+        lines.push(Line::raw("Commands:"));
+        for command in command_help_lines() {
+            lines.push(Line::raw(command));
+        }
     }
     lines
+}
+
+fn keymap_label(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        "unbound".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Output area lines (command hints when typing, or output message).
