@@ -40,6 +40,7 @@ fn main() -> std::io::Result<()> {
                         .unwrap_or_else(|_| std::path::PathBuf::from(".")),
                     repo_root: None,
                     workspace_root: std::path::PathBuf::from(".blackpepper/workspaces"),
+                    source: commands::CommandSource::Cli,
                 },
             );
             println!("{}", result.message);
@@ -82,12 +83,6 @@ fn main() -> std::io::Result<()> {
         let repo_root = git::resolve_repo_root(&cwd);
         let config_root = repo_root.as_deref().unwrap_or(&cwd);
         let config = config::load_config(config_root);
-        if parsed.name == "help" {
-            for line in commands::command_help_lines_cli() {
-                println!("{}", line);
-            }
-            return Ok(());
-        }
 
         let result = commands::run_command(
             parsed.name.as_str(),
@@ -96,6 +91,7 @@ fn main() -> std::io::Result<()> {
                 cwd,
                 repo_root,
                 workspace_root: config.workspace.root,
+                source: commands::CommandSource::Cli,
             },
         );
         if result.ok {
