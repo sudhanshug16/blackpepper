@@ -64,15 +64,30 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
                 format!("{stream_output}\n\n{}", result.message)
             };
             app.loading = None;
-            if app.command_overlay.visible {
+            let overlay_visible = app.command_overlay.visible && !stream_output.is_empty();
+            if overlay_visible {
                 if app.command_overlay.title.is_empty() {
                     app.command_overlay.title = "Command output (Esc to close)".to_string();
                 } else if !app.command_overlay.title.contains("Esc") {
                     app.command_overlay.title =
                         format!("{} (Esc to close)", app.command_overlay.title);
                 }
+                if !result.ok
+                    && !result.message.trim().is_empty()
+                    && !app.command_overlay.output.contains(result.message.trim())
+                {
+                    if !app.command_overlay.output.ends_with('\n') {
+                        app.command_overlay.output.push('\n');
+                    }
+                    app.command_overlay
+                        .output
+                        .push_str(result.message.trim());
+                    app.command_overlay.output.push('\n');
+                }
             }
-            app.set_output(message);
+            if !overlay_visible {
+                app.set_output(message);
+            }
             if name == "workspace" {
                 if let Some(subcommand) = args.first() {
                     if subcommand == "create" && result.ok {
