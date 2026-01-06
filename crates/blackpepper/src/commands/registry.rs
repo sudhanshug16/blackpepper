@@ -36,7 +36,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "workspace switch",
         description: "Switch the active workspace",
-        cli_exposed: true,
+        cli_exposed: false,
     },
     CommandSpec {
         name: "workspace create",

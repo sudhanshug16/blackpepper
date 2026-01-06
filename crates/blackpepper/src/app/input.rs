@@ -14,7 +14,9 @@ use crossterm::event::{
 };
 use vt100::{MouseProtocolEncoding, MouseProtocolMode};
 
-use crate::commands::{complete_command_input, parse_command, run_command, CommandContext};
+use crate::commands::{
+    complete_command_input, parse_command, run_command, CommandContext, CommandSource,
+};
 use crate::config::load_config;
 use crate::events::AppEvent;
 use crate::keymap::matches_chord;
@@ -476,6 +478,7 @@ fn execute_command(app: &mut App, raw: &str) {
             cwd: app.cwd.clone(),
             repo_root: app.repo_root.clone(),
             workspace_root: app.config.workspace.root.clone(),
+            source: CommandSource::Tui,
         },
     );
     app.set_output(result.message);
@@ -664,6 +667,7 @@ fn start_command(app: &mut App, name: &str, args: Vec<String>) {
         cwd: app.cwd.clone(),
         repo_root: app.repo_root.clone(),
         workspace_root: app.config.workspace.root.clone(),
+        source: CommandSource::Tui,
     };
     let tx = app.event_tx.clone();
     let name = name.to_string();

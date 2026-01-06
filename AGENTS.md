@@ -88,3 +88,4 @@ with an embedded shell per workspace.
 ## AI Contribution Notes
 
 - Record validation steps and assumptions in PRs or notes.
+- Avoid one-off CLI/TUI behavior in callers. Use shared command logic (e.g., `CommandSource`) to branch output instead of special-casing in `main.rs` or the UI.

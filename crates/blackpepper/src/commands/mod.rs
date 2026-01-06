@@ -12,7 +12,7 @@ mod exec;
 mod parse;
 mod registry;
 
-pub use exec::{run_command, CommandContext, CommandResult};
+pub use exec::{run_command, CommandContext, CommandResult, CommandSource};
 pub use parse::{complete_command_input, parse_command};
 pub use registry::{command_help_lines_cli, command_hint_lines};
 

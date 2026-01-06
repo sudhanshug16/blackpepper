@@ -16,7 +16,7 @@ use crate::workspaces::{
     ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_path,
 };
 
-use super::registry::command_help_lines;
+use super::registry::{command_help_lines, command_help_lines_cli};
 
 /// Result of command execution.
 #[derive(Debug, Clone)]
@@ -33,6 +33,13 @@ pub struct CommandContext {
     pub cwd: PathBuf,
     pub repo_root: Option<PathBuf>,
     pub workspace_root: PathBuf,
+    pub source: CommandSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandSource {
+    Tui,
+    Cli,
 }
 
 /// Dispatch and execute a command by name.
@@ -51,7 +58,11 @@ pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> Command
         },
         "help" => CommandResult {
             ok: true,
-            message: command_help_lines().join("\n"),
+            message: if ctx.source == CommandSource::Cli {
+                command_help_lines_cli().join("\n")
+            } else {
+                command_help_lines().join("\n")
+            },
             data: None,
         },
         "workspace" => {
@@ -65,11 +76,7 @@ pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> Command
             match subcommand.as_str() {
                 "create" => workspace_create(&args[1..], ctx),
                 "destroy" => workspace_destroy(&args[1..], ctx),
-                "list" => CommandResult {
-                    ok: true,
-                    message: "Use :workspace list or Ctrl+P to switch.".to_string(),
-                    data: None,
-                },
+                "list" => workspace_list(ctx),
                 "switch" => CommandResult {
                     ok: true,
                     message: "Use :workspace switch <name> to change.".to_string(),
@@ -181,6 +188,45 @@ fn init_project(args: &[String], ctx: &CommandContext) -> CommandResult {
         ok: true,
         message: format!("Initialized Blackpepper project: {}.", actions.join(", ")),
         data: None,
+    }
+}
+
+fn workspace_list(ctx: &CommandContext) -> CommandResult {
+    if ctx.source == CommandSource::Tui {
+        return CommandResult {
+            ok: true,
+            message: "Use :workspace list or Ctrl+P to switch.".to_string(),
+            data: None,
+        };
+    }
+
+    let repo_root = ctx
+        .repo_root
+        .clone()
+        .or_else(|| resolve_repo_root(&ctx.cwd))
+        .ok_or_else(|| CommandResult {
+            ok: false,
+            message: "Not inside a git repository.".to_string(),
+            data: None,
+        });
+    let repo_root = match repo_root {
+        Ok(root) => root,
+        Err(result) => return result,
+    };
+
+    let names = list_workspace_names(&repo_root, &ctx.workspace_root);
+    if names.is_empty() {
+        CommandResult {
+            ok: true,
+            message: "No workspaces yet.".to_string(),
+            data: None,
+        }
+    } else {
+        CommandResult {
+            ok: true,
+            message: names.join("\n"),
+            data: None,
+        }
     }
 }
 
@@ -505,7 +551,7 @@ fn update_message(outcome: UpdateOutcome) -> String {
 mod tests {
     use super::{
         ensure_gitignore_entries, ensure_project_config, pick_unused_animal_name,
-        unique_animal_names, workspace_create, workspace_destroy, CommandContext,
+        unique_animal_names, workspace_create, workspace_destroy, CommandContext, CommandSource,
     };
     use crate::git::run_git;
     use std::collections::HashSet;
@@ -592,6 +638,7 @@ mod tests {
             cwd: repo.path().to_path_buf(),
             repo_root: Some(repo.path().to_path_buf()),
             workspace_root: workspace_root.to_path_buf(),
+            source: CommandSource::Cli,
         };
 
         let name = "otter";
