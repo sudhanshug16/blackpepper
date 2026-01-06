@@ -19,8 +19,22 @@ crates/blackpepper/src/
 │   ├── mod.rs           # Module entry, re-exports
 │   ├── state.rs         # App struct and type definitions
 │   ├── runner.rs        # Main loop, terminal setup/teardown
-│   ├── input.rs         # Keyboard/mouse event handling
-│   └── render.rs        # UI rendering methods
+│   ├── input/           # Keyboard/mouse event handling
+│   │   ├── mod.rs
+│   │   ├── command.rs
+│   │   ├── event.rs
+│   │   ├── mouse.rs
+│   │   ├── overlay.rs
+│   │   ├── search.rs
+│   │   ├── terminal.rs
+│   │   ├── utils.rs
+│   │   └── workspace.rs
+│   └── render/          # UI rendering methods
+│       ├── mod.rs
+│       ├── layout.rs
+│       ├── overlays.rs
+│       ├── output.rs
+│       └── work_area.rs
 ├── terminal/            # Embedded PTY management
 │   ├── mod.rs           # Module entry, re-exports
 │   ├── pty.rs           # PTY spawning and session lifecycle
@@ -31,7 +45,11 @@ crates/blackpepper/src/
 │   ├── mod.rs           # Module entry, re-exports
 │   ├── registry.rs      # Command specs and metadata
 │   ├── parse.rs         # Parsing and completion
-│   └── exec.rs          # Command execution handlers
+│   └── exec/            # Command execution handlers
+│       ├── mod.rs
+│       ├── pr_command.rs
+│       ├── workspace.rs
+│       └── tests.rs
 ├── ui/                  # Pure rendering utilities
 │   ├── mod.rs           # Module entry, re-exports
 │   ├── layout.rs        # Rect manipulation helpers
@@ -42,6 +60,10 @@ crates/blackpepper/src/
 │   └── mod.rs
 ├── config/              # TOML config loading and merging
 │   └── mod.rs
+├── providers/           # Agent + upstream provider defaults
+│   ├── mod.rs
+│   ├── agent.rs
+│   └── upstream.rs
 ├── state/               # Persistent app state (across sessions)
 │   └── mod.rs
 ├── keymap/              # Key chord parsing and matching
@@ -95,7 +117,8 @@ Config resolution order:
 1. Workspace-local `.config/blackpepper/pepper.toml`
 2. User-level `~/.config/blackpepper/pepper.toml`
 
-Config is TOML-based with sections for keymap, terminal, and workspace settings.
+Config is TOML-based with sections for keymap, terminal, workspace, agent, and
+upstream provider settings.
 
 ## Extension Points
 

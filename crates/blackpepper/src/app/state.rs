@@ -41,7 +41,7 @@ pub struct TabOverlay {
     pub selected: usize,
 }
 
-/// Generic selection overlay (e.g., provider selection).
+/// Generic selection overlay (e.g., agent provider selection).
 #[derive(Debug, Default)]
 pub struct PromptOverlay {
     pub visible: bool,

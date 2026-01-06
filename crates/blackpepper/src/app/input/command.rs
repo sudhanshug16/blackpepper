@@ -10,7 +10,7 @@ use crate::commands::{
 use crate::events::AppEvent;
 use crate::workspaces::list_workspace_names;
 
-use super::overlay::{open_pr_provider_overlay, open_tab_overlay, open_workspace_overlay};
+use super::overlay::{open_agent_provider_overlay, open_tab_overlay, open_workspace_overlay};
 use super::utils::{find_editor_binary, shell_escape};
 use super::workspace::{
     active_tab_mut, close_active_tab, create_tab_for_active, enter_work_mode,
@@ -246,8 +246,8 @@ fn handle_pr_command(app: &mut App, name: &str, args: &[String]) {
         app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
         return;
     }
-    if needs_pr_provider_selection(app, args) {
-        open_pr_provider_overlay(
+    if needs_agent_provider_selection(app, args) {
+        open_agent_provider_overlay(
             app,
             PendingCommand {
                 name: name.to_string(),
@@ -259,7 +259,7 @@ fn handle_pr_command(app: &mut App, name: &str, args: &[String]) {
     start_command(app, name, args.to_vec());
 }
 
-fn needs_pr_provider_selection(app: &App, args: &[String]) -> bool {
+fn needs_agent_provider_selection(app: &App, args: &[String]) -> bool {
     let Some(subcommand) = args.first() else {
         return false;
     };

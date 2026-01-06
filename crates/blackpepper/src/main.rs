@@ -5,6 +5,7 @@ mod config;
 mod events;
 mod git;
 mod keymap;
+mod providers;
 mod state;
 mod terminal;
 mod updater;

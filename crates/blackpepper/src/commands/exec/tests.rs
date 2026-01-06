@@ -261,6 +261,6 @@ fn pr_create_surfaces_gh_failure() {
     };
     let result = run_command("pr", &[String::from("create")], &ctx);
     assert!(!result.ok);
-    assert!(result.message.contains("gh pr create failed"));
+    assert!(result.message.contains("github pr create failed"));
     assert!(result.message.contains("gh failed"));
 }

@@ -64,11 +64,15 @@ root = ".blackpepper/workspaces"
 provider = "codex"
 command = "custom agent command {{PROMPT}}"
 
+[upstream]
+provider = "github"
+
 ```
 
 If `[terminal]` is omitted, Blackpepper uses `$SHELL` (or `bash`/`cmd.exe`).
-If `[agent].provider` is set, `:pr create` uses the built-in provider templates; set
+If `[agent].provider` is set, `:pr create` uses the built-in agent templates; set
 `[agent].command` to override the command (optional `{{PROMPT}}` placeholder).
+`[upstream].provider` selects the PR backend (default `github` via the `gh` CLI).
 
 State:
 

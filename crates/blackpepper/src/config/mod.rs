@@ -23,6 +23,7 @@ pub struct Config {
     pub terminal: TerminalConfig,
     pub workspace: WorkspaceConfig,
     pub agent: AgentConfig,
+    pub upstream: UpstreamConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -50,12 +51,18 @@ pub struct AgentConfig {
     pub command: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct UpstreamConfig {
+    pub provider: String,
+}
+
 #[derive(Debug, Default, Deserialize)]
 struct RawConfig {
     keymap: Option<RawKeymap>,
     terminal: Option<RawTerminal>,
     workspace: Option<RawWorkspace>,
     agent: Option<RawAgent>,
+    upstream: Option<RawUpstream>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -85,6 +92,11 @@ struct RawWorkspace {
 struct RawAgent {
     provider: Option<String>,
     command: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RawUpstream {
+    provider: Option<String>,
 }
 
 fn read_toml(path: &Path) -> Option<RawConfig> {
@@ -121,6 +133,8 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
     let user_workspace = user.as_ref().and_then(|c| c.workspace.as_ref());
     let workspace_agent = workspace.as_ref().and_then(|c| c.agent.as_ref());
     let user_agent = user.as_ref().and_then(|c| c.agent.as_ref());
+    let workspace_upstream = workspace.as_ref().and_then(|c| c.upstream.as_ref());
+    let user_upstream = user.as_ref().and_then(|c| c.upstream.as_ref());
 
     let command = workspace_terminal
         .and_then(|t| t.command.clone())
@@ -139,6 +153,10 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
     let agent_command = workspace_agent
         .and_then(|agent| agent.command.clone())
         .or_else(|| user_agent.and_then(|agent| agent.command.clone()));
+    let upstream_provider = workspace_upstream
+        .and_then(|upstream| upstream.provider.clone())
+        .or_else(|| user_upstream.and_then(|upstream| upstream.provider.clone()))
+        .unwrap_or_else(|| "github".to_string());
 
     Config {
         keymap: KeymapConfig {
@@ -154,6 +172,9 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         agent: AgentConfig {
             provider: agent_provider,
             command: agent_command,
+        },
+        upstream: UpstreamConfig {
+            provider: upstream_provider,
         },
     }
 }
@@ -281,6 +302,7 @@ mod tests {
         assert_eq!(config.workspace.root, Path::new(".blackpepper/workspaces"));
         assert!(config.agent.provider.is_none());
         assert!(config.agent.command.is_none());
+        assert_eq!(config.upstream.provider, "github");
 
         if let Some(home) = original_home {
             env::set_var("HOME", home);
@@ -322,6 +344,9 @@ root = "user/workspaces"
 
 [agent]
 provider = "codex"
+
+[upstream]
+provider = "gitlab"
 "#,
         );
 
@@ -345,6 +370,9 @@ root = ".pepper/workspaces"
 
 [agent]
 command = "custom pr"
+
+[upstream]
+provider = "github"
 "#,
         );
 
@@ -358,6 +386,7 @@ command = "custom pr"
         assert_eq!(config.workspace.root, Path::new(".pepper/workspaces"));
         assert_eq!(config.agent.provider.as_deref(), Some("codex"));
         assert_eq!(config.agent.command.as_deref(), Some("custom pr"));
+        assert_eq!(config.upstream.provider, "github");
 
         if let Some(home) = original_home {
             env::set_var("HOME", home);

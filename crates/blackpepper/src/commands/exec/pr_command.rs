@@ -6,6 +6,7 @@ use std::sync::mpsc::{self, Sender};
 use crate::commands::pr;
 use crate::config::load_config;
 use crate::git::{resolve_repo_root, ExecResult};
+use crate::providers::{agent, upstream};
 
 use super::{CommandContext, CommandOutput, CommandPhase, CommandResult};
 
@@ -31,12 +32,12 @@ where
     let command_template = if let Some(command) = config.agent.command.as_deref() {
         command
     } else if let Some(provider) = config.agent.provider.as_deref() {
-        match pr::provider_command(provider) {
+        match agent::provider_command(provider) {
             Some(command) => command,
             None => {
                 return CommandResult {
                     ok: false,
-                    message: format!("Unknown PR provider: {provider}."),
+                    message: format!("Unknown agent provider: {provider}."),
                     data: None,
                 }
             }
@@ -74,11 +75,31 @@ where
         }
     };
 
-    let gh_result = run_gh_create(&ctx.cwd, &pr_message.title, &pr_message.description);
+    let upstream_provider = config.upstream.provider.trim();
+    let upstream_provider = if upstream_provider.is_empty() {
+        upstream::DEFAULT_PROVIDER
+    } else {
+        upstream_provider
+    };
+    let gh_result = match upstream::create_pr(
+        upstream_provider,
+        &ctx.cwd,
+        &pr_message.title,
+        &pr_message.description,
+    ) {
+        Ok(result) => result,
+        Err(err) => {
+            return CommandResult {
+                ok: false,
+                message: err,
+                data: None,
+            }
+        }
+    };
     if !gh_result.ok {
         return CommandResult {
             ok: false,
-            message: format_command_failure("gh pr create failed", &gh_result),
+            message: format_command_failure("github pr create failed", &gh_result),
             data: None,
         };
     }
@@ -179,30 +200,6 @@ fn spawn_reader<R: std::io::Read + Send + 'static>(
         }
         output
     })
-}
-
-fn run_gh_create(cwd: &Path, title: &str, body: &str) -> ExecResult {
-    let output = Command::new("gh")
-        .args(["pr", "create", "--title"])
-        .arg(title)
-        .args(["--body"])
-        .arg(body)
-        .current_dir(cwd)
-        .output();
-    match output {
-        Ok(out) => ExecResult {
-            ok: out.status.success(),
-            exit_code: out.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&out.stdout).to_string(),
-            stderr: String::from_utf8_lossy(&out.stderr).to_string(),
-        },
-        Err(err) => ExecResult {
-            ok: false,
-            exit_code: -1,
-            stdout: String::new(),
-            stderr: err.to_string(),
-        },
-    }
 }
 
 fn format_command_failure(prefix: &str, result: &ExecResult) -> String {

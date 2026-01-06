@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::commands::pr;
 use crate::config::save_user_agent_provider;
+use crate::providers::agent;
 use crate::workspaces::list_workspace_names;
 
 use super::workspace::{set_active_workspace, tab_select};
@@ -144,11 +144,11 @@ pub(super) fn open_tab_overlay(app: &mut App) {
     app.tab_overlay.visible = true;
 }
 
-pub(super) fn open_pr_provider_overlay(app: &mut App, pending: PendingCommand) {
-    let providers = pr::provider_names();
+pub(super) fn open_agent_provider_overlay(app: &mut App, pending: PendingCommand) {
+    let providers = agent::provider_names();
     app.prompt_overlay.title = "Agent Provider".to_string();
     if providers.is_empty() {
-        app.prompt_overlay.message = Some("No PR providers available.".to_string());
+        app.prompt_overlay.message = Some("No agent providers available.".to_string());
         app.prompt_overlay.items.clear();
         app.prompt_overlay.selected = 0;
     } else {
