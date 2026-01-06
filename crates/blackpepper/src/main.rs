@@ -36,8 +36,7 @@ fn main() -> std::io::Result<()> {
                 "version",
                 &[],
                 &commands::CommandContext {
-                    cwd: std::env::current_dir()
-                        .unwrap_or_else(|_| std::path::PathBuf::from(".")),
+                    cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
                     repo_root: None,
                     workspace_root: std::path::PathBuf::from(".blackpepper/workspaces"),
                     source: commands::CommandSource::Cli,
@@ -49,9 +48,7 @@ fn main() -> std::io::Result<()> {
 
         let command = rest.remove(0);
         let command = command.strip_prefix(':').unwrap_or(&command).to_string();
-        let tokens: Vec<String> = std::iter::once(command)
-            .chain(rest.into_iter())
-            .collect();
+        let tokens: Vec<String> = std::iter::once(command).chain(rest.into_iter()).collect();
         let input = format!(":{}", tokens.join(" "));
         let parsed = match commands::parse_command(&input) {
             Ok(parsed) => parsed,
@@ -64,9 +61,7 @@ fn main() -> std::io::Result<()> {
             commands::COMMANDS.iter().any(|spec| {
                 spec.cli_exposed
                     && (spec.name == parsed.name
-                        || spec
-                            .name
-                            .starts_with(&format!("{} ", parsed.name)))
+                        || spec.name.starts_with(&format!("{} ", parsed.name)))
             })
         } else {
             let full = format!("{} {}", parsed.name, parsed.args[0]);

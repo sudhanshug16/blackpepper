@@ -14,10 +14,11 @@ use crossterm::event::{
 };
 use vt100::{MouseProtocolEncoding, MouseProtocolMode};
 
+use crate::commands::pr;
 use crate::commands::{
     complete_command_input, parse_command, run_command, CommandContext, CommandSource,
 };
-use crate::config::load_config;
+use crate::config::{load_config, save_user_agent_provider};
 use crate::events::AppEvent;
 use crate::keymap::matches_chord;
 use crate::state::{record_active_workspace, remove_active_workspace};
@@ -25,7 +26,8 @@ use crate::terminal::{key_event_to_bytes, mouse_event_to_bytes, TerminalSession}
 use crate::workspaces::{list_workspace_names, workspace_absolute_path};
 
 use super::state::{
-    App, CellPos, Mode, SearchMatch, WorkspaceTab, WorkspaceTabs, MAX_TAB_LABEL_LEN, SCROLL_LINES,
+    App, CellPos, Mode, PendingCommand, SearchMatch, WorkspaceTab, WorkspaceTabs,
+    MAX_TAB_LABEL_LEN, SCROLL_LINES,
 };
 
 const NO_ACTIVE_WORKSPACE_HINT: &str =
@@ -91,6 +93,10 @@ fn handle_key(app: &mut App, key: KeyEvent) {
     }
     if app.tab_overlay.visible {
         handle_tab_overlay_key(app, key);
+        return;
+    }
+    if app.prompt_overlay.visible {
+        handle_prompt_overlay_key(app, key);
         return;
     }
     if app.command_active {
@@ -398,6 +404,45 @@ fn handle_tab_overlay_key(app: &mut App, key: KeyEvent) {
     }
 }
 
+fn handle_prompt_overlay_key(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc => {
+            app.prompt_overlay.visible = false;
+            app.pending_command = None;
+        }
+        KeyCode::Enter => {
+            let selected = app
+                .prompt_overlay
+                .items
+                .get(app.prompt_overlay.selected)
+                .cloned();
+            app.prompt_overlay.visible = false;
+            if let Some(provider) = selected {
+                if let Err(err) = save_user_agent_provider(&provider) {
+                    app.set_output(format!("Failed to save agent provider: {err}"));
+                    app.pending_command = None;
+                    return;
+                }
+                app.config.agent.provider = Some(provider.clone());
+                if let Some(pending) = app.pending_command.take() {
+                    start_command(app, &pending.name, pending.args);
+                } else {
+                    app.set_output(format!("Saved agent provider: {provider}"));
+                }
+            } else {
+                app.pending_command = None;
+            }
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            move_prompt_overlay_selection(app, -1);
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            move_prompt_overlay_selection(app, 1);
+        }
+        _ => {}
+    }
+}
+
 fn move_tab_overlay_selection(app: &mut App, delta: isize) {
     if app.tab_overlay.items.is_empty() {
         return;
@@ -410,6 +455,20 @@ fn move_tab_overlay_selection(app: &mut App, delta: isize) {
         next = 0;
     }
     app.tab_overlay.selected = next as usize;
+}
+
+fn move_prompt_overlay_selection(app: &mut App, delta: isize) {
+    if app.prompt_overlay.items.is_empty() {
+        return;
+    }
+    let len = app.prompt_overlay.items.len() as isize;
+    let mut next = app.prompt_overlay.selected as isize + delta;
+    if next < 0 {
+        next = len - 1;
+    } else if next >= len {
+        next = 0;
+    }
+    app.prompt_overlay.selected = next as usize;
 }
 
 fn handle_command_input(app: &mut App, key: KeyEvent) {
@@ -472,7 +531,7 @@ fn execute_command(app: &mut App, raw: &str) {
     }
 
     if parsed.name == "pr" {
-        start_command(app, &parsed.name, parsed.args.clone());
+        handle_pr_command(app, &parsed.name, &parsed.args);
         return;
     }
 
@@ -592,6 +651,34 @@ fn handle_tab_command(app: &mut App, args: &[String]) {
             }
         }
     }
+}
+
+fn handle_pr_command(app: &mut App, name: &str, args: &[String]) {
+    if app.active_workspace.is_none() {
+        app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
+        return;
+    }
+    if needs_pr_provider_selection(app, args) {
+        open_pr_provider_overlay(
+            app,
+            PendingCommand {
+                name: name.to_string(),
+                args: args.to_vec(),
+            },
+        );
+        return;
+    }
+    start_command(app, name, args.to_vec());
+}
+
+fn needs_pr_provider_selection(app: &App, args: &[String]) -> bool {
+    let Some(subcommand) = args.first() else {
+        return false;
+    };
+    if subcommand != "create" {
+        return false;
+    }
+    app.config.agent.provider.is_none() && app.config.agent.command.is_none()
 }
 
 fn handle_debug_command(app: &mut App, args: &[String]) {
@@ -1059,6 +1146,22 @@ fn open_tab_overlay(app: &mut App) {
     app.tab_overlay.visible = true;
 }
 
+fn open_pr_provider_overlay(app: &mut App, pending: PendingCommand) {
+    let providers = pr::provider_names();
+    app.prompt_overlay.title = "Agent Provider".to_string();
+    if providers.is_empty() {
+        app.prompt_overlay.message = Some("No PR providers available.".to_string());
+        app.prompt_overlay.items.clear();
+        app.prompt_overlay.selected = 0;
+    } else {
+        app.prompt_overlay.message = None;
+        app.prompt_overlay.items = providers;
+        app.prompt_overlay.selected = 0;
+    }
+    app.prompt_overlay.visible = true;
+    app.pending_command = Some(pending);
+}
+
 pub fn ensure_active_workspace_tabs(app: &mut App, rows: u16, cols: u16) -> Result<(), String> {
     let Some(workspace) = app.active_workspace.clone() else {
         return Ok(());
@@ -1431,7 +1534,7 @@ fn copy_selection(app: &mut App) -> bool {
 }
 
 pub fn overlay_visible(app: &App) -> bool {
-    app.overlay.visible || app.tab_overlay.visible
+    app.overlay.visible || app.tab_overlay.visible || app.prompt_overlay.visible
 }
 
 pub fn tab_display_label(_app: &App, tab: &WorkspaceTab) -> String {

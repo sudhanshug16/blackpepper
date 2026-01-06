@@ -10,6 +10,7 @@
 
 mod exec;
 mod parse;
+pub mod pr;
 mod registry;
 
 pub use exec::{run_command, CommandContext, CommandResult, CommandSource};

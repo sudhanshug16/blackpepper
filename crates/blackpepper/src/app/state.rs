@@ -41,6 +41,22 @@ pub struct TabOverlay {
     pub selected: usize,
 }
 
+/// Generic selection overlay (e.g., provider selection).
+#[derive(Debug, Default)]
+pub struct PromptOverlay {
+    pub visible: bool,
+    pub items: Vec<String>,
+    pub message: Option<String>,
+    pub selected: usize,
+    pub title: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingCommand {
+    pub name: String,
+    pub args: Vec<String>,
+}
+
 /// Terminal cell position (row, col).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CellPos {
@@ -120,6 +136,7 @@ pub struct App {
     pub tabs: HashMap<String, WorkspaceTabs>,
     pub overlay: WorkspaceOverlay,
     pub tab_overlay: TabOverlay,
+    pub prompt_overlay: PromptOverlay,
     pub event_tx: Sender<AppEvent>,
     pub terminal_seq: u64,
     pub tab_bar_area: Option<Rect>,
@@ -128,6 +145,7 @@ pub struct App {
     pub mouse_pressed: Option<MouseButton>,
     pub mouse_log_path: Option<PathBuf>,
     pub loading: Option<String>,
+    pub pending_command: Option<PendingCommand>,
     pub selection: SelectionState,
     pub search: SearchState,
     pub refresh_requested: bool,

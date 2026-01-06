@@ -230,7 +230,6 @@ impl TerminalSession {
         }
     }
 
-
     /// Render visible lines with optional selection/search overlay.
     pub fn render_lines_with_overlay(
         &self,

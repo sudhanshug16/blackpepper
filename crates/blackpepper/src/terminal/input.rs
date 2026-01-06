@@ -82,7 +82,11 @@ fn modifier_param(modifiers: KeyModifiers) -> Option<u8> {
         value += 4;
         has = true;
     }
-    if has { Some(value) } else { None }
+    if has {
+        Some(value)
+    } else {
+        None
+    }
 }
 
 fn encode_csi_key(modifiers: KeyModifiers, final_byte: &str, base: &str) -> Vec<u8> {

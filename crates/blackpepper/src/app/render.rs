@@ -9,7 +9,7 @@
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 use crate::commands::{command_help_lines, command_hint_lines};
 use crate::terminal::RenderOverlay;
@@ -57,6 +57,9 @@ pub fn render(app: &mut App, frame: &mut ratatui::Frame) {
     }
     if app.tab_overlay.visible {
         render_tab_overlay(app, frame, area);
+    }
+    if app.prompt_overlay.visible {
+        render_prompt_overlay(app, frame, area);
     }
     if let Some(message) = &app.loading {
         render_loader(frame, area, message);
@@ -147,6 +150,7 @@ fn render_work_area(app: &mut App, frame: &mut ratatui::Frame, area: Rect) {
 /// Render workspace selection overlay.
 fn render_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
     let overlay_rect = centered_rect(60, 50, area);
+    frame.render_widget(Clear, overlay_rect);
     let mut lines = Vec::new();
     if let Some(message) = &app.overlay.message {
         lines.push(Line::raw(message.clone()));
@@ -165,13 +169,22 @@ fn render_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
         }
     }
 
-    let block = Block::default().borders(Borders::ALL).title("Workspaces");
-    frame.render_widget(Paragraph::new(lines).block(block), overlay_rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Workspaces")
+        .style(Style::default().bg(Color::Black));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::default().bg(Color::Black)),
+        overlay_rect,
+    );
 }
 
 /// Render tab selection overlay.
 fn render_tab_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
     let overlay_rect = centered_rect(50, 40, area);
+    frame.render_widget(Clear, overlay_rect);
     let mut lines = Vec::new();
     let tabs = app
         .active_workspace
@@ -195,8 +208,50 @@ fn render_tab_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
             lines.push(Line::from(Span::styled(label, style)));
         }
     }
-    let block = Block::default().borders(Borders::ALL).title("Tabs");
-    frame.render_widget(Paragraph::new(lines).block(block), overlay_rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Tabs")
+        .style(Style::default().bg(Color::Black));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::default().bg(Color::Black)),
+        overlay_rect,
+    );
+}
+
+/// Render prompt selection overlay.
+fn render_prompt_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
+    let overlay_rect = centered_rect(50, 40, area);
+    frame.render_widget(Clear, overlay_rect);
+    let mut lines = Vec::new();
+    if let Some(message) = &app.prompt_overlay.message {
+        lines.push(Line::raw(message.clone()));
+    } else {
+        for (idx, item) in app.prompt_overlay.items.iter().enumerate() {
+            let style = if idx == app.prompt_overlay.selected {
+                Style::default().fg(Color::Black).bg(Color::White)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            lines.push(Line::from(Span::styled(item.clone(), style)));
+        }
+    }
+    let title = if app.prompt_overlay.title.is_empty() {
+        "Select"
+    } else {
+        app.prompt_overlay.title.as_str()
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .style(Style::default().bg(Color::Black));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::default().bg(Color::Black)),
+        overlay_rect,
+    );
 }
 
 /// Render loading indicator overlay.

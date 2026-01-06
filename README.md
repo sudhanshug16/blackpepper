@@ -41,8 +41,10 @@ Terminal stack:
 
 Config resolution order:
 
-1. `./.blackpepper/config.toml`
+1. `./.config/blackpepper/pepper.toml`
 2. `~/.config/blackpepper/pepper.toml`
+
+Legacy: `./.blackpepper/config.toml` and `~/.blackpepper/config.toml` are read if present.
 
 Example:
 
@@ -57,9 +59,16 @@ args = ["-l"]
 
 [workspace]
 root = ".blackpepper/workspaces"
+
+[agent]
+provider = "codex"
+command = "custom agent command {{PROMPT}}"
+
 ```
 
 If `[terminal]` is omitted, Blackpepper uses `$SHELL` (or `bash`/`cmd.exe`).
+If `[agent].provider` is set, `:pr create` uses the built-in provider templates; set
+`[agent].command` to override the command (optional `{{PROMPT}}` placeholder).
 
 State:
 
@@ -77,10 +86,10 @@ Example:
 
 Workspaces are created via `git worktree` under `./.blackpepper/workspaces/<animal>`
 by default and can host multiple agent tabs in parallel. Override the root
-with `[workspace].root` in `config.toml`.
+with `[workspace].root` in `pepper.toml`.
 
 Run `bp init` (or `:init` inside the TUI) to add gitignore entries and
-create an empty project config at `./.blackpepper/config.toml`.
+create an empty project config at `./.config/blackpepper/pepper.toml`.
 
 Selecting a workspace starts an embedded terminal in that worktree. Customize
 the shell with `[terminal]`.

@@ -184,8 +184,7 @@ mod tests {
     #[test]
     fn list_workspace_names_reads_worktrees() {
         let repo = init_repo();
-        let repo_root =
-            fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
+        let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
         let workspace_root = Path::new(".blackpepper/workspaces");
         let root_path = repo_root.join(workspace_root);
         fs::create_dir_all(&root_path).expect("create workspace root");
