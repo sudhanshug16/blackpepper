@@ -26,10 +26,7 @@ use crate::repo_status::{spawn_repo_status_worker, RepoStatus, RepoStatusSignal}
 use crate::state::{get_active_workspace, load_state, remove_active_workspace};
 use crate::workspaces::{list_workspace_names, workspace_name_from_path};
 
-use super::state::{
-    App, CommandOverlay, Mode, PromptOverlay, SearchState, SelectionState, TabOverlay,
-    WorkspaceOverlay,
-};
+use super::state::{App, CommandOverlay, Mode, PromptOverlay, WorkspaceOverlay};
 
 /// Entry point: set up terminal and run the event loop.
 pub fn run() -> io::Result<()> {
@@ -123,7 +120,6 @@ impl App {
         let config = load_config(config_root);
         let toggle_chord = parse_key_chord(&config.keymap.toggle_mode);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
-        let switch_tab_chord = parse_key_chord(&config.keymap.switch_tab);
         let refresh_chord = parse_key_chord(&config.keymap.refresh);
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
 
@@ -171,32 +167,27 @@ impl App {
             active_workspace,
             toggle_chord,
             switch_chord,
-            switch_tab_chord,
             refresh_chord,
             should_quit: false,
             config,
-            tabs: std::collections::HashMap::new(),
+            sessions: std::collections::HashMap::new(),
             overlay: WorkspaceOverlay::default(),
-            tab_overlay: TabOverlay::default(),
             prompt_overlay: PromptOverlay::default(),
             command_overlay: CommandOverlay::default(),
             event_tx,
             repo_status: RepoStatus::default(),
             repo_status_tx: Some(repo_status_tx),
             terminal_seq: 0,
-            tab_bar_area: None,
             terminal_area: None,
             mouse_debug: false,
             mouse_pressed: None,
             mouse_log_path: mouse_log_path(),
             loading: None,
             pending_command: None,
-            selection: SelectionState::default(),
-            search: SearchState::default(),
             refresh_requested: false,
         };
 
-        if let Err(err) = super::input::ensure_active_workspace_tabs(&mut app, 24, 80) {
+        if let Err(err) = super::input::ensure_active_workspace_session(&mut app, 24, 80) {
             app.set_output(err);
         }
 

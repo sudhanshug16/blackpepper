@@ -205,9 +205,9 @@ mod tests {
     }
 
     #[test]
-    fn complete_subcommand_common_prefix() {
-        let completed = complete_command_input(":tab n").expect("completion");
-        assert_eq!(completed, ":tab ne");
+    fn complete_subcommand_unique() {
+        let completed = complete_command_input(":workspace c").expect("completion");
+        assert_eq!(completed, ":workspace create ");
     }
 
     #[test]
@@ -217,6 +217,6 @@ mod tests {
 
     #[test]
     fn complete_returns_none_when_no_progress() {
-        assert!(complete_command_input(":tab ").is_none());
+        assert!(complete_command_input(":workspace ").is_none());
     }
 }

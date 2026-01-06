@@ -1,21 +1,15 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 
-use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{MouseEvent, MouseEventKind};
 use vt100::{MouseProtocolEncoding, MouseProtocolMode};
 
-use super::overlay::overlay_visible;
-use super::terminal::{
-    clear_selection, copy_selection, mouse_event_for_terminal, terminal_cell_from_mouse,
-};
+use super::terminal::{mouse_event_for_terminal, terminal_cell_from_mouse};
 use super::utils::format_bytes;
 use super::workspace::{active_terminal_mut, active_terminal_ref};
-use crate::app::state::{App, Mode, SCROLL_LINES};
+use crate::app::state::App;
 
 pub(super) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) {
-    if app.loading.is_some() {
-        return;
-    }
     match mouse.kind {
         MouseEventKind::Down(button) => {
             app.mouse_pressed = Some(button);
@@ -25,148 +19,12 @@ pub(super) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) {
         }
         _ => {}
     }
-    let handled = handle_mouse(app, mouse);
-    if !handled && app.mode == Mode::Work && !app.command_active && !overlay_visible(app) {
-        send_mouse_to_active_terminal(app, mouse);
-    }
+
+    send_mouse_to_active_terminal(app, mouse);
+
     if app.mouse_debug {
         log_mouse_debug(app, mouse);
     }
-}
-
-fn handle_mouse(app: &mut App, mouse: MouseEvent) -> bool {
-    if app.loading.is_some() {
-        return false;
-    }
-    if app.command_active || overlay_visible(app) {
-        return false;
-    }
-
-    let in_terminal = terminal_cell_from_mouse(app, &mouse).is_some();
-    let mouse_mode = active_terminal_ref(app)
-        .map(|terminal| terminal.mouse_protocol().0)
-        .unwrap_or(MouseProtocolMode::None);
-    if in_terminal && mouse_mode != MouseProtocolMode::None {
-        return false;
-    }
-
-    // Scrolling in terminal area (when not in mouse mode)
-    if in_terminal
-        && matches!(
-            mouse.kind,
-            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-        )
-    {
-        if let Some(terminal) = active_terminal_mut(app) {
-            let (mode, _) = terminal.mouse_protocol();
-            if mode == MouseProtocolMode::None && !terminal.alternate_screen() {
-                let delta = match mouse.kind {
-                    MouseEventKind::ScrollUp => SCROLL_LINES,
-                    MouseEventKind::ScrollDown => -SCROLL_LINES,
-                    _ => 0,
-                };
-                terminal.scroll_lines(delta);
-                return true;
-            }
-        }
-    }
-
-    // Text selection
-    if in_terminal && mouse_mode == MouseProtocolMode::None {
-        if let Some(pos) = terminal_cell_from_mouse(app, &mouse) {
-            if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
-                app.selection.active = true;
-                app.selection.selecting = true;
-                app.selection.start = Some(pos);
-                app.selection.end = Some(pos);
-                return true;
-            }
-            if matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left))
-                && app.selection.selecting
-            {
-                app.selection.end = Some(pos);
-                return true;
-            }
-            if matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left))
-                && app.selection.selecting
-            {
-                app.selection.end = Some(pos);
-                app.selection.selecting = false;
-                if app.selection.start != app.selection.end {
-                    let copied = copy_selection(app);
-                    clear_selection(app);
-                    return copied;
-                }
-                clear_selection(app);
-                return true;
-            }
-        }
-    }
-
-    // Tab bar clicks
-    if !matches!(
-        mouse.kind,
-        MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Up(MouseButton::Left)
-    ) {
-        return false;
-    }
-
-    let in_tab_bar = app.tab_bar_area.is_some_and(|area| {
-        mouse.row >= area.y
-            && mouse.row < area.y.saturating_add(area.height)
-            && mouse.column >= area.x
-            && mouse.column < area.x.saturating_add(area.width)
-    });
-    if !in_tab_bar {
-        return false;
-    }
-
-    let Some(workspace) = app.active_workspace.as_deref() else {
-        return false;
-    };
-    let clicked = {
-        let Some(tabs) = app.tabs.get(workspace) else {
-            return false;
-        };
-        if tabs.tabs.is_empty() {
-            return false;
-        }
-        let mut cursor = 0u16;
-        let mut hit = None;
-        for (index, tab) in tabs.tabs.iter().enumerate() {
-            let label = format!(
-                "{}:{}",
-                index + 1,
-                super::workspace::tab_display_label(app, tab)
-            );
-            let width = label.chars().count() as u16;
-            if mouse.column >= cursor && mouse.column < cursor.saturating_add(width) {
-                hit = Some(index);
-                break;
-            }
-            cursor = cursor.saturating_add(width);
-            if index + 1 < tabs.tabs.len() {
-                cursor = cursor.saturating_add(2);
-            }
-        }
-        hit
-    };
-
-    if let Some(index) = clicked {
-        if let Some(tabs) = app.tabs.get_mut(workspace) {
-            tabs.active = index;
-        }
-        if app.mouse_debug {
-            app.set_output(format!(
-                "Mouse click: col={} -> tab {}",
-                mouse.column,
-                index + 1
-            ));
-        }
-        return true;
-    }
-
-    false
 }
 
 fn send_mouse_to_active_terminal(app: &mut App, mouse: MouseEvent) -> bool {
@@ -238,9 +96,10 @@ fn append_mouse_log(app: &App, line: &str) {
     let Some(path) = app.mouse_log_path.as_ref() else {
         return;
     };
-    let mut file = match OpenOptions::new().create(true).append(true).open(path) {
-        Ok(file) => file,
-        Err(_) => return,
-    };
-    let _ = writeln!(file, "{line}");
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{line}");
+    }
 }

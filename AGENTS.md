@@ -68,7 +68,7 @@ with an embedded shell per workspace.
 
 ## Configuration & Secrets
 
-- Config resolution order: workspace-local `.config/blackpepper/pepper.toml`, then user-level `~/.config/blackpepper/pepper.toml`.
+- Config resolution order: workspace-local `.config/blackpepper/config.toml`, then user-level `~/.config/blackpepper/config.toml`.
 - Validate config on startup and fail with actionable errors.
 - Never commit configs or secrets; redact any sensitive values in logs.
 

@@ -41,10 +41,8 @@ Terminal stack:
 
 Config resolution order:
 
-1. `./.config/blackpepper/pepper.toml`
-2. `~/.config/blackpepper/pepper.toml`
-
-Legacy: `./.blackpepper/config.toml` and `~/.blackpepper/config.toml` are read if present.
+1. `./.config/blackpepper/config.toml`
+2. `~/.config/blackpepper/config.toml`
 
 Example:
 
@@ -53,9 +51,9 @@ Example:
 toggle_mode = "ctrl+g"
 switch_workspace = "ctrl+p"
 
-[terminal]
-command = "/bin/zsh"
-args = ["-l"]
+[tmux]
+command = "tmux"
+args = ["-f", "/path/to/tmux.conf"]
 
 [workspace]
 root = ".blackpepper/workspaces"
@@ -69,7 +67,7 @@ provider = "github"
 
 ```
 
-If `[terminal]` is omitted, Blackpepper uses `$SHELL` (or `bash`/`cmd.exe`).
+If `[tmux]` is omitted, Blackpepper uses `tmux` from `PATH`.
 If `[agent].provider` is set, `:pr create` uses the built-in agent templates; set
 `[agent].command` to override the command (optional `{{PROMPT}}` placeholder).
 `[upstream].provider` selects the PR backend (default `github` via the `gh` CLI).
@@ -89,14 +87,14 @@ Example:
 ## Workspaces
 
 Workspaces are created via `git worktree` under `./.blackpepper/workspaces/<animal>`
-by default and can host multiple agent tabs in parallel. Override the root
-with `[workspace].root` in `pepper.toml`.
+by default and each workspace attaches to its own tmux session (use tmux windows/panes
+for parallel shells). Override the root with `[workspace].root` in `config.toml`.
 
 Run `bp init` (or `:init` inside the TUI) to add gitignore entries and
-create an empty project config at `./.config/blackpepper/pepper.toml`.
+create an empty project config at `./.config/blackpepper/config.toml`.
 
-Selecting a workspace starts an embedded terminal in that worktree. Customize
-the shell with `[terminal]`.
+Selecting a workspace starts an embedded tmux client in that worktree. Customize
+the tmux command with `[tmux]`.
 
 ## Modes
 

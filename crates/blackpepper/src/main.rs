@@ -9,6 +9,7 @@ mod providers;
 mod repo_status;
 mod state;
 mod terminal;
+mod tmux;
 mod updater;
 mod workspaces;
 

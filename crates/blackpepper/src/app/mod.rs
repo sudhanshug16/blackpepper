@@ -3,7 +3,7 @@
 //! This module owns the core application lifecycle:
 //! - Initialization (terminal setup, config loading)
 //! - Event loop (input, PTY output, commands)
-//! - State management (workspaces, tabs, overlays)
+//! - State management (workspaces, overlays)
 //! - UI rendering delegation
 //!
 //! The app is structured around a single `App` struct that holds

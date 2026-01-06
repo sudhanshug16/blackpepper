@@ -3,7 +3,6 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
-use super::super::input::tab_display_label;
 use super::super::state::App;
 use super::layout::centered_rect;
 use super::output::wrap_text_lines_unbounded;
@@ -33,45 +32,6 @@ pub(super) fn render_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) 
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Workspaces")
-        .style(Style::default().bg(Color::Black));
-    frame.render_widget(
-        Paragraph::new(lines)
-            .block(block)
-            .style(Style::default().bg(Color::Black)),
-        overlay_rect,
-    );
-}
-
-/// Render tab selection overlay.
-pub(super) fn render_tab_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
-    let overlay_rect = centered_rect(50, 40, area);
-    frame.render_widget(Clear, overlay_rect);
-    let mut lines = Vec::new();
-    let tabs = app
-        .active_workspace
-        .as_deref()
-        .and_then(|workspace| app.tabs.get(workspace));
-    if let Some(tabs) = tabs {
-        for (idx, tab_index) in app.tab_overlay.items.iter().enumerate() {
-            let mut label = tabs
-                .tabs
-                .get(*tab_index)
-                .map(|tab| tab_display_label(app, tab))
-                .unwrap_or_else(|| "tab".to_string());
-            if Some(*tab_index) == Some(tabs.active) {
-                label = format!("{label} (active)");
-            }
-            let style = if idx == app.tab_overlay.selected {
-                Style::default().fg(Color::Black).bg(Color::White)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            lines.push(Line::from(Span::styled(label, style)));
-        }
-    }
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Tabs")
         .style(Style::default().bg(Color::Black));
     frame.render_widget(
         Paragraph::new(lines)

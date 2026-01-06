@@ -1,10 +1,10 @@
 //! Configuration loading and merging.
 //!
 //! Config is loaded from two sources with workspace taking precedence:
-//! 1. User-level: `~/.config/blackpepper/pepper.toml`
-//! 2. Workspace-level: `<repo>/.config/blackpepper/pepper.toml`
+//! 1. User-level: `~/.config/blackpepper/config.toml`
+//! 2. Workspace-level: `<repo>/.config/blackpepper/config.toml`
 //!
-//! Supports keymap customization, terminal command override, and
+//! Supports keymap customization, tmux command override, and
 //! workspace root configuration. Uses TOML format with serde.
 
 use serde::Deserialize;
@@ -16,11 +16,12 @@ const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+p";
 const DEFAULT_SWITCH_TAB: &str = "ctrl+o";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
 const DEFAULT_REFRESH: &str = "ctrl+r";
+const DEFAULT_TMUX_COMMAND: &str = "tmux";
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub keymap: KeymapConfig,
-    pub terminal: TerminalConfig,
+    pub tmux: TmuxConfig,
     pub workspace: WorkspaceConfig,
     pub agent: AgentConfig,
     pub upstream: UpstreamConfig,
@@ -35,7 +36,7 @@ pub struct KeymapConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct TerminalConfig {
+pub struct TmuxConfig {
     pub command: Option<String>,
     pub args: Vec<String>,
 }
@@ -59,7 +60,7 @@ pub struct UpstreamConfig {
 #[derive(Debug, Default, Deserialize)]
 struct RawConfig {
     keymap: Option<RawKeymap>,
-    terminal: Option<RawTerminal>,
+    tmux: Option<RawTmux>,
     workspace: Option<RawWorkspace>,
     agent: Option<RawAgent>,
     upstream: Option<RawUpstream>,
@@ -78,7 +79,7 @@ struct RawKeymap {
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct RawTerminal {
+struct RawTmux {
     command: Option<String>,
     args: Option<Vec<String>>,
 }
@@ -127,8 +128,8 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         .or_else(|| user_keymap.and_then(|k| k.refresh.clone()))
         .unwrap_or_else(|| DEFAULT_REFRESH.to_string());
 
-    let workspace_terminal = workspace.as_ref().and_then(|c| c.terminal.as_ref());
-    let user_terminal = user.as_ref().and_then(|c| c.terminal.as_ref());
+    let workspace_tmux = workspace.as_ref().and_then(|c| c.tmux.as_ref());
+    let user_tmux = user.as_ref().and_then(|c| c.tmux.as_ref());
     let workspace_workspace = workspace.as_ref().and_then(|c| c.workspace.as_ref());
     let user_workspace = user.as_ref().and_then(|c| c.workspace.as_ref());
     let workspace_agent = workspace.as_ref().and_then(|c| c.agent.as_ref());
@@ -136,12 +137,13 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
     let workspace_upstream = workspace.as_ref().and_then(|c| c.upstream.as_ref());
     let user_upstream = user.as_ref().and_then(|c| c.upstream.as_ref());
 
-    let command = workspace_terminal
+    let command = workspace_tmux
         .and_then(|t| t.command.clone())
-        .or_else(|| user_terminal.and_then(|t| t.command.clone()));
-    let args = workspace_terminal
+        .or_else(|| user_tmux.and_then(|t| t.command.clone()))
+        .or_else(|| Some(DEFAULT_TMUX_COMMAND.to_string()));
+    let args = workspace_tmux
         .and_then(|t| t.args.clone())
-        .or_else(|| user_terminal.and_then(|t| t.args.clone()))
+        .or_else(|| user_tmux.and_then(|t| t.args.clone()))
         .unwrap_or_default();
     let workspace_root = workspace_workspace
         .and_then(|w| w.root.clone())
@@ -165,7 +167,7 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
             switch_tab,
             refresh,
         },
-        terminal: TerminalConfig { command, args },
+        tmux: TmuxConfig { command, args },
         workspace: WorkspaceConfig {
             root: PathBuf::from(workspace_root),
         },
@@ -180,7 +182,7 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
 }
 
 pub fn workspace_config_path(root: &Path) -> PathBuf {
-    root.join(".config").join("blackpepper").join("pepper.toml")
+    root.join(".config").join("blackpepper").join("config.toml")
 }
 
 pub fn user_config_path() -> Option<PathBuf> {
@@ -189,32 +191,20 @@ pub fn user_config_path() -> Option<PathBuf> {
             return Some(
                 PathBuf::from(config_home)
                     .join("blackpepper")
-                    .join("pepper.toml"),
+                    .join("config.toml"),
             );
         }
     }
     let config_root = dirs::config_dir()?;
-    Some(config_root.join("blackpepper").join("pepper.toml"))
-}
-
-fn legacy_config_path_from_root(root: &Path) -> PathBuf {
-    root.join(".blackpepper").join("config.toml")
-}
-
-fn legacy_user_config_path() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    Some(legacy_config_path_from_root(&home))
+    Some(config_root.join("blackpepper").join("config.toml"))
 }
 
 pub fn load_config(root: &Path) -> Config {
     let workspace_path = workspace_config_path(root);
     let user_path = user_config_path();
 
-    let workspace_config =
-        read_toml(&workspace_path).or_else(|| read_toml(&legacy_config_path_from_root(root)));
-    let user_config = user_path
-        .and_then(|path| read_toml(&path))
-        .or_else(|| legacy_user_config_path().and_then(|path| read_toml(&path)));
+    let workspace_config = read_toml(&workspace_path);
+    let user_config = user_path.and_then(|path| read_toml(&path));
 
     merge_config(user_config, workspace_config)
 }
@@ -297,8 +287,8 @@ mod tests {
         assert_eq!(config.keymap.switch_workspace, "ctrl+p");
         assert_eq!(config.keymap.switch_tab, "ctrl+o");
         assert_eq!(config.keymap.refresh, "ctrl+r");
-        assert_eq!(config.terminal.command, None);
-        assert!(config.terminal.args.is_empty());
+        assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
+        assert!(config.tmux.args.is_empty());
         assert_eq!(config.workspace.root, Path::new(".blackpepper/workspaces"));
         assert!(config.agent.provider.is_none());
         assert!(config.agent.command.is_none());
@@ -326,7 +316,7 @@ mod tests {
         env::set_var("HOME", home.path());
         env::set_var("XDG_CONFIG_HOME", config_home.path());
 
-        let user_config_path = config_home.path().join("blackpepper").join("pepper.toml");
+        let user_config_path = config_home.path().join("blackpepper").join("config.toml");
         write_config(
             &user_config_path,
             r#"
@@ -335,9 +325,9 @@ toggle_mode = "ctrl+x"
 switch_workspace = "ctrl+u"
 refresh = "ctrl+z"
 
-[terminal]
-command = "zsh"
-args = ["-l"]
+[tmux]
+command = "tmux"
+args = ["-f", "/tmp/tmux.conf"]
 
 [workspace]
 root = "user/workspaces"
@@ -355,15 +345,16 @@ provider = "gitlab"
             .path()
             .join(".config")
             .join("blackpepper")
-            .join("pepper.toml");
+            .join("config.toml");
         write_config(
             &workspace_config_path,
             r#"
 [keymap]
 toggle_mode = "ctrl+y"
 
-[terminal]
-command = "fish"
+[tmux]
+command = "tmux"
+args = ["-L", "alt"]
 
 [workspace]
 root = ".pepper/workspaces"
@@ -381,8 +372,8 @@ provider = "github"
         assert_eq!(config.keymap.toggle_mode, "ctrl+y");
         assert_eq!(config.keymap.switch_workspace, "ctrl+u");
         assert_eq!(config.keymap.refresh, "ctrl+z");
-        assert_eq!(config.terminal.command, Some("fish".to_string()));
-        assert_eq!(config.terminal.args, vec!["-l".to_string()]);
+        assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
+        assert_eq!(config.tmux.args, vec!["-L".to_string(), "alt".to_string()]);
         assert_eq!(config.workspace.root, Path::new(".pepper/workspaces"));
         assert_eq!(config.agent.provider.as_deref(), Some("codex"));
         assert_eq!(config.agent.command.as_deref(), Some("custom pr"));

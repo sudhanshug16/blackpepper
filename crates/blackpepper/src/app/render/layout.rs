@@ -61,15 +61,6 @@ fn command_line(app: &App) -> Line<'_> {
             Span::styled(app.command_input.clone(), Style::default().fg(Color::White)),
             Span::styled(" ", Style::default().bg(Color::White).fg(Color::Black)),
         ])
-    } else if app.search.active {
-        // Search input mode
-        Line::from(vec![
-            Span::styled(
-                format!("/{}", app.search.query),
-                Style::default().fg(Color::Yellow),
-            ),
-            Span::styled(" ", Style::default().bg(Color::Yellow).fg(Color::Black)),
-        ])
     } else {
         // Mode indicator
         let label = match app.mode {
@@ -109,7 +100,13 @@ fn build_status_label(
         .add_modifier(Modifier::DIM);
     let name = app.repo_status.head.as_deref().unwrap_or(workspace);
     let version_segment = segment_plain(format!("v{version}"), dim_style);
-    let branch_segment = fit_branch_segment(name, &version_segment, max_width, dim_style)?;
+    let branch_segment = fit_branch_segment(
+        name,
+        app.repo_status.dirty,
+        &version_segment,
+        max_width,
+        dim_style,
+    )?;
     let mut segments = vec![branch_segment, version_segment];
 
     if let Some(divergence) = app.repo_status.divergence.as_ref() {
@@ -137,6 +134,7 @@ fn build_status_label(
 
 fn fit_branch_segment(
     name: &str,
+    dirty: bool,
     version: &Segment,
     max_width: usize,
     style: Style,
@@ -151,12 +149,29 @@ fn fit_branch_segment(
         return None;
     }
     let inner_len = max_branch_len.saturating_sub(2);
-    let branch = if name.chars().count() > inner_len {
-        truncate_label(name, inner_len)
+    let marker = if dirty { "*" } else { "" };
+    let marker_len = marker.chars().count();
+    let available = inner_len.saturating_sub(marker_len);
+    let branch = if available == 0 {
+        marker.to_string()
+    } else if name.chars().count() > available {
+        let mut truncated = truncate_label(name, available);
+        truncated.push_str(marker);
+        truncated
     } else {
-        name.to_string()
+        format!("{name}{marker}")
     };
-    Some(segment_plain(format!("({branch})"), style))
+    if dirty {
+        let dirty_style = Style::default().fg(Color::Rgb(255, 140, 0));
+        let mut spans = Vec::new();
+        spans.push(Span::styled("(".to_string(), style));
+        spans.push(Span::styled(branch.clone(), dirty_style));
+        spans.push(Span::styled(")".to_string(), style));
+        let text = format!("({branch})");
+        Some(Segment { text, spans })
+    } else {
+        Some(segment_plain(format!("({branch})"), style))
+    }
 }
 
 fn join_segments(segments: &[Segment], style: Style) -> StatusLabel {

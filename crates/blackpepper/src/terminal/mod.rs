@@ -18,4 +18,3 @@ pub mod hooks;
 
 pub use input::{key_event_to_bytes, mouse_event_to_bytes};
 pub use pty::TerminalSession;
-pub use render::RenderOverlay;

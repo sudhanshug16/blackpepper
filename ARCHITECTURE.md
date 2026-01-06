@@ -83,11 +83,10 @@ gets a unique animal name (e.g., `otter`, `lynx`) that can be renamed after the 
 task is defined. Workspace lifecycle is manual via commands like `:workspace create`,
 `:workspace destroy`.
 
-### Tabs
+### Tmux Sessions
 
-Each workspace can have multiple terminal tabs. Tabs are independent PTY sessions
-sharing the same working directory. Tab navigation via Ctrl+Tab, Alt+1-9, or
-`:tab switch`.
+Each workspace attaches to a tmux session named `<repo>:<workspace>`. Use tmux
+windows/panes for parallel shells instead of app-level tabs.
 
 ### Modes
 
@@ -108,16 +107,16 @@ The terminal uses `portable-pty` for PTY access and `vt100` for ANSI parsing. Th
 render pipeline:
 
 1. PTY output → vt100 parser (updates screen buffer)
-2. Screen buffer → ratatui Lines (with selection/search highlighting)
+2. Screen buffer → ratatui Lines
 3. Lines → frame render
 
 ### Configuration
 
 Config resolution order:
-1. Workspace-local `.config/blackpepper/pepper.toml`
-2. User-level `~/.config/blackpepper/pepper.toml`
+1. Workspace-local `.config/blackpepper/config.toml`
+2. User-level `~/.config/blackpepper/config.toml`
 
-Config is TOML-based with sections for keymap, terminal, workspace, agent, and
+Config is TOML-based with sections for keymap, tmux, workspace, agent, and
 upstream provider settings.
 
 ## Extension Points

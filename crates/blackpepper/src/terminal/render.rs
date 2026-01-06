@@ -3,34 +3,14 @@
 //! Converts vt100 screen state into ratatui Line/Span primitives
 //! for display. Handles:
 //! - Cell-by-cell styling (colors, bold, italic, etc.)
-//! - Selection highlighting
-//! - Search match highlighting
 //! - Cursor display
 
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use vt100::{Color as VtColor, Parser};
 
-/// Overlay ranges for selection and search highlighting.
-pub struct RenderOverlay<'a> {
-    /// Selection ranges per row: Vec of (start_col, end_col) pairs.
-    pub selection: Option<&'a [Vec<(u16, u16)>]>,
-    /// Search match ranges per row.
-    pub search: Option<&'a [Vec<(u16, u16)>]>,
-    /// Currently active search match (row, start, end).
-    pub active_search: Option<(u16, u16, u16)>,
-}
-
 /// Render the visible terminal area to ratatui Lines.
-///
-/// Applies cell styling from vt100, overlays selection and search
-/// highlights, and shows the cursor if visible.
-pub fn render_lines_with_overlay(
-    parser: &Parser,
-    rows: u16,
-    cols: u16,
-    overlay: RenderOverlay<'_>,
-) -> Vec<Line<'static>> {
+pub fn render_lines(parser: &Parser, rows: u16, cols: u16) -> Vec<Line<'static>> {
     let rows = rows.max(1);
     let cols = cols.max(1);
     let screen = parser.screen();
@@ -67,15 +47,6 @@ pub fn render_lines_with_overlay(
 
             let mut style = style_for_cell(cell);
 
-            // Apply overlay highlights in priority order
-            if in_ranges(overlay.selection, row, col) {
-                style = style.bg(Color::White).fg(Color::Black);
-            } else if in_active_search(overlay.active_search, row, col) {
-                style = style.bg(Color::Yellow).fg(Color::Black);
-            } else if in_ranges(overlay.search, row, col) {
-                style = style.bg(Color::Blue).fg(Color::White);
-            }
-
             // Cursor display
             if show_cursor && row == cursor_row && col == cursor_col {
                 style = style.add_modifier(Modifier::REVERSED);
@@ -107,27 +78,6 @@ pub fn render_lines_with_overlay(
     }
 
     lines
-}
-
-/// Check if a cell is within any of the provided ranges.
-fn in_ranges(ranges: Option<&[Vec<(u16, u16)>]>, row: u16, col: u16) -> bool {
-    let Some(ranges) = ranges else {
-        return false;
-    };
-    let Some(row_ranges) = ranges.get(row as usize) else {
-        return false;
-    };
-    row_ranges
-        .iter()
-        .any(|(start, end)| col >= *start && col < *end)
-}
-
-/// Check if a cell is in the currently active search match.
-fn in_active_search(active: Option<(u16, u16, u16)>, row: u16, col: u16) -> bool {
-    let Some((active_row, start, end)) = active else {
-        return false;
-    };
-    row == active_row && col >= start && col < end
 }
 
 /// Convert vt100 cell attributes to ratatui Style.

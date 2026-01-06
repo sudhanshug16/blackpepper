@@ -102,7 +102,7 @@ fn project_config_is_created_once() {
         .path()
         .join(".config")
         .join("blackpepper")
-        .join("pepper.toml");
+        .join("config.toml");
 
     let created = ensure_project_config(&config_path).expect("create config");
     assert!(created);
@@ -132,6 +132,27 @@ fn pick_unused_returns_none_when_exhausted() {
 fn workspace_create_and_destroy_workflow() {
     let repo = init_repo();
     let workspace_root = Path::new(".blackpepper/workspaces");
+    let config_path = workspace_config_path(repo.path());
+    fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
+    let tmux_stub = if cfg!(windows) {
+        repo.path().join("tmux_stub.cmd")
+    } else {
+        repo.path().join("tmux_stub.sh")
+    };
+    let stub_contents = if cfg!(windows) {
+        "@echo off\r\nexit /b 0\r\n"
+    } else {
+        "#!/bin/sh\nexit 0\n"
+    };
+    fs::write(&tmux_stub, stub_contents).expect("write tmux stub");
+    #[cfg(unix)]
+    {
+        let mut perms = fs::metadata(&tmux_stub).expect("stat tmux stub").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&tmux_stub, perms).expect("chmod tmux stub");
+    }
+    let tmux_config = format!("[tmux]\ncommand = \"{}\"\n", tmux_stub.display());
+    fs::write(&config_path, tmux_config).expect("write config");
     let ctx = CommandContext {
         cwd: repo.path().to_path_buf(),
         repo_root: Some(repo.path().to_path_buf()),

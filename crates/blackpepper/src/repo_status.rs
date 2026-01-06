@@ -15,6 +15,7 @@ const STATUS_DEBOUNCE: Duration = Duration::from_millis(250);
 #[derive(Debug, Clone, Default)]
 pub struct RepoStatus {
     pub head: Option<String>,
+    pub dirty: bool,
     pub divergence: Option<Divergence>,
     pub pr: PrStatus,
 }
@@ -150,10 +151,12 @@ fn compute_repo_status(cwd: &Path) -> RepoStatus {
     }
 
     let head = parse_branch_head(&status.stdout);
+    let dirty = parse_dirty(&status.stdout);
     let divergence = parse_divergence(&status.stdout);
     let pr = fetch_pr_status(cwd);
     RepoStatus {
         head,
+        dirty,
         divergence,
         pr,
     }
@@ -175,6 +178,19 @@ fn parse_branch_head(output: &str) -> Option<String> {
         return Some(head.to_string());
     }
     None
+}
+
+fn parse_dirty(output: &str) -> bool {
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if !line.starts_with('#') {
+            return true;
+        }
+    }
+    false
 }
 
 fn parse_divergence(output: &str) -> Option<Divergence> {
@@ -298,7 +314,9 @@ fn parse_pr_view(raw: &str) -> Result<PrInfo, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_branch_head, parse_divergence, parse_pr_view, Divergence, PrState};
+    use super::{
+        parse_branch_head, parse_dirty, parse_divergence, parse_pr_view, Divergence, PrState,
+    };
 
     #[test]
     fn parse_divergence_extracts_counts() {
@@ -324,6 +342,18 @@ mod tests {
     fn parse_branch_head_handles_detached() {
         let output = "# branch.head (detached)\n";
         assert_eq!(parse_branch_head(output), Some("detached".to_string()));
+    }
+
+    #[test]
+    fn parse_dirty_detects_changes() {
+        let output = "# branch.head main\n1 .M N... 100644 100644 100644 abc abc file.txt\n";
+        assert!(parse_dirty(output));
+    }
+
+    #[test]
+    fn parse_dirty_ignores_clean_status() {
+        let output = "# branch.head main\n# branch.ab +0 -0\n";
+        assert!(!parse_dirty(output));
     }
 
     #[test]

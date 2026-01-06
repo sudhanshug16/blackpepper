@@ -1,6 +1,3 @@
-use std::fs;
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::commands::{
@@ -10,13 +7,8 @@ use crate::commands::{
 use crate::events::AppEvent;
 use crate::workspaces::list_workspace_names;
 
-use super::overlay::{open_agent_provider_overlay, open_tab_overlay, open_workspace_overlay};
-use super::utils::{find_editor_binary, shell_escape};
-use super::workspace::{
-    active_tab_mut, close_active_tab, create_tab_for_active, enter_work_mode,
-    prune_missing_active_workspace, rename_active_tab, request_refresh, set_active_workspace,
-    spawn_tab, tab_next, tab_prev, tab_select_by_arg,
-};
+use super::overlay::{open_agent_provider_overlay, open_workspace_overlay};
+use super::workspace::{prune_missing_active_workspace, request_refresh, set_active_workspace};
 use super::NO_ACTIVE_WORKSPACE_HINT;
 use crate::app::state::{App, PendingCommand};
 
@@ -113,11 +105,6 @@ fn execute_command(app: &mut App, raw: &str) {
         return;
     }
 
-    if parsed.name == "tab" {
-        handle_tab_command(app, &parsed.args);
-        return;
-    }
-
     if parsed.name == "pr" {
         handle_pr_command(app, &parsed.name, &parsed.args);
         return;
@@ -125,11 +112,6 @@ fn execute_command(app: &mut App, raw: &str) {
 
     if parsed.name == "debug" {
         handle_debug_command(app, &parsed.args);
-        return;
-    }
-
-    if parsed.name == "export" {
-        handle_export_command(app, &parsed.args);
         return;
     }
 
@@ -191,56 +173,6 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
     }
 }
 
-fn handle_tab_command(app: &mut App, args: &[String]) {
-    let Some(subcommand) = args.first() else {
-        app.set_output("Usage: :tab <new|rename|close|next|prev|switch>".to_string());
-        return;
-    };
-
-    match subcommand.as_str() {
-        "new" => {
-            let name = args.get(1).cloned();
-            match create_tab_for_active(app, 24, 80, name) {
-                Ok(name) => {
-                    app.set_output(format!("Opened tab: {name}"));
-                    enter_work_mode(app);
-                }
-                Err(err) => app.set_output(err),
-            }
-        }
-        "rename" => {
-            let Some(name) = args.get(1) else {
-                app.set_output("Usage: :tab rename <name>".to_string());
-                return;
-            };
-            match rename_active_tab(app, name) {
-                Ok(()) => app.set_output(format!("Renamed tab to {name}")),
-                Err(err) => app.set_output(err),
-            }
-        }
-        "close" => match close_active_tab(app) {
-            Ok(message) => app.set_output(message),
-            Err(err) => app.set_output(err),
-        },
-        "next" => tab_next(app),
-        "prev" => tab_prev(app),
-        "switch" => {
-            if let Some(arg) = args.get(1) {
-                tab_select_by_arg(app, arg);
-            } else {
-                open_tab_overlay(app);
-            }
-        }
-        _ => {
-            if args.len() == 1 {
-                tab_select_by_arg(app, subcommand);
-            } else {
-                app.set_output("Usage: :tab <new|rename|close|next|prev|switch>".to_string());
-            }
-        }
-    }
-}
-
 fn handle_pr_command(app: &mut App, name: &str, args: &[String]) {
     if app.active_workspace.is_none() {
         app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
@@ -293,58 +225,6 @@ fn handle_debug_command(app: &mut App, args: &[String]) {
             app.set_output("Usage: :debug <mouse>".to_string());
         }
     }
-}
-
-fn handle_export_command(app: &mut App, args: &[String]) {
-    if !args.is_empty() {
-        app.set_output("Usage: :export".to_string());
-        return;
-    }
-    let editor = match find_editor_binary() {
-        Some(editor) => editor,
-        None => {
-            app.set_output("vim/vi not found. Install vim to use :export.".to_string());
-            return;
-        }
-    };
-    let (rows, cols) = app
-        .terminal_area
-        .map(|area| (area.height.max(1), area.width.max(1)))
-        .unwrap_or((24, 80));
-
-    let contents = match active_tab_mut(app) {
-        Some(tab) => tab.terminal.scrollback_contents(),
-        None => {
-            app.set_output("No active workspace.".to_string());
-            return;
-        }
-    };
-
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis())
-        .unwrap_or(0);
-    let file_path = std::env::temp_dir().join(format!("blackpepper-scrollback-{timestamp}.txt"));
-    if let Err(err) = fs::write(&file_path, contents) {
-        app.set_output(format!("Failed to write export file: {err}"));
-        return;
-    }
-
-    let tab_name = match spawn_tab(app, rows, cols, None) {
-        Ok(name) => name,
-        Err(err) => {
-            app.set_output(err);
-            return;
-        }
-    };
-
-    if let Some(tab) = active_tab_mut(app) {
-        let quoted = shell_escape(&file_path.to_string_lossy());
-        let command = format!("{editor} {quoted}\n");
-        tab.terminal.write_bytes(command.as_bytes());
-    }
-
-    app.set_output(format!("Opened export in {editor} ({tab_name})."));
 }
 
 fn handle_refresh_command(app: &mut App, args: &[String]) {

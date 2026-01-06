@@ -48,9 +48,9 @@ pub(super) fn init_project(args: &[String], ctx: &CommandContext) -> CommandResu
     let config_path = repo_root
         .join(".config")
         .join("blackpepper")
-        .join("pepper.toml");
+        .join("config.toml");
     match ensure_project_config(&config_path) {
-        Ok(true) => actions.push("created .config/blackpepper/pepper.toml"),
+        Ok(true) => actions.push("created .config/blackpepper/config.toml"),
         Ok(false) => actions.push("project config already exists"),
         Err(err) => {
             return CommandResult {

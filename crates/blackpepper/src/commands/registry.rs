@@ -14,9 +14,7 @@ pub struct CommandSpec {
 /// Top-level command names (first word after `:`).
 pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "workspace",
-    "tab",
     "pr",
-    "export",
     "refresh",
     "init",
     "update",
@@ -50,11 +48,6 @@ pub const COMMANDS: &[CommandSpec] = &[
         cli_exposed: true,
     },
     CommandSpec {
-        name: "export",
-        description: "Export current tab scrollback into a vi/vim buffer in a new tab",
-        cli_exposed: false,
-    },
-    CommandSpec {
         name: "refresh",
         description: "Redraw the UI",
         cli_exposed: false,
@@ -68,36 +61,6 @@ pub const COMMANDS: &[CommandSpec] = &[
         name: "update",
         description: "Update to the latest release (applies on next restart)",
         cli_exposed: true,
-    },
-    CommandSpec {
-        name: "tab new",
-        description: "Open a new tab in the active workspace",
-        cli_exposed: false,
-    },
-    CommandSpec {
-        name: "tab rename",
-        description: "Rename the active tab",
-        cli_exposed: false,
-    },
-    CommandSpec {
-        name: "tab close",
-        description: "Close the active tab",
-        cli_exposed: false,
-    },
-    CommandSpec {
-        name: "tab next",
-        description: "Switch to the next tab",
-        cli_exposed: false,
-    },
-    CommandSpec {
-        name: "tab prev",
-        description: "Switch to the previous tab",
-        cli_exposed: false,
-    },
-    CommandSpec {
-        name: "tab switch",
-        description: "Switch tabs by index or name",
-        cli_exposed: false,
     },
     CommandSpec {
         name: "pr create",
@@ -255,10 +218,10 @@ mod tests {
 
     #[test]
     fn hint_lines_match_prefix_and_limit() {
-        let lines = command_hint_lines(":tab", 3);
+        let lines = command_hint_lines(":workspace", 3);
         assert!(!lines.is_empty());
         assert!(lines.len() <= 3);
-        assert!(lines.iter().all(|line| line.starts_with(":tab")));
+        assert!(lines.iter().all(|line| line.starts_with(":workspace")));
     }
 
     #[test]

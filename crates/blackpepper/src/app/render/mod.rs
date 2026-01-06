@@ -2,9 +2,8 @@
 //!
 //! Handles all drawing/rendering for the TUI:
 //! - Main layout (work area, separator, output, command bar)
-//! - Tab bar rendering
-//! - Overlays (workspace picker, tab picker, loader)
-//! - Terminal content with selection/search highlighting
+//! - Overlays (workspace picker, loader)
+//! - Terminal content rendering
 
 mod layout;
 mod output;
@@ -54,9 +53,6 @@ pub fn render(app: &mut App, frame: &mut ratatui::Frame) {
     // Render overlays on top if visible
     if app.overlay.visible {
         overlays::render_overlay(app, frame, area);
-    }
-    if app.tab_overlay.visible {
-        overlays::render_tab_overlay(app, frame, area);
     }
     if app.prompt_overlay.visible {
         overlays::render_prompt_overlay(app, frame, area);

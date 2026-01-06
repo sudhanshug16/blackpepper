@@ -3,7 +3,9 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::animals::ANIMAL_NAMES;
+use crate::config::load_config;
 use crate::git::{resolve_repo_root, run_git, ExecResult};
+use crate::tmux;
 use crate::workspaces::{
     ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_path,
 };
@@ -185,6 +187,16 @@ pub(super) fn workspace_destroy(args: &[String], ctx: &CommandContext) -> Comman
         Ok(root) => root,
         Err(result) => return result,
     };
+
+    let config = load_config(&repo_root);
+    let session_name = tmux::session_name(&repo_root, name);
+    if let Err(err) = tmux::kill_session(&config.tmux, &session_name) {
+        return CommandResult {
+            ok: false,
+            message: format!("Failed to kill tmux session '{session_name}': {err}"),
+            data: None,
+        };
+    }
 
     let worktree_path_str = workspace_path(&ctx.workspace_root, name)
         .to_string_lossy()

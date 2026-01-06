@@ -19,7 +19,7 @@ use vt100::{MouseProtocolEncoding, MouseProtocolMode, Parser};
 
 use crate::events::AppEvent;
 
-use super::render::{render_lines_with_overlay, RenderOverlay};
+use super::render::render_lines;
 
 /// A running terminal session backed by a PTY.
 ///
@@ -119,82 +119,9 @@ impl TerminalSession {
         )
     }
 
-    /// Returns the terminal title set via escape sequences.
-    pub fn title(&self) -> &str {
-        self.parser.screen().title()
-    }
-
     /// Returns true if the terminal is in alternate screen mode.
     pub fn alternate_screen(&self) -> bool {
         self.parser.screen().alternate_screen()
-    }
-
-    pub fn rows(&self) -> u16 {
-        self.rows
-    }
-
-    pub fn cols(&self) -> u16 {
-        self.cols
-    }
-
-    /// Current scrollback offset (0 = bottom, positive = scrolled up).
-    pub fn scrollback(&self) -> usize {
-        self.parser.screen().scrollback()
-    }
-
-    /// Scroll by delta lines (positive = up, negative = down).
-    pub fn scroll_lines(&mut self, delta: isize) {
-        if delta == 0 {
-            return;
-        }
-        let max_offset = self.max_scrollback_offset();
-        let current = self.parser.screen().scrollback() as isize;
-        let next = (current + delta).max(0).min(max_offset as isize) as usize;
-        self.parser.set_scrollback(next);
-    }
-
-    pub fn scroll_to_top(&mut self) {
-        let max_offset = self.max_scrollback_offset();
-        self.parser.set_scrollback(max_offset);
-    }
-
-    pub fn scroll_to_bottom(&mut self) {
-        self.parser.set_scrollback(0);
-    }
-
-    fn max_scrollback_offset(&self) -> usize {
-        self.rows as usize
-    }
-
-    /// Get visible row text for search matching.
-    pub fn visible_rows_text(&self, rows: u16, cols: u16) -> Vec<String> {
-        self.parser
-            .screen()
-            .rows(0, cols.max(1))
-            .take(rows.max(1) as usize)
-            .collect()
-    }
-
-    /// Extract text between two cell positions (for copy/paste).
-    pub fn contents_between(
-        &self,
-        start_row: u16,
-        start_col: u16,
-        end_row: u16,
-        end_col: u16,
-    ) -> String {
-        self.parser
-            .screen()
-            .contents_between(start_row, start_col, end_row, end_col)
-    }
-
-    /// Get full scrollback contents for export.
-    pub fn scrollback_contents(&mut self) -> String {
-        let current = self.parser.screen().scrollback();
-        self.parser.set_scrollback(usize::MAX);
-        let contents = self.parser.screen().contents();
-        self.parser.set_scrollback(current);
-        contents
     }
 
     /// Process bytes received from PTY output.
@@ -230,13 +157,8 @@ impl TerminalSession {
         }
     }
 
-    /// Render visible lines with optional selection/search overlay.
-    pub fn render_lines_with_overlay(
-        &self,
-        rows: u16,
-        cols: u16,
-        overlay: RenderOverlay<'_>,
-    ) -> Vec<ratatui::text::Line<'static>> {
-        render_lines_with_overlay(&self.parser, rows, cols, overlay)
+    /// Render visible lines for display.
+    pub fn render_lines(&self, rows: u16, cols: u16) -> Vec<ratatui::text::Line<'static>> {
+        render_lines(&self.parser, rows, cols)
     }
 }
