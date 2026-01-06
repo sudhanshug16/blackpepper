@@ -137,9 +137,14 @@ For simple commits:
 git commit -m "<type>(<scope>): <subject line>"
 ```
 
-## Step 7: Push
+## Step 7: Push (create upstream branch if missing)
 ```bash
-git push origin $(git branch --show-current) --set-upstream 2>&1 || git push
+branch="$(git branch --show-current)"
+if ! git ls-remote --heads origin "$branch" | grep -q "$branch"; then
+  git push -u origin "$branch"
+else
+  git push origin "$branch"
+fi
 ```
 
 ---

@@ -50,12 +50,7 @@ If `git status --porcelain` shows uncommitted changes:
    )"
 ```
 
-## Step 3: Push Branch
-```bash
-git push origin $(git branch --show-current) --set-upstream
-```
-
-## Step 4: Analyze ALL Changes for PR
+## Step 3: Analyze ALL Changes for PR
 
 IMPORTANT: Analyze ALL commits that will be in the PR, not just the latest one.
 ```bash
@@ -66,7 +61,7 @@ git log origin/$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@
 git diff origin/$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")...HEAD
 ```
 
-## Step 5: Generate PR Output
+## Step 4: Generate PR Output
 
 ### Title Rules
 - Format: `<type>(<scope>): <description>` (conventional commits style)
@@ -111,6 +106,16 @@ Use this default structure:
 
 ## Related Issues
 Closes #<issue>
+```
+
+## Step 5: Push Branch to Upstream (create if missing)
+```bash
+branch="$(git branch --show-current)"
+if ! git ls-remote --heads origin "$branch" | grep -q "$branch"; then
+  git push -u origin "$branch"
+else
+  git push origin "$branch"
+fi
 ```
 
 ---

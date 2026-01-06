@@ -96,6 +96,7 @@ where
             }
         }
     };
+    append_upstream_output(on_output, &gh_result);
     if !gh_result.ok {
         return CommandResult {
             ok: false,
@@ -200,6 +201,28 @@ fn spawn_reader<R: std::io::Read + Send + 'static>(
         }
         output
     })
+}
+
+fn append_upstream_output<F>(on_output: &mut F, result: &ExecResult)
+where
+    F: FnMut(CommandOutput),
+{
+    let stdout = result.stdout.trim();
+    let stderr = result.stderr.trim();
+    if stdout.is_empty() && stderr.is_empty() {
+        return;
+    }
+    let mut chunk = String::new();
+    if !stdout.is_empty() {
+        chunk.push_str(stdout);
+    }
+    if !stderr.is_empty() {
+        if !chunk.is_empty() {
+            chunk.push('\n');
+        }
+        chunk.push_str(stderr);
+    }
+    on_output(CommandOutput::Chunk(format!("\n{chunk}\n")));
 }
 
 fn format_command_failure(prefix: &str, result: &ExecResult) -> String {

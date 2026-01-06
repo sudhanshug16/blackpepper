@@ -7,15 +7,15 @@ description: Bump the Blackpepper version, review full git diffs (including unre
 
 ## Overview
 
-Bump the version in `crates/blackpepper/Cargo.toml`, verify the full diff (including changes the agent did not make), commit with a clean message, and push the current branch.
+One-shot bump: update `crates/blackpepper/Cargo.toml`, review the full diff (including unrelated changes), commit with a clean message, and push the current branch.
 For this project, commits are the changelog.
 
 ## Workflow
 
-1. Confirm target version
+1. Pick target version (no confirmation prompt)
    - If the user specifies a version, use it.
-   - If the user says "verbump" or "bump", default to a patch bump and state the new version before applying.
-   - Ask for clarification if the request is ambiguous (major/minor vs patch).
+   - If the user says "verbump" or "bump", default to a patch bump and proceed.
+   - Only ask for clarification if the user explicitly asks for a major/minor bump without giving a version.
 
 2. Review repository state and diffs
    - Run `git status -sb`.

@@ -48,27 +48,30 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
         }
         AppEvent::CommandPhaseComplete { phase } => {
             if matches!(phase, CommandPhase::Agent) {
-                let stream_output = app.command_overlay.output.trim().to_string();
-                app.command_overlay.visible = false;
-                app.command_overlay.title.clear();
-                if !stream_output.is_empty() {
-                    app.set_output(stream_output);
-                }
+                // Keep the overlay open; command completion will finalize output.
             }
         }
         AppEvent::CommandDone { name, args, result } => {
             let stream_output = app.command_overlay.output.trim().to_string();
             let message = if stream_output.is_empty() {
                 result.message
-            } else if result.message.trim().is_empty() || result.message.trim() == stream_output {
+            } else if result.message.trim().is_empty()
+                || result.message.trim() == stream_output
+                || stream_output.contains(result.message.trim())
+            {
                 stream_output
             } else {
                 format!("{stream_output}\n\n{}", result.message)
             };
             app.loading = None;
-            app.command_overlay.visible = false;
-            app.command_overlay.output.clear();
-            app.command_overlay.title.clear();
+            if app.command_overlay.visible {
+                if app.command_overlay.title.is_empty() {
+                    app.command_overlay.title = "Command output (Esc to close)".to_string();
+                } else if !app.command_overlay.title.contains("Esc") {
+                    app.command_overlay.title =
+                        format!("{} (Esc to close)", app.command_overlay.title);
+                }
+            }
             app.set_output(message);
             if name == "workspace" {
                 if let Some(subcommand) = args.first() {
@@ -104,6 +107,14 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         return;
     }
     if app.loading.is_some() {
+        return;
+    }
+    if app.command_overlay.visible {
+        if key.code == KeyCode::Esc && key.modifiers.is_empty() {
+            app.command_overlay.visible = false;
+            app.command_overlay.output.clear();
+            app.command_overlay.title.clear();
+        }
         return;
     }
     if app.overlay.visible {
