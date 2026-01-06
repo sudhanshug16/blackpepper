@@ -11,7 +11,6 @@ use crate::events::AppEvent;
 use crate::workspaces::list_workspace_names;
 
 use super::overlay::{open_pr_provider_overlay, open_tab_overlay, open_workspace_overlay};
-use crate::app::state::{App, PendingCommand};
 use super::utils::{find_editor_binary, shell_escape};
 use super::workspace::{
     active_tab_mut, close_active_tab, create_tab_for_active, enter_work_mode,
@@ -19,6 +18,7 @@ use super::workspace::{
     spawn_tab, tab_next, tab_prev, tab_select_by_arg,
 };
 use super::NO_ACTIVE_WORKSPACE_HINT;
+use crate::app::state::{App, PendingCommand};
 
 const REFRESH_USAGE: &str = "Usage: :refresh";
 

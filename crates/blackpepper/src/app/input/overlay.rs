@@ -4,8 +4,8 @@ use crate::commands::pr;
 use crate::config::save_user_agent_provider;
 use crate::workspaces::list_workspace_names;
 
-use crate::app::state::{App, PendingCommand};
 use super::workspace::{set_active_workspace, tab_select};
+use crate::app::state::{App, PendingCommand};
 
 pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
     match key.code {

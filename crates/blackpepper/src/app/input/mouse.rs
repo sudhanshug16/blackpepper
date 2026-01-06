@@ -5,12 +5,12 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use vt100::{MouseProtocolEncoding, MouseProtocolMode};
 
 use super::overlay::overlay_visible;
-use crate::app::state::{App, Mode, SCROLL_LINES};
 use super::terminal::{
     clear_selection, copy_selection, mouse_event_for_terminal, terminal_cell_from_mouse,
 };
 use super::utils::format_bytes;
 use super::workspace::{active_terminal_mut, active_terminal_ref};
+use crate::app::state::{App, Mode, SCROLL_LINES};
 
 pub(super) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) {
     if app.loading.is_some() {

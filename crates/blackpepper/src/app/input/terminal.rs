@@ -1,8 +1,8 @@
 use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
 
-use crate::app::state::{App, CellPos, SelectionState};
 use super::workspace::{active_terminal_mut, active_terminal_ref};
+use crate::app::state::{App, CellPos, SelectionState};
 
 pub(super) fn handle_scrollback_key(app: &mut App, key: KeyEvent) -> bool {
     if !key

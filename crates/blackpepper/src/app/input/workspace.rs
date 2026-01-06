@@ -3,10 +3,10 @@ use crate::state::{record_active_workspace, remove_active_workspace};
 use crate::terminal::TerminalSession;
 use crate::workspaces::{list_workspace_names, workspace_absolute_path};
 
-use crate::app::state::{App, Mode, WorkspaceTab, WorkspaceTabs, MAX_TAB_LABEL_LEN};
 use super::terminal::clear_selection;
 use super::utils::{default_shell, simplify_title, truncate_label};
 use super::NO_ACTIVE_WORKSPACE_HINT;
+use crate::app::state::{App, Mode, WorkspaceTab, WorkspaceTabs, MAX_TAB_LABEL_LEN};
 
 pub(super) fn prune_missing_active_workspace(app: &mut App, names: &[String]) {
     let Some(root) = app.repo_root.as_ref() else {

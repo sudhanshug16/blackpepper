@@ -12,7 +12,6 @@ use super::overlay::{
     open_workspace_overlay,
 };
 use super::search::{handle_search_input, search_next, search_prev};
-use crate::app::state::{App, Mode};
 use super::terminal::{
     clear_selection, copy_selection, handle_scrollback_key, process_terminal_output,
 };
@@ -20,6 +19,7 @@ use super::workspace::{
     active_terminal_mut, close_tab_by_id, ensure_manage_mode_without_workspace, enter_work_mode,
     request_refresh, set_active_workspace,
 };
+use crate::app::state::{App, Mode};
 
 /// Main event dispatcher.
 pub fn handle_event(app: &mut App, event: AppEvent) {
