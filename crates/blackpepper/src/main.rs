@@ -47,6 +47,7 @@ fn main() -> std::io::Result<()> {
         }
 
         let command = rest.remove(0);
+        let command = command.strip_prefix(':').unwrap_or(&command).to_string();
         let tokens: Vec<String> = std::iter::once(command)
             .chain(rest.into_iter())
             .collect();
@@ -59,9 +60,13 @@ fn main() -> std::io::Result<()> {
             }
         };
         let is_cli_exposed = if parsed.args.is_empty() {
-            commands::COMMANDS
-                .iter()
-                .any(|spec| spec.name == parsed.name && spec.cli_exposed)
+            commands::COMMANDS.iter().any(|spec| {
+                spec.cli_exposed
+                    && (spec.name == parsed.name
+                        || spec
+                            .name
+                            .starts_with(&format!("{} ", parsed.name)))
+            })
         } else {
             let full = format!("{} {}", parsed.name, parsed.args[0]);
             commands::COMMANDS
@@ -77,6 +82,13 @@ fn main() -> std::io::Result<()> {
         let repo_root = git::resolve_repo_root(&cwd);
         let config_root = repo_root.as_deref().unwrap_or(&cwd);
         let config = config::load_config(config_root);
+        if parsed.name == "help" {
+            for line in commands::command_help_lines_cli() {
+                println!("{}", line);
+            }
+            return Ok(());
+        }
+
         let result = commands::run_command(
             parsed.name.as_str(),
             &parsed.args,
