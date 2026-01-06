@@ -19,6 +19,7 @@ pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "export",
     "init",
     "update",
+    "version",
     "debug",
     "help",
     "quit",

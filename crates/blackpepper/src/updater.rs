@@ -28,14 +28,14 @@ pub fn apply_staged_update() {
 }
 
 pub fn check_for_update() -> UpdateOutcome {
-    run_update(false)
+    run_update(false, true)
 }
 
 pub fn force_update() -> UpdateOutcome {
-    run_update(true)
+    run_update(true, true)
 }
 
-fn run_update(force: bool) -> UpdateOutcome {
+fn run_update(force: bool, quiet: bool) -> UpdateOutcome {
     if !force && env::var_os(UPDATE_ENV_DISABLE).is_some() {
         return UpdateOutcome::SkippedDisabled;
     }
@@ -57,7 +57,13 @@ fn run_update(force: bool) -> UpdateOutcome {
         fi"
     );
 
-    if Command::new("sh").arg("-c").arg(command).spawn().is_err() {
+    let mut process = Command::new("sh");
+    process.arg("-c").arg(command);
+    if quiet {
+        process.stdout(std::process::Stdio::null());
+        process.stderr(std::process::Stdio::null());
+    }
+    if process.spawn().is_err() {
         return UpdateOutcome::FailedSpawn;
     }
     let _ = record_update_attempt();
