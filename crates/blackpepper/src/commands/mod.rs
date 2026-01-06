@@ -14,7 +14,7 @@ mod registry;
 
 pub use exec::{run_command, CommandContext, CommandResult};
 pub use parse::{complete_command_input, parse_command};
-pub use registry::command_hint_lines;
+pub use registry::{command_help_lines_cli, command_hint_lines};
 
 // Re-exports for external use (kept for future API stability)
 #[allow(unused_imports)]

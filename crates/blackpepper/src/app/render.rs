@@ -323,8 +323,10 @@ fn render_command_bar(app: &App, frame: &mut ratatui::Frame, area: Rect) {
         .map(str::trim)
         .filter(|name| !name.is_empty());
     if let Some(name) = workspace_name {
+        let version = env!("CARGO_PKG_VERSION");
+        let label_text = format!("Active workspace: {name} | v{version}");
         let width = area.width as usize;
-        let label_len = name.chars().count();
+        let label_len = label_text.chars().count();
         if width > label_len + 1 {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -337,12 +339,15 @@ fn render_command_bar(app: &App, frame: &mut ratatui::Frame, area: Rect) {
             let command_line = command_line(app);
             frame.render_widget(Paragraph::new(command_line), chunks[0]);
 
-            let label = Paragraph::new(Line::from(Span::styled(
-                name.to_string(),
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
-            )))
+            let dim_style = Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::DIM);
+            let label = Paragraph::new(Line::from(vec![
+                Span::styled("Active workspace: ", dim_style),
+                Span::styled(name.to_string(), dim_style),
+                Span::styled(" | ", dim_style),
+                Span::styled(format!("v{version}"), dim_style),
+            ]))
             .alignment(Alignment::Right);
             frame.render_widget(label, chunks[1]);
             return;
