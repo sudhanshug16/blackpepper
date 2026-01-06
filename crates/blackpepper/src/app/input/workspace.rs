@@ -7,6 +7,7 @@ use super::terminal::clear_selection;
 use super::utils::{default_shell, simplify_title, truncate_label};
 use super::NO_ACTIVE_WORKSPACE_HINT;
 use crate::app::state::{App, Mode, WorkspaceTab, WorkspaceTabs, MAX_TAB_LABEL_LEN};
+use crate::repo_status::RepoStatusSignal;
 
 pub(super) fn prune_missing_active_workspace(app: &mut App, names: &[String]) {
     let Some(root) = app.repo_root.as_ref() else {
@@ -50,6 +51,7 @@ pub(super) fn set_active_workspace(app: &mut App, name: &str) -> Result<(), Stri
     clear_selection(app);
     let _ = record_active_workspace(&root, &workspace_path);
     app.config = load_config(&root);
+    request_repo_status(app);
     ensure_active_workspace_tabs(app, 24, 80)
 }
 
@@ -71,8 +73,15 @@ pub(super) fn enter_work_mode(app: &mut App) -> bool {
 
 pub(super) fn request_refresh(app: &mut App, message: Option<&str>) {
     app.refresh_requested = true;
+    request_repo_status(app);
     if let Some(message) = message {
         app.set_output(message.to_string());
+    }
+}
+
+pub(super) fn request_repo_status(app: &App) {
+    if let Some(tx) = app.repo_status_tx.as_ref() {
+        let _ = tx.send(RepoStatusSignal::Request(app.cwd.clone()));
     }
 }
 

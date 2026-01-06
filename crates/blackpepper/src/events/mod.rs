@@ -6,7 +6,11 @@
 //! Events are sent via mpsc channels and processed sequentially
 //! in the main loop to update app state and trigger re-renders.
 
+use std::path::PathBuf;
+
 use crossterm::event::{KeyEvent, MouseEvent};
+
+use crate::repo_status::RepoStatus;
 
 #[derive(Debug)]
 pub enum AppEvent {
@@ -27,5 +31,9 @@ pub enum AppEvent {
         name: String,
         args: Vec<String>,
         result: crate::commands::CommandResult,
+    },
+    RepoStatusUpdated {
+        cwd: PathBuf,
+        status: RepoStatus,
     },
 }

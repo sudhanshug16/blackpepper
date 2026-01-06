@@ -13,6 +13,7 @@ use ratatui::layout::Rect;
 use crate::config::Config;
 use crate::events::AppEvent;
 use crate::keymap::KeyChord;
+use crate::repo_status::{RepoStatus, RepoStatusSignal};
 use crate::terminal::TerminalSession;
 
 /// UI mode determines which keys are intercepted vs passed to terminal.
@@ -147,6 +148,8 @@ pub struct App {
     pub prompt_overlay: PromptOverlay,
     pub command_overlay: CommandOverlay,
     pub event_tx: Sender<AppEvent>,
+    pub repo_status: RepoStatus,
+    pub repo_status_tx: Option<Sender<RepoStatusSignal>>,
     pub terminal_seq: u64,
     pub tab_bar_area: Option<Rect>,
     pub terminal_area: Option<Rect>,

@@ -64,6 +64,27 @@ pub fn resolve_repo_root(cwd: &Path) -> Option<PathBuf> {
     canonical.parent().map(|path| path.to_path_buf())
 }
 
+pub fn git_common_dir(cwd: &Path) -> Option<PathBuf> {
+    let result = run_git(["rev-parse", "--git-common-dir"].as_ref(), cwd);
+    if !result.ok {
+        return None;
+    }
+
+    let git_common = result.stdout.trim();
+    if git_common.is_empty() {
+        return None;
+    }
+
+    let git_path = Path::new(git_common);
+    let resolved = if git_path.is_absolute() {
+        git_path.to_path_buf()
+    } else {
+        cwd.join(git_path)
+    };
+
+    Some(std::fs::canonicalize(&resolved).unwrap_or(resolved))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{resolve_repo_root, run_git};

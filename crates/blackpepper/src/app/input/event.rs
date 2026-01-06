@@ -53,15 +53,16 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
         }
         AppEvent::CommandDone { name, args, result } => {
             let stream_output = app.command_overlay.output.trim().to_string();
+            let result_message = result.message.clone();
             let message = if stream_output.is_empty() {
-                result.message
-            } else if result.message.trim().is_empty()
-                || result.message.trim() == stream_output
-                || stream_output.contains(result.message.trim())
+                result_message.clone()
+            } else if result_message.trim().is_empty()
+                || result_message.trim() == stream_output
+                || stream_output.contains(result_message.trim())
             {
-                stream_output
+                stream_output.clone()
             } else {
-                format!("{stream_output}\n\n{}", result.message)
+                format!("{stream_output}\n\n{result_message}")
             };
             app.loading = None;
             let overlay_visible = app.command_overlay.visible && !stream_output.is_empty();
@@ -73,15 +74,13 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
                         format!("{} (Esc to close)", app.command_overlay.title);
                 }
                 if !result.ok
-                    && !result.message.trim().is_empty()
-                    && !app.command_overlay.output.contains(result.message.trim())
+                    && !result_message.trim().is_empty()
+                    && !app.command_overlay.output.contains(result_message.trim())
                 {
                     if !app.command_overlay.output.ends_with('\n') {
                         app.command_overlay.output.push('\n');
                     }
-                    app.command_overlay
-                        .output
-                        .push_str(result.message.trim());
+                    app.command_overlay.output.push_str(result_message.trim());
                     app.command_overlay.output.push('\n');
                 }
             }
@@ -111,6 +110,11 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
                         }
                     }
                 }
+            }
+        }
+        AppEvent::RepoStatusUpdated { cwd, status } => {
+            if cwd == app.cwd {
+                app.repo_status = status;
             }
         }
     }

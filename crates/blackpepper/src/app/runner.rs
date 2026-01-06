@@ -22,6 +22,7 @@ use crate::config::load_config;
 use crate::events::AppEvent;
 use crate::git::resolve_repo_root;
 use crate::keymap::parse_key_chord;
+use crate::repo_status::{spawn_repo_status_worker, RepoStatus, RepoStatusSignal};
 use crate::state::{get_active_workspace, load_state, remove_active_workspace};
 use crate::workspaces::{list_workspace_names, workspace_name_from_path};
 
@@ -124,6 +125,7 @@ impl App {
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
         let switch_tab_chord = parse_key_chord(&config.keymap.switch_tab);
         let refresh_chord = parse_key_chord(&config.keymap.refresh);
+        let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
 
         // Restore previous workspace if available.
         let mut active_workspace = None;
@@ -179,6 +181,8 @@ impl App {
             prompt_overlay: PromptOverlay::default(),
             command_overlay: CommandOverlay::default(),
             event_tx,
+            repo_status: RepoStatus::default(),
+            repo_status_tx: Some(repo_status_tx),
             terminal_seq: 0,
             tab_bar_area: None,
             terminal_area: None,
@@ -194,6 +198,10 @@ impl App {
 
         if let Err(err) = super::input::ensure_active_workspace_tabs(&mut app, 24, 80) {
             app.set_output(err);
+        }
+
+        if let Some(tx) = app.repo_status_tx.as_ref() {
+            let _ = tx.send(RepoStatusSignal::Request(app.cwd.clone()));
         }
 
         app
