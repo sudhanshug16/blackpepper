@@ -13,7 +13,7 @@ mkdir -p /tmp/blackpepper/codex && \
 cp -r "${CODEX_HOME:-$HOME/.codex}"/* /tmp/blackpepper/codex/ 2>/dev/null && \
 rm -f /tmp/blackpepper/codex/config.toml && \
 CODEX_HOME=/tmp/blackpepper/codex \
-codex exec -C "$repo" -s workspace-write --add-dir "$main_git" \
+codex exec -C "$repo" --dangerously-bypass-approvals-and-sandbox -s workspace-write --add-dir "$main_git" \
 {{PROMPT}}"#;
 
 const CLAUDE_COMMAND: &str = r#"repo="$(pwd)" && \
