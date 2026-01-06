@@ -30,6 +30,7 @@ use super::state::{
 
 const NO_ACTIVE_WORKSPACE_HINT: &str =
     "No active workspace yet. Create one with :workspace create <name>.";
+const REFRESH_USAGE: &str = "Usage: :refresh";
 
 /// Main event dispatcher.
 pub fn handle_event(app: &mut App, event: AppEvent) {
@@ -144,6 +145,16 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         if matches_chord(key, chord) {
             open_tab_overlay(app);
             return;
+        }
+    }
+
+    // Refresh UI chord (manage mode only)
+    if app.mode == Mode::Manage {
+        if let Some(chord) = &app.refresh_chord {
+            if matches_chord(key, chord) {
+                request_refresh(app, None);
+                return;
+            }
         }
     }
 
@@ -475,6 +486,11 @@ fn execute_command(app: &mut App, raw: &str) {
         return;
     }
 
+    if parsed.name == "refresh" {
+        handle_refresh_command(app, &parsed.args);
+        return;
+    }
+
     let result = run_command(
         &parsed.name,
         &parsed.args,
@@ -654,6 +670,14 @@ fn handle_export_command(app: &mut App, args: &[String]) {
     }
 
     app.set_output(format!("Opened export in {editor} ({tab_name})."));
+}
+
+fn handle_refresh_command(app: &mut App, args: &[String]) {
+    if !args.is_empty() {
+        app.set_output(REFRESH_USAGE.to_string());
+        return;
+    }
+    request_refresh(app, Some("Refreshed UI."));
 }
 
 fn start_command(app: &mut App, name: &str, args: Vec<String>) {
@@ -974,6 +998,13 @@ fn enter_work_mode(app: &mut App) -> bool {
     }
     app.mode = Mode::Work;
     true
+}
+
+fn request_refresh(app: &mut App, message: Option<&str>) {
+    app.refresh_requested = true;
+    if let Some(message) = message {
+        app.set_output(message.to_string());
+    }
 }
 
 fn open_workspace_overlay(app: &mut App) {

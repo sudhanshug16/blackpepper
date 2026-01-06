@@ -15,6 +15,7 @@ const DEFAULT_TOGGLE_MODE: &str = "ctrl+g";
 const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+p";
 const DEFAULT_SWITCH_TAB: &str = "ctrl+o";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
+const DEFAULT_REFRESH: &str = "ctrl+r";
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -28,6 +29,7 @@ pub struct KeymapConfig {
     pub toggle_mode: String,
     pub switch_workspace: String,
     pub switch_tab: String,
+    pub refresh: String,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +58,8 @@ struct RawKeymap {
     switch_workspace: Option<String>,
     #[serde(alias = "switchTab")]
     switch_tab: Option<String>,
+    #[serde(alias = "refreshUi")]
+    refresh: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -92,6 +96,10 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         .and_then(|k| k.switch_tab.clone())
         .or_else(|| user_keymap.and_then(|k| k.switch_tab.clone()))
         .unwrap_or_else(|| DEFAULT_SWITCH_TAB.to_string());
+    let refresh = workspace_keymap
+        .and_then(|k| k.refresh.clone())
+        .or_else(|| user_keymap.and_then(|k| k.refresh.clone()))
+        .unwrap_or_else(|| DEFAULT_REFRESH.to_string());
 
     let workspace_terminal = workspace.as_ref().and_then(|c| c.terminal.as_ref());
     let user_terminal = user.as_ref().and_then(|c| c.terminal.as_ref());
@@ -115,6 +123,7 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
             toggle_mode,
             switch_workspace,
             switch_tab,
+            refresh,
         },
         terminal: TerminalConfig { command, args },
         workspace: WorkspaceConfig {
@@ -177,6 +186,7 @@ mod tests {
         assert_eq!(config.keymap.toggle_mode, "ctrl+g");
         assert_eq!(config.keymap.switch_workspace, "ctrl+p");
         assert_eq!(config.keymap.switch_tab, "ctrl+o");
+        assert_eq!(config.keymap.refresh, "ctrl+r");
         assert_eq!(config.terminal.command, None);
         assert!(config.terminal.args.is_empty());
         assert_eq!(config.workspace.root, Path::new(".blackpepper/workspaces"));
@@ -202,6 +212,7 @@ mod tests {
 [keymap]
 toggle_mode = "ctrl+x"
 switch_workspace = "ctrl+u"
+refresh = "ctrl+z"
 
 [terminal]
 command = "zsh"
@@ -235,6 +246,7 @@ root = ".pepper/workspaces"
 
         assert_eq!(config.keymap.toggle_mode, "ctrl+y");
         assert_eq!(config.keymap.switch_workspace, "ctrl+u");
+        assert_eq!(config.keymap.refresh, "ctrl+z");
         assert_eq!(config.terminal.command, Some("fish".to_string()));
         assert_eq!(config.terminal.args, vec!["-l".to_string()]);
         assert_eq!(config.workspace.root, Path::new(".pepper/workspaces"));

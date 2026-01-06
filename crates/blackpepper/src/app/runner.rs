@@ -59,6 +59,7 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
     spawn_input_thread(event_tx.clone());
 
     let mut app = App::new(event_tx.clone());
+    terminal.clear()?;
     terminal.draw(|frame| super::render::render(&mut app, frame))?;
 
     while !app.should_quit {
@@ -70,6 +71,11 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
         // Drain any pending events before redraw
         while let Ok(event) = event_rx.try_recv() {
             super::input::handle_event(&mut app, event);
+        }
+
+        if app.refresh_requested {
+            terminal.clear()?;
+            app.refresh_requested = false;
         }
 
         terminal.draw(|frame| super::render::render(&mut app, frame))?;
@@ -112,6 +118,7 @@ impl App {
         let toggle_chord = parse_key_chord(&config.keymap.toggle_mode);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
         let switch_tab_chord = parse_key_chord(&config.keymap.switch_tab);
+        let refresh_chord = parse_key_chord(&config.keymap.refresh);
 
         // Restore previous workspace if available.
         let mut active_workspace = None;
@@ -158,6 +165,7 @@ impl App {
             toggle_chord,
             switch_chord,
             switch_tab_chord,
+            refresh_chord,
             should_quit: false,
             config,
             tabs: std::collections::HashMap::new(),
@@ -173,6 +181,7 @@ impl App {
             loading: None,
             selection: SelectionState::default(),
             search: SearchState::default(),
+            refresh_requested: false,
         };
 
         if let Err(err) = super::input::ensure_active_workspace_tabs(&mut app, 24, 80) {

@@ -17,6 +17,7 @@ pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "tab",
     "pr",
     "export",
+    "refresh",
     "init",
     "update",
     "version",
@@ -51,6 +52,11 @@ pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "export",
         description: "Export current tab scrollback into a vi/vim buffer in a new tab",
+        cli_exposed: false,
+    },
+    CommandSpec {
+        name: "refresh",
+        description: "Redraw the UI",
         cli_exposed: false,
     },
     CommandSpec {

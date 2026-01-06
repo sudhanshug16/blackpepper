@@ -114,6 +114,7 @@ pub struct App {
     pub toggle_chord: Option<KeyChord>,
     pub switch_chord: Option<KeyChord>,
     pub switch_tab_chord: Option<KeyChord>,
+    pub refresh_chord: Option<KeyChord>,
     pub should_quit: bool,
     pub config: Config,
     pub tabs: HashMap<String, WorkspaceTabs>,
@@ -129,6 +130,7 @@ pub struct App {
     pub loading: Option<String>,
     pub selection: SelectionState,
     pub search: SearchState,
+    pub refresh_requested: bool,
 }
 
 pub const MAX_TAB_LABEL_LEN: usize = 20;

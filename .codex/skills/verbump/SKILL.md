@@ -8,6 +8,7 @@ description: Bump the Blackpepper version, review full git diffs (including unre
 ## Overview
 
 Bump the version in `crates/blackpepper/Cargo.toml`, verify the full diff (including changes the agent did not make), commit with a clean message, and push the current branch.
+For this project, commits are the changelog.
 
 ## Workflow
 
@@ -33,7 +34,7 @@ Bump the version in `crates/blackpepper/Cargo.toml`, verify the full diff (inclu
 
 5. Commit and push
    - Stage the relevant files (usually `crates/blackpepper/Cargo.toml`, plus anything already expected).
-   - Craft a Conventional Commit message, e.g. `chore: bump version to x.y.z`.
+   - Craft a Changelog style Commit message.
    - `git commit -m "<message>"`.
    - `git push` the current branch.
 
