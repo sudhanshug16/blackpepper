@@ -26,7 +26,8 @@ use crate::state::{get_active_workspace, load_state, remove_active_workspace};
 use crate::workspaces::{list_workspace_names, workspace_name_from_path};
 
 use super::state::{
-    App, Mode, PromptOverlay, SearchState, SelectionState, TabOverlay, WorkspaceOverlay,
+    App, CommandOverlay, Mode, PromptOverlay, SearchState, SelectionState, TabOverlay,
+    WorkspaceOverlay,
 };
 
 /// Entry point: set up terminal and run the event loop.
@@ -176,6 +177,7 @@ impl App {
             overlay: WorkspaceOverlay::default(),
             tab_overlay: TabOverlay::default(),
             prompt_overlay: PromptOverlay::default(),
+            command_overlay: CommandOverlay::default(),
             event_tx,
             terminal_seq: 0,
             tab_bar_area: None,

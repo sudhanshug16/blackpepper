@@ -42,8 +42,33 @@ pub enum CommandSource {
     Cli,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandPhase {
+    Agent,
+}
+
+#[derive(Debug, Clone)]
+pub enum CommandOutput {
+    Chunk(String),
+    PhaseComplete(CommandPhase),
+}
+
 /// Dispatch and execute a command by name.
 pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> CommandResult {
+    let mut noop = |_chunk: CommandOutput| {};
+    run_command_with_output(name, args, ctx, &mut noop)
+}
+
+/// Dispatch and execute a command by name, streaming output where supported.
+pub fn run_command_with_output<F>(
+    name: &str,
+    args: &[String],
+    ctx: &CommandContext,
+    on_output: &mut F,
+) -> CommandResult
+where
+    F: FnMut(CommandOutput),
+{
     match name {
         "init" => init_project(args, ctx),
         "update" => update_command(),
@@ -94,7 +119,7 @@ pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> Command
                 };
             };
             match subcommand.as_str() {
-                "create" => pr_create(ctx),
+                "create" => pr_create(ctx, on_output),
                 "open" => CommandResult {
                     ok: true,
                     message: "PR opening is not implemented yet.".to_string(),

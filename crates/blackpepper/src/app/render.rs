@@ -23,7 +23,10 @@ use super::state::{App, Mode, WorkspaceTabs, BOTTOM_HORIZONTAL_PADDING, OUTPUT_M
 /// Main render entry point. Called each frame by the event loop.
 pub fn render(app: &mut App, frame: &mut ratatui::Frame) {
     let area = frame.area();
-    let output_lines = output_lines_owned(app, area.width as usize);
+    let output_width =
+        area.width
+            .saturating_sub(BOTTOM_HORIZONTAL_PADDING.saturating_mul(2)) as usize;
+    let output_lines = output_lines_owned(app, output_width);
     let output_height = output_lines.len() as u16;
     let separator_height = 1u16;
     let command_height = 1u16;
@@ -61,7 +64,9 @@ pub fn render(app: &mut App, frame: &mut ratatui::Frame) {
     if app.prompt_overlay.visible {
         render_prompt_overlay(app, frame, area);
     }
-    if let Some(message) = &app.loading {
+    if app.command_overlay.visible {
+        render_command_overlay(app, frame, area);
+    } else if let Some(message) = &app.loading {
         render_loader(frame, area, message);
     }
 }
@@ -257,6 +262,7 @@ fn render_prompt_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
 /// Render loading indicator overlay.
 fn render_loader(frame: &mut ratatui::Frame, area: Rect, message: &str) {
     let rect = centered_rect(60, 20, area);
+    frame.render_widget(Clear, rect);
     let lines = vec![
         Line::from(Span::styled(
             "Working...",
@@ -265,7 +271,15 @@ fn render_loader(frame: &mut ratatui::Frame, area: Rect, message: &str) {
         Line::raw(""),
         Line::from(Span::styled(message, Style::default().fg(Color::DarkGray))),
     ];
-    frame.render_widget(Paragraph::new(lines), rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::Black));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::default().bg(Color::Black)),
+        rect,
+    );
 }
 
 /// Welcome/no-workspace body text.
@@ -331,7 +345,7 @@ fn keymap_label(value: &str) -> String {
 }
 
 /// Output area lines (command hints when typing, or output message).
-fn output_lines_owned(app: &App, _width: usize) -> Vec<Line<'static>> {
+fn output_lines_owned(app: &App, width: usize) -> Vec<Line<'static>> {
     if app.command_active {
         let hints = command_hint_lines(&app.command_input, OUTPUT_MAX_LINES);
         let mut lines = Vec::new();
@@ -355,14 +369,88 @@ fn output_lines_owned(app: &App, _width: usize) -> Vec<Line<'static>> {
         return Vec::new();
     }
 
+    wrap_text_lines(message, width, OUTPUT_MAX_LINES)
+}
+
+/// Render streaming command output overlay.
+fn render_command_overlay(app: &App, frame: &mut ratatui::Frame, area: Rect) {
+    let overlay_rect = centered_rect(70, 50, area);
+    frame.render_widget(Clear, overlay_rect);
+    let inner_width = overlay_rect.width.saturating_sub(2) as usize;
+    let max_lines = overlay_rect.height.saturating_sub(2) as usize;
+    let mut lines = if app.command_overlay.output.trim().is_empty() {
+        vec![Line::raw("Waiting for output...")]
+    } else {
+        wrap_text_lines_unbounded(&app.command_overlay.output, inner_width)
+    };
+    if lines.len() > max_lines {
+        lines = lines.split_off(lines.len() - max_lines);
+    }
+    let title = if app.command_overlay.title.is_empty() {
+        "Running command"
+    } else {
+        app.command_overlay.title.as_str()
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .style(Style::default().bg(Color::Black));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .style(Style::default().bg(Color::Black)),
+        overlay_rect,
+    );
+}
+
+fn wrap_text_lines(message: &str, width: usize, max_lines: usize) -> Vec<Line<'static>> {
+    let width = width.max(1);
     let mut lines = Vec::new();
-    for line in message.lines() {
-        lines.push(Line::raw(line.to_string()));
-        if lines.len() >= OUTPUT_MAX_LINES {
-            break;
+    for raw_line in message.lines() {
+        let wrapped = wrap_preserve(raw_line, width);
+        for item in wrapped {
+            lines.push(Line::raw(item));
+            if lines.len() >= max_lines {
+                return lines;
+            }
+        }
+        if lines.len() >= max_lines {
+            return lines;
         }
     }
     lines
+}
+
+fn wrap_text_lines_unbounded(message: &str, width: usize) -> Vec<Line<'static>> {
+    let width = width.max(1);
+    let mut lines = Vec::new();
+    for raw_line in message.lines() {
+        let wrapped = wrap_preserve(raw_line, width);
+        for item in wrapped {
+            lines.push(Line::raw(item));
+        }
+    }
+    lines
+}
+
+fn wrap_preserve(line: &str, width: usize) -> Vec<String> {
+    if line.is_empty() {
+        return vec![String::new()];
+    }
+    let mut output = Vec::new();
+    let mut current = String::new();
+    let mut count = 0usize;
+    for ch in line.chars() {
+        if count >= width {
+            output.push(current);
+            current = String::new();
+            count = 0;
+        }
+        current.push(ch);
+        count += 1;
+    }
+    output.push(current);
+    output
 }
 
 /// Dashed separator line.

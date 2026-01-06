@@ -16,16 +16,30 @@ pub struct PrProvider {
     pub command: &'static str,
 }
 
-const CODEX_COMMAND: &str = r#"mkdir -p /tmp/blackpepper/codex && cp -r "${CODEX_HOME:-$HOME/.codex}"/* /tmp/blackpepper/codex/ 2>/dev/null && rm -f /tmp/blackpepper/codex/config.toml && CODEX_HOME=/tmp/blackpepper/codex codex exec --skip-git-repo-check {{PROMPT}}"#;
+const CODEX_COMMAND: &str = r#"repo="$(pwd)" && \
+PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH" \
+mkdir -p /tmp/blackpepper/codex && \
+cp -r "${CODEX_HOME:-$HOME/.codex}"/* /tmp/blackpepper/codex/ 2>/dev/null && \
+rm -f /tmp/blackpepper/codex/config.toml && \
+CODEX_HOME=/tmp/blackpepper/codex codex exec -C "$repo" -s workspace-write \
+{{PROMPT}}"#;
 
-const CLAUDE_COMMAND: &str = r#"tmpdir=$(mktemp -d) && cd "$tmpdir" && claude -p {{PROMPT}} \
-    --tools "" \
+const CLAUDE_COMMAND: &str = r#"repo="$(pwd)" && \
+PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH" \
+cd "$repo" && \
+claude -p {{PROMPT}} \
+    --tools "Bash" \
+    --allowed-tools "Bash" \
+    --permission-mode bypassPermissions \
     --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
     --disable-slash-commands \
     --no-session-persistence \
     --setting-sources user"#;
 
-const OPENCODE_COMMAND: &str = r#"tmpdir=$(mktemp -d) && tmpcfg=$(mktemp -d) && cd "$tmpdir" && XDG_CONFIG_HOME="$tmpcfg" opencode run {{PROMPT}}"#;
+const OPENCODE_COMMAND: &str = r#"repo="$(pwd)" && tmpcfg=$(mktemp -d) && \
+PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH" \
+cd "$repo" && \
+XDG_CONFIG_HOME="$tmpcfg" opencode run {{PROMPT}}"#;
 
 const PROVIDERS: &[PrProvider] = &[
     PrProvider {

@@ -13,7 +13,10 @@ mod parse;
 pub mod pr;
 mod registry;
 
-pub use exec::{run_command, CommandContext, CommandResult, CommandSource};
+pub use exec::{
+    run_command, run_command_with_output, CommandContext, CommandOutput, CommandPhase,
+    CommandResult, CommandSource,
+};
 pub use parse::{complete_command_input, parse_command};
 pub use registry::{command_help_lines_cli, command_hint_lines};
 

@@ -16,6 +16,13 @@ pub enum AppEvent {
     Mouse(MouseEvent),
     #[allow(dead_code)]
     Resize(u16, u16),
+    CommandOutput {
+        name: String,
+        chunk: String,
+    },
+    CommandPhaseComplete {
+        phase: crate::commands::CommandPhase,
+    },
     CommandDone {
         name: String,
         args: Vec<String>,

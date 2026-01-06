@@ -51,6 +51,14 @@ pub struct PromptOverlay {
     pub title: String,
 }
 
+/// Streaming command output overlay (e.g., PR generation).
+#[derive(Debug, Default)]
+pub struct CommandOverlay {
+    pub visible: bool,
+    pub title: String,
+    pub output: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct PendingCommand {
     pub name: String,
@@ -137,6 +145,7 @@ pub struct App {
     pub overlay: WorkspaceOverlay,
     pub tab_overlay: TabOverlay,
     pub prompt_overlay: PromptOverlay,
+    pub command_overlay: CommandOverlay,
     pub event_tx: Sender<AppEvent>,
     pub terminal_seq: u64,
     pub tab_bar_area: Option<Rect>,

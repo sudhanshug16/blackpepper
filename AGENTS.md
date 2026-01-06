@@ -28,6 +28,7 @@ with an embedded shell per workspace.
 - For each logical change, add, remove, or update comments so intent stays in sync.
 - Record assumptions, risks, and validation steps in PRs or notes.
 - Prefer small, surgical changes unless a refactor is explicitly requested.
+- If a file grows beyond ~300 lines, split it into smaller modules/files.
 
 ## Project Structure & Module Organization
 

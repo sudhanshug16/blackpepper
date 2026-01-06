@@ -33,6 +33,7 @@ pub fn check_for_update() -> UpdateOutcome {
     run_update(false, true, false)
 }
 
+#[allow(dead_code)]
 pub fn force_update() -> UpdateOutcome {
     run_update(true, true, false)
 }

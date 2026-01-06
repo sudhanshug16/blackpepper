@@ -1,13 +1,18 @@
+use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::mpsc::{self, Sender};
 
 use crate::commands::pr;
 use crate::config::load_config;
 use crate::git::{resolve_repo_root, ExecResult};
 
-use super::{CommandContext, CommandResult};
+use super::{CommandContext, CommandOutput, CommandPhase, CommandResult};
 
-pub(super) fn pr_create(ctx: &CommandContext) -> CommandResult {
+pub(super) fn pr_create<F>(ctx: &CommandContext, on_output: &mut F) -> CommandResult
+where
+    F: FnMut(CommandOutput),
+{
     let repo_root = ctx
         .repo_root
         .clone()
@@ -45,7 +50,11 @@ pub(super) fn pr_create(ctx: &CommandContext) -> CommandResult {
     };
 
     let script = pr::build_prompt_script(command_template, pr::PR_CREATE);
-    let provider_result = run_shell(&script, &ctx.cwd);
+    let mut on_chunk = |chunk: &str| {
+        on_output(CommandOutput::Chunk(chunk.to_string()));
+    };
+    let provider_result = run_shell_with_output(&script, &ctx.cwd, &mut on_chunk);
+    on_output(CommandOutput::PhaseComplete(CommandPhase::Agent));
     if !provider_result.ok {
         return CommandResult {
             ok: false,
@@ -86,26 +95,90 @@ pub(super) fn pr_create(ctx: &CommandContext) -> CommandResult {
     }
 }
 
-fn run_shell(script: &str, cwd: &Path) -> ExecResult {
-    let output = Command::new("sh")
+fn run_shell_with_output<F>(script: &str, cwd: &Path, on_output: &mut F) -> ExecResult
+where
+    F: FnMut(&str),
+{
+    let mut child = match Command::new("sh")
         .arg("-c")
         .arg(script)
         .current_dir(cwd)
-        .output();
-    match output {
-        Ok(out) => ExecResult {
-            ok: out.status.success(),
-            exit_code: out.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&out.stdout).to_string(),
-            stderr: String::from_utf8_lossy(&out.stderr).to_string(),
-        },
-        Err(err) => ExecResult {
-            ok: false,
-            exit_code: -1,
-            stdout: String::new(),
-            stderr: err.to_string(),
-        },
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(err) => {
+            return ExecResult {
+                ok: false,
+                exit_code: -1,
+                stdout: String::new(),
+                stderr: err.to_string(),
+            }
+        }
+    };
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let (tx, rx) = mpsc::channel();
+
+    let stdout_handle = stdout.map(|stream| spawn_reader(stream, tx.clone()));
+    let stderr_handle = stderr.map(|stream| spawn_reader(stream, tx.clone()));
+    drop(tx);
+
+    for chunk in rx {
+        on_output(&chunk);
     }
+
+    let stdout_output = stdout_handle
+        .and_then(|handle| handle.join().ok())
+        .unwrap_or_default();
+    let stderr_output = stderr_handle
+        .and_then(|handle| handle.join().ok())
+        .unwrap_or_default();
+
+    let status = match child.wait() {
+        Ok(status) => status,
+        Err(err) => {
+            return ExecResult {
+                ok: false,
+                exit_code: -1,
+                stdout: stdout_output,
+                stderr: err.to_string(),
+            }
+        }
+    };
+
+    ExecResult {
+        ok: status.success(),
+        exit_code: status.code().unwrap_or(-1),
+        stdout: stdout_output,
+        stderr: stderr_output,
+    }
+}
+
+fn spawn_reader<R: std::io::Read + Send + 'static>(
+    reader: R,
+    tx: Sender<String>,
+) -> std::thread::JoinHandle<String> {
+    std::thread::spawn(move || {
+        let mut output = String::new();
+        let mut reader = BufReader::new(reader);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let bytes = match reader.read_line(&mut line) {
+                Ok(bytes) => bytes,
+                Err(_) => break,
+            };
+            if bytes == 0 {
+                break;
+            }
+            output.push_str(&line);
+            let _ = tx.send(line.clone());
+        }
+        output
+    })
 }
 
 fn run_gh_create(cwd: &Path, title: &str, body: &str) -> ExecResult {

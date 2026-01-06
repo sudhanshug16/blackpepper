@@ -1,0 +1,210 @@
+use crossterm::event::{KeyCode, KeyEvent};
+
+use crate::commands::pr;
+use crate::config::save_user_agent_provider;
+use crate::workspaces::list_workspace_names;
+
+use crate::app::state::{App, PendingCommand};
+use super::workspace::{set_active_workspace, tab_select};
+
+pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc => {
+            app.overlay.visible = false;
+        }
+        KeyCode::Enter => {
+            if let Some(name) = app.overlay.items.get(app.overlay.selected) {
+                let name = name.clone();
+                match set_active_workspace(app, &name) {
+                    Ok(()) => app.set_output(format!("Active workspace: {name}")),
+                    Err(err) => app.set_output(err),
+                }
+            }
+            app.overlay.visible = false;
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            move_overlay_selection(app, -1);
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            move_overlay_selection(app, 1);
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn handle_tab_overlay_key(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc => {
+            app.tab_overlay.visible = false;
+        }
+        KeyCode::Enter => {
+            if let Some(index) = app.tab_overlay.items.get(app.tab_overlay.selected) {
+                tab_select(app, *index);
+            }
+            app.tab_overlay.visible = false;
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            move_tab_overlay_selection(app, -1);
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            move_tab_overlay_selection(app, 1);
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn handle_prompt_overlay_key(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc => {
+            app.prompt_overlay.visible = false;
+            app.pending_command = None;
+        }
+        KeyCode::Enter => {
+            let selected = app
+                .prompt_overlay
+                .items
+                .get(app.prompt_overlay.selected)
+                .cloned();
+            app.prompt_overlay.visible = false;
+            if let Some(provider) = selected {
+                if let Err(err) = save_user_agent_provider(&provider) {
+                    app.set_output(format!("Failed to save agent provider: {err}"));
+                    app.pending_command = None;
+                    return;
+                }
+                app.config.agent.provider = Some(provider.clone());
+                if let Some(pending) = app.pending_command.take() {
+                    super::command::start_command(app, &pending.name, pending.args);
+                } else {
+                    app.set_output(format!("Saved agent provider: {provider}"));
+                }
+            } else {
+                app.pending_command = None;
+            }
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            move_prompt_overlay_selection(app, -1);
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            move_prompt_overlay_selection(app, 1);
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn open_workspace_overlay(app: &mut App) {
+    let root = match &app.repo_root {
+        Some(root) => root.clone(),
+        None => {
+            app.overlay.message = Some("Not inside a git repository.".to_string());
+            app.overlay.items.clear();
+            app.overlay.selected = 0;
+            app.overlay.visible = true;
+            return;
+        }
+    };
+
+    let names = list_workspace_names(&root, &app.config.workspace.root);
+    if names.is_empty() {
+        app.overlay.message = Some("No workspaces yet.".to_string());
+        app.overlay.items.clear();
+        app.overlay.selected = 0;
+    } else {
+        app.overlay.message = None;
+        app.overlay.items = names;
+        if let Some(active) = &app.active_workspace {
+            if let Some(index) = app.overlay.items.iter().position(|name| name == active) {
+                app.overlay.selected = index;
+            } else {
+                app.overlay.selected = 0;
+            }
+        } else {
+            app.overlay.selected = 0;
+        }
+    }
+
+    app.overlay.visible = true;
+}
+
+pub(super) fn open_tab_overlay(app: &mut App) {
+    let Some(workspace) = app.active_workspace.as_deref() else {
+        app.set_output("No active workspace.".to_string());
+        return;
+    };
+    let Some(tabs) = app.tabs.get(workspace) else {
+        app.set_output("No tabs for active workspace.".to_string());
+        return;
+    };
+    if tabs.tabs.is_empty() {
+        app.set_output("No tabs yet.".to_string());
+        return;
+    }
+    app.tab_overlay.items = (0..tabs.tabs.len()).collect();
+    app.tab_overlay.selected = tabs.active;
+    app.tab_overlay.visible = true;
+}
+
+pub(super) fn open_pr_provider_overlay(app: &mut App, pending: PendingCommand) {
+    let providers = pr::provider_names();
+    app.prompt_overlay.title = "Agent Provider".to_string();
+    if providers.is_empty() {
+        app.prompt_overlay.message = Some("No PR providers available.".to_string());
+        app.prompt_overlay.items.clear();
+        app.prompt_overlay.selected = 0;
+    } else {
+        app.prompt_overlay.message = None;
+        app.prompt_overlay.items = providers;
+        app.prompt_overlay.selected = 0;
+    }
+    app.prompt_overlay.visible = true;
+    app.pending_command = Some(pending);
+}
+
+pub(super) fn overlay_visible(app: &App) -> bool {
+    app.overlay.visible
+        || app.tab_overlay.visible
+        || app.prompt_overlay.visible
+        || app.command_overlay.visible
+}
+
+fn move_overlay_selection(app: &mut App, delta: isize) {
+    if app.overlay.items.is_empty() {
+        return;
+    }
+    let len = app.overlay.items.len() as isize;
+    let mut next = app.overlay.selected as isize + delta;
+    if next < 0 {
+        next = len - 1;
+    } else if next >= len {
+        next = 0;
+    }
+    app.overlay.selected = next as usize;
+}
+
+fn move_tab_overlay_selection(app: &mut App, delta: isize) {
+    if app.tab_overlay.items.is_empty() {
+        return;
+    }
+    let len = app.tab_overlay.items.len() as isize;
+    let mut next = app.tab_overlay.selected as isize + delta;
+    if next < 0 {
+        next = len - 1;
+    } else if next >= len {
+        next = 0;
+    }
+    app.tab_overlay.selected = next as usize;
+}
+
+fn move_prompt_overlay_selection(app: &mut App, delta: isize) {
+    if app.prompt_overlay.items.is_empty() {
+        return;
+    }
+    let len = app.prompt_overlay.items.len() as isize;
+    let mut next = app.prompt_overlay.selected as isize + delta;
+    if next < 0 {
+        next = len - 1;
+    } else if next >= len {
+        next = 0;
+    }
+    app.prompt_overlay.selected = next as usize;
+}
