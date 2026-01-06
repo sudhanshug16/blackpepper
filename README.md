@@ -1,8 +1,8 @@
-# blackpepper
+# Parallel Workspace Manager for Coding Agents
 
-blackpepper is a terminal orchestrator for TUI coding agents. It embeds provider
-UIs (Codex, Claude Code, OpenCode, and future agents) inside a unified TUI with
-shared controls, shortcuts, and workspace management.
+Run multiple AI coding agents in parallel on a single Git project. Create
+isolated workspaces, see what each agent is doing, then review and merge the
+results on your terms.
 
 ## Status
 
@@ -16,6 +16,14 @@ cargo run -p blackpepper
 ```
 
 If installed, run `bp` to launch the TUI.
+
+## Updating
+
+Re-run the installer to fetch the latest release asset:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshug16/blackpepper/main/docs/install.sh | bash
+```
 
 ## Tooling
 

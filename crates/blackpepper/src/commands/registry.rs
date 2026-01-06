@@ -8,6 +8,7 @@
 pub struct CommandSpec {
     pub name: &'static str,
     pub description: &'static str,
+    pub cli_exposed: bool,
 }
 
 /// Top-level command names (first word after `:`).
@@ -17,6 +18,7 @@ pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "pr",
     "export",
     "init",
+    "update",
     "debug",
     "help",
     "quit",
@@ -28,78 +30,107 @@ pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "workspace list",
         description: "List/switch workspaces",
+        cli_exposed: true,
     },
     CommandSpec {
         name: "workspace switch",
         description: "Switch the active workspace",
+        cli_exposed: true,
     },
     CommandSpec {
         name: "workspace create",
         description: "Create a workspace worktree (auto-pick name if omitted)",
+        cli_exposed: true,
     },
     CommandSpec {
         name: "workspace destroy",
         description: "Destroy a workspace worktree and delete its branch (defaults to active)",
+        cli_exposed: true,
     },
     CommandSpec {
         name: "export",
         description: "Export current tab scrollback into a vi/vim buffer in a new tab",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "init",
         description: "Initialize project config and gitignore",
+        cli_exposed: true,
+    },
+    CommandSpec {
+        name: "update",
+        description: "Update to the latest release (applies on next restart)",
+        cli_exposed: true,
     },
     CommandSpec {
         name: "tab new",
         description: "Open a new tab in the active workspace",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "tab rename",
         description: "Rename the active tab",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "tab close",
         description: "Close the active tab",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "tab next",
         description: "Switch to the next tab",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "tab prev",
         description: "Switch to the previous tab",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "tab switch",
         description: "Switch tabs by index or name",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "pr create",
         description: "Create a pull request",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "pr open",
         description: "Open the current pull request",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "pr merge",
         description: "Merge the current pull request",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "debug mouse",
         description: "Toggle mouse debug overlay",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "help",
         description: "Show available commands",
+        cli_exposed: true,
+    },
+    CommandSpec {
+        name: "version",
+        description: "Show version information",
+        cli_exposed: true,
     },
     CommandSpec {
         name: "quit",
         description: "Exit Blackpepper",
+        cli_exposed: false,
     },
     CommandSpec {
         name: "q",
         description: "Alias for :quit",
+        cli_exposed: false,
     },
 ];
 
@@ -170,9 +201,34 @@ pub fn command_hint_lines(input: &str, max: usize) -> Vec<String> {
         .collect()
 }
 
+/// Generate help lines for CLI-exposed commands.
+pub fn command_help_lines_cli() -> Vec<String> {
+    let mut matches: Vec<&CommandSpec> = COMMANDS.iter().filter(|cmd| cmd.cli_exposed).collect();
+    if matches.is_empty() {
+        return Vec::new();
+    }
+    matches.sort_by(|a, b| a.name.cmp(b.name));
+    let longest = matches
+        .iter()
+        .map(|command| command.name.len())
+        .max()
+        .unwrap_or(0);
+    matches
+        .into_iter()
+        .map(|command| {
+            format!(
+                "{:<width$} {}",
+                command.name,
+                command.description,
+                width = longest
+            )
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{command_help_lines, command_hint_lines, COMMANDS};
+    use super::{command_help_lines, command_help_lines_cli, command_hint_lines, COMMANDS};
 
     #[test]
     fn help_lines_include_all_commands() {
@@ -196,5 +252,16 @@ mod tests {
         assert!(!lines.is_empty());
         assert!(lines.len() <= 3);
         assert!(lines.iter().all(|line| line.starts_with(":tab")));
+    }
+
+    #[test]
+    fn help_lines_cli_only_include_cli_exposed() {
+        let lines = command_help_lines_cli();
+        assert!(!lines.is_empty());
+        assert!(lines.iter().any(|line| line.starts_with("workspace list")));
+        assert!(lines.iter().any(|line| line.starts_with("init")));
+        assert!(lines.iter().any(|line| line.starts_with("update")));
+        assert!(lines.iter().any(|line| line.starts_with("version")));
+        assert!(!lines.iter().any(|line| line.starts_with("tab new")));
     }
 }

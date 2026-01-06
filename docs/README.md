@@ -9,3 +9,11 @@ system design and module structure.
 
 - `index.html` - Landing page for web docs
 - `install.sh` - Installation script
+
+## Updating
+
+Re-run the installer to fetch the latest release asset:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshug16/blackpepper/main/docs/install.sh | bash
+```

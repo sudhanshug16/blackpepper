@@ -11,6 +11,7 @@ use std::{fs, io};
 
 use crate::animals::ANIMAL_NAMES;
 use crate::git::{resolve_repo_root, run_git, ExecResult};
+use crate::updater::UpdateOutcome;
 use crate::workspaces::{
     ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_path,
 };
@@ -38,6 +39,16 @@ pub struct CommandContext {
 pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> CommandResult {
     match name {
         "init" => init_project(args, ctx),
+        "update" => CommandResult {
+            ok: true,
+            message: update_message(crate::updater::force_update()),
+            data: None,
+        },
+        "version" => CommandResult {
+            ok: true,
+            message: format!("blackpepper v{}", env!("CARGO_PKG_VERSION")),
+            data: None,
+        },
         "help" => CommandResult {
             ok: true,
             message: command_help_lines().join("\n"),
@@ -470,6 +481,24 @@ fn ensure_project_config(path: &Path) -> io::Result<bool> {
     }
     fs::write(path, "")?;
     Ok(true)
+}
+
+fn update_message(outcome: UpdateOutcome) -> String {
+    match outcome {
+        UpdateOutcome::Started => {
+            "Update started. Restart Blackpepper to use the new version.".to_string()
+        }
+        UpdateOutcome::SkippedDev => {
+            "Update skipped for dev builds. Use the installer for releases.".to_string()
+        }
+        UpdateOutcome::SkippedDisabled => {
+            "Update disabled via BLACKPEPPER_DISABLE_UPDATE.".to_string()
+        }
+        UpdateOutcome::SkippedCooldown => {
+            "Update skipped due to cooldown. Try again later.".to_string()
+        }
+        UpdateOutcome::FailedSpawn => "Failed to start updater.".to_string(),
+    }
 }
 
 #[cfg(test)]
