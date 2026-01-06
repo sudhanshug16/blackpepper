@@ -17,10 +17,12 @@ const UPDATE_COOLDOWN: Duration = Duration::from_secs(60 * 60 * 24);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateOutcome {
     Started,
+    Completed,
     SkippedDev,
     SkippedDisabled,
     SkippedCooldown,
     FailedSpawn,
+    FailedExit,
 }
 
 pub fn apply_staged_update() {
@@ -28,14 +30,18 @@ pub fn apply_staged_update() {
 }
 
 pub fn check_for_update() -> UpdateOutcome {
-    run_update(false, true)
+    run_update(false, true, false)
 }
 
 pub fn force_update() -> UpdateOutcome {
-    run_update(true, true)
+    run_update(true, true, false)
 }
 
-fn run_update(force: bool, quiet: bool) -> UpdateOutcome {
+pub fn force_update_sync() -> UpdateOutcome {
+    run_update(true, true, true)
+}
+
+fn run_update(force: bool, quiet: bool, wait: bool) -> UpdateOutcome {
     if !force && env::var_os(UPDATE_ENV_DISABLE).is_some() {
         return UpdateOutcome::SkippedDisabled;
     }
@@ -63,11 +69,24 @@ fn run_update(force: bool, quiet: bool) -> UpdateOutcome {
         process.stdout(std::process::Stdio::null());
         process.stderr(std::process::Stdio::null());
     }
-    if process.spawn().is_err() {
-        return UpdateOutcome::FailedSpawn;
+    if wait {
+        let status = match process.status() {
+            Ok(status) => status,
+            Err(_) => return UpdateOutcome::FailedSpawn,
+        };
+        let _ = record_update_attempt();
+        if status.success() {
+            UpdateOutcome::Completed
+        } else {
+            UpdateOutcome::FailedExit
+        }
+    } else {
+        if process.spawn().is_err() {
+            return UpdateOutcome::FailedSpawn;
+        }
+        let _ = record_update_attempt();
+        UpdateOutcome::Started
     }
-    let _ = record_update_attempt();
-    UpdateOutcome::Started
 }
 
 fn is_dev_binary(path: &Path) -> bool {

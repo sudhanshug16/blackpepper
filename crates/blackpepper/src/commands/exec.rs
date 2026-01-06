@@ -48,7 +48,7 @@ pub fn run_command(name: &str, args: &[String], ctx: &CommandContext) -> Command
         "init" => init_project(args, ctx),
         "update" => CommandResult {
             ok: true,
-            message: update_message(crate::updater::force_update()),
+            message: update_message(crate::updater::force_update_sync()),
             data: None,
         },
         "version" => CommandResult {
@@ -534,6 +534,9 @@ fn update_message(outcome: UpdateOutcome) -> String {
         UpdateOutcome::Started => {
             "Update started. Restart Blackpepper to use the new version.".to_string()
         }
+        UpdateOutcome::Completed => {
+            "Update completed. Restart Blackpepper to use the new version.".to_string()
+        }
         UpdateOutcome::SkippedDev => {
             "Update skipped for dev builds. Use the installer for releases.".to_string()
         }
@@ -544,6 +547,7 @@ fn update_message(outcome: UpdateOutcome) -> String {
             "Update skipped due to cooldown. Try again later.".to_string()
         }
         UpdateOutcome::FailedSpawn => "Failed to start updater.".to_string(),
+        UpdateOutcome::FailedExit => "Update failed. Check your network and try again.".to_string(),
     }
 }
 
