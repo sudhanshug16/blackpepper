@@ -124,7 +124,7 @@ impl TerminalSession {
         }
         self.rows = rows;
         self.cols = cols;
-        self.parser.set_size(rows, cols);
+        self.parser.screen_mut().set_size(rows, cols);
         let _ = self.master.resize(PtySize {
             rows,
             cols,

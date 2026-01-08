@@ -53,7 +53,7 @@ pub fn render_lines(parser: &Parser, rows: u16, cols: u16) -> Vec<Line<'static>>
             }
 
             let content = if cell.has_contents() {
-                cell.contents()
+                cell.contents().to_string()
             } else {
                 " ".to_string()
             };
