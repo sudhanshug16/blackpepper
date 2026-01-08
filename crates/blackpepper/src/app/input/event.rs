@@ -3,10 +3,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use crate::commands::CommandPhase;
 use crate::events::AppEvent;
 use crate::keymap::matches_chord;
-use crate::terminal::key_event_to_bytes;
 
 use super::command::handle_command_input;
-use super::mouse::handle_mouse_event;
 use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspace_overlay};
 use super::terminal::process_terminal_output;
 use super::workspace::{
@@ -19,13 +17,11 @@ use crate::app::state::{App, Mode};
 pub fn handle_event(app: &mut App, event: AppEvent) {
     match event {
         AppEvent::Input(key) => handle_key(app, key),
+        AppEvent::RawInput(bytes) => handle_raw_input(app, bytes),
         AppEvent::PtyOutput(id, bytes) => {
             process_terminal_output(app, id, &bytes);
         }
         AppEvent::PtyExit(id) => close_session_by_id(app, id),
-        AppEvent::Mouse(mouse) => {
-            handle_mouse_event(app, mouse);
-        }
         AppEvent::Resize(_, _) => {}
         AppEvent::CommandOutput { name, chunk } => {
             if !app.command_overlay.visible {
@@ -113,22 +109,11 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) {
-    // Ignore key releases; we only want press/repeat events to reach the PTY.
+    // Ignore key releases; manage mode only needs press/repeat events.
     if key.kind == KeyEventKind::Release {
         return;
     }
     if app.mode == Mode::Work {
-        if let Some(chord) = &app.toggle_chord {
-            if matches_chord(key, chord) {
-                app.mode = Mode::Manage;
-                return;
-            }
-        }
-        if let Some(terminal) = active_terminal_mut(app) {
-            if let Some(bytes) = key_event_to_bytes(key) {
-                terminal.write_bytes(&bytes);
-            }
-        }
         return;
     }
 
@@ -196,5 +181,24 @@ fn handle_key(app: &mut App, key: KeyEvent) {
     if key.code == KeyCode::Esc {
         enter_work_mode(app);
         return;
+    }
+}
+
+fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
+    if app.mode != Mode::Work || bytes.is_empty() {
+        return;
+    }
+    let toggle = app.work_toggle_byte;
+    if let Some(pos) = bytes.iter().position(|byte| *byte == toggle) {
+        if pos > 0 {
+            if let Some(terminal) = active_terminal_mut(app) {
+                terminal.write_bytes(&bytes[..pos]);
+            }
+        }
+        app.set_mode(Mode::Manage);
+        return;
+    }
+    if let Some(terminal) = active_terminal_mut(app) {
+        terminal.write_bytes(&bytes);
     }
 }

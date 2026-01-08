@@ -12,7 +12,7 @@
 //! Submodules:
 //! - state: App struct and type definitions
 //! - runner: main loop and terminal setup
-//! - input: keyboard and mouse event handling
+//! - input: keyboard and work-mode raw input handling
 //! - render: UI rendering methods
 
 mod input;

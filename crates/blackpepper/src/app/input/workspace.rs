@@ -1,4 +1,5 @@
 use crate::config::load_config;
+use crate::keymap::{parse_control_byte, parse_key_chord, DEFAULT_WORK_TOGGLE_BYTE};
 use crate::repo_status::RepoStatusSignal;
 use crate::state::{record_active_workspace, remove_active_workspace};
 use crate::terminal::TerminalSession;
@@ -50,20 +51,25 @@ pub(super) fn set_active_workspace(app: &mut App, name: &str) -> Result<(), Stri
     app.active_workspace = Some(name.to_string());
     let _ = record_active_workspace(&root, &workspace_path);
     app.config = load_config(&root);
+    app.toggle_chord = parse_key_chord(&app.config.keymap.toggle_mode);
+    app.work_toggle_byte =
+        parse_control_byte(&app.config.keymap.toggle_mode).unwrap_or(DEFAULT_WORK_TOGGLE_BYTE);
+    app.switch_chord = parse_key_chord(&app.config.keymap.switch_workspace);
+    app.refresh_chord = parse_key_chord(&app.config.keymap.refresh);
     request_repo_status(app);
     ensure_active_workspace_session(app, 24, 80)
 }
 
 pub(super) fn ensure_manage_mode_without_workspace(app: &mut App) {
     if app.active_workspace.is_none() {
-        app.mode = Mode::Manage;
+        app.set_mode(Mode::Manage);
     }
 }
 
 pub(super) fn enter_work_mode(app: &mut App) -> bool {
     if app.active_workspace.is_none() {
         app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
-        app.mode = Mode::Manage;
+        app.set_mode(Mode::Manage);
         return false;
     }
     let (rows, cols) = app
@@ -72,10 +78,10 @@ pub(super) fn enter_work_mode(app: &mut App) -> bool {
         .unwrap_or((24, 80));
     if let Err(err) = ensure_active_workspace_session(app, rows, cols) {
         app.set_output(err);
-        app.mode = Mode::Manage;
+        app.set_mode(Mode::Manage);
         return false;
     }
-    app.mode = Mode::Work;
+    app.set_mode(Mode::Work);
     true
 }
 
@@ -147,7 +153,7 @@ pub(super) fn close_session_by_id(app: &mut App, id: u64) {
     };
     app.sessions.remove(&workspace);
     if app.active_workspace.as_deref() == Some(workspace.as_str()) {
-        app.mode = Mode::Manage;
+        app.set_mode(Mode::Manage);
         app.set_output("tmux session exited.".to_string());
     }
 }

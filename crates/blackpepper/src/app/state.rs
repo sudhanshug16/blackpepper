@@ -5,9 +5,9 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::Sender;
-
-use crossterm::event::MouseButton;
+use std::sync::Arc;
 use ratatui::layout::Rect;
 
 use crate::config::Config;
@@ -19,10 +19,41 @@ use crate::terminal::TerminalSession;
 /// UI mode determines which keys are intercepted vs passed to terminal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
-    /// Keys go to the terminal (except toggle chord).
+    /// Raw input goes to the terminal (except the toggle control byte).
     Work,
     /// Keys are handled by the app for navigation/commands.
     Manage,
+}
+
+#[derive(Clone)]
+pub struct InputModeHandle {
+    mode: Arc<AtomicU8>,
+}
+
+impl InputModeHandle {
+    pub fn new(mode: Mode) -> Self {
+        Self {
+            mode: Arc::new(AtomicU8::new(mode_to_u8(mode))),
+        }
+    }
+
+    pub fn get(&self) -> Mode {
+        match self.mode.load(Ordering::Relaxed) {
+            1 => Mode::Work,
+            _ => Mode::Manage,
+        }
+    }
+
+    pub fn set(&self, mode: Mode) {
+        self.mode.store(mode_to_u8(mode), Ordering::Relaxed);
+    }
+}
+
+fn mode_to_u8(mode: Mode) -> u8 {
+    match mode {
+        Mode::Manage => 0,
+        Mode::Work => 1,
+    }
 }
 
 /// Workspace selection overlay state.
@@ -58,13 +89,6 @@ pub struct PendingCommand {
     pub args: Vec<String>,
 }
 
-/// Terminal cell position (row, col).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct CellPos {
-    pub row: u16,
-    pub col: u16,
-}
-
 /// A single tmux-backed terminal session per workspace.
 pub struct WorkspaceSession {
     pub terminal: TerminalSession,
@@ -85,6 +109,8 @@ pub struct App {
     pub toggle_chord: Option<KeyChord>,
     pub switch_chord: Option<KeyChord>,
     pub refresh_chord: Option<KeyChord>,
+    pub work_toggle_byte: u8,
+    pub input_mode: InputModeHandle,
     pub should_quit: bool,
     pub config: Config,
     pub sessions: HashMap<String, WorkspaceSession>,
@@ -96,9 +122,6 @@ pub struct App {
     pub repo_status_tx: Option<Sender<RepoStatusSignal>>,
     pub terminal_seq: u64,
     pub terminal_area: Option<Rect>,
-    pub mouse_debug: bool,
-    pub mouse_pressed: Option<MouseButton>,
-    pub mouse_log_path: Option<PathBuf>,
     pub loading: Option<String>,
     pub pending_command: Option<PendingCommand>,
     pub refresh_requested: bool,

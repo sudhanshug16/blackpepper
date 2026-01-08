@@ -29,6 +29,11 @@ pub fn client_command(
         session.to_string(),
         "-c".to_string(),
         cwd.to_string_lossy().to_string(),
+        ";".to_string(),
+        "set-option".to_string(),
+        "-gq".to_string(),
+        "extended-keys".to_string(),
+        "on".to_string(),
     ]);
     (command, args)
 }

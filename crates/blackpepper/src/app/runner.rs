@@ -6,10 +6,11 @@
 use std::io;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
+use std::time::Duration;
 
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyboardEnhancementFlags,
-    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    self, Event, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -21,19 +22,18 @@ use ratatui::Terminal;
 use crate::config::load_config;
 use crate::events::AppEvent;
 use crate::git::resolve_repo_root;
-use crate::keymap::parse_key_chord;
+use crate::keymap::{parse_control_byte, parse_key_chord, DEFAULT_WORK_TOGGLE_BYTE};
 use crate::repo_status::{spawn_repo_status_worker, RepoStatus, RepoStatusSignal};
 use crate::state::{get_active_workspace, load_state, remove_active_workspace};
 use crate::workspaces::{list_workspace_names, workspace_name_from_path};
 
-use super::state::{App, CommandOverlay, Mode, PromptOverlay, WorkspaceOverlay};
+use super::state::{App, CommandOverlay, InputModeHandle, Mode, PromptOverlay, WorkspaceOverlay};
 
 /// Entry point: set up terminal and run the event loop.
 pub fn run() -> io::Result<()> {
     let mut stdout = io::stdout();
     enable_raw_mode()?;
     stdout.execute(EnterAlternateScreen)?;
-    stdout.execute(EnableMouseCapture)?;
     stdout.execute(PushKeyboardEnhancementFlags(
         KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
             | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
@@ -46,7 +46,6 @@ pub fn run() -> io::Result<()> {
     let result = run_loop(&mut terminal);
 
     disable_raw_mode()?;
-    terminal.backend_mut().execute(DisableMouseCapture)?;
     terminal
         .backend_mut()
         .execute(PopKeyboardEnhancementFlags)?;
@@ -59,9 +58,8 @@ pub fn run() -> io::Result<()> {
 /// Main event loop: process events until quit.
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
     let (event_tx, event_rx) = mpsc::channel::<AppEvent>();
-    spawn_input_thread(event_tx.clone());
-
     let mut app = App::new(event_tx.clone());
+    spawn_input_thread(event_tx.clone(), app.input_mode.clone());
     terminal.clear()?;
     terminal.draw(|frame| super::render::render(&mut app, frame))?;
 
@@ -86,28 +84,44 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
     Ok(())
 }
 
-/// Spawn a thread to read terminal input events.
-fn spawn_input_thread(sender: Sender<AppEvent>) {
-    std::thread::spawn(move || loop {
-        match event::read() {
-            Ok(Event::Key(key)) => {
-                if sender.send(AppEvent::Input(key)).is_err() {
-                    break;
+/// Spawn a thread to read terminal input (key events in manage mode, raw bytes in work mode).
+fn spawn_input_thread(sender: Sender<AppEvent>, input_mode: InputModeHandle) {
+    std::thread::spawn(move || {
+        let mut last_size: Option<(u16, u16)> = None;
+        loop {
+            let mode = input_mode.get();
+            let mut sent = false;
+            match mode {
+                Mode::Manage => {
+                    if event::poll(Duration::from_millis(25)).unwrap_or(false) {
+                        match event::read() {
+                            Ok(Event::Key(key)) => {
+                                sent = sender.send(AppEvent::Input(key)).is_ok();
+                            }
+                            Ok(Event::Resize(cols, rows)) => {
+                                last_size = Some((rows, cols));
+                                sent = sender.send(AppEvent::Resize(rows, cols)).is_ok();
+                            }
+                            Ok(_) => {}
+                            Err(_) => break,
+                        }
+                    }
+                }
+                Mode::Work => {
+                    match read_raw_bytes(Duration::from_millis(25)) {
+                        Ok(Some(bytes)) => {
+                            sent = sender.send(AppEvent::RawInput(bytes)).is_ok();
+                        }
+                        Ok(None) => {}
+                        Err(_) => break,
+                    }
                 }
             }
-            Ok(Event::Mouse(mouse)) => {
-                if sender.send(AppEvent::Mouse(mouse)).is_err() {
-                    break;
-                }
-            }
-            Ok(Event::Resize(cols, rows)) => {
-                if sender.send(AppEvent::Resize(rows, cols)).is_err() {
-                    break;
-                }
-            }
-            Ok(_) => {}
-            Err(_) => break,
+
+        if !sent && !sync_resize(&sender, &mut last_size) {
+            break;
         }
+    }
     });
 }
 
@@ -119,6 +133,8 @@ impl App {
         let config_root = repo_root.as_deref().unwrap_or(&cwd);
         let config = load_config(config_root);
         let toggle_chord = parse_key_chord(&config.keymap.toggle_mode);
+        let work_toggle_byte =
+            parse_control_byte(&config.keymap.toggle_mode).unwrap_or(DEFAULT_WORK_TOGGLE_BYTE);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
         let refresh_chord = parse_key_chord(&config.keymap.refresh);
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
@@ -157,6 +173,7 @@ impl App {
         } else {
             Mode::Manage
         };
+        let input_mode = InputModeHandle::new(mode);
         let mut app = Self {
             mode,
             command_active: false,
@@ -168,6 +185,8 @@ impl App {
             toggle_chord,
             switch_chord,
             refresh_chord,
+            work_toggle_byte,
+            input_mode,
             should_quit: false,
             config,
             sessions: std::collections::HashMap::new(),
@@ -179,9 +198,6 @@ impl App {
             repo_status_tx: Some(repo_status_tx),
             terminal_seq: 0,
             terminal_area: None,
-            mouse_debug: false,
-            mouse_pressed: None,
-            mouse_log_path: mouse_log_path(),
             loading: None,
             pending_command: None,
             refresh_requested: false,
@@ -198,6 +214,11 @@ impl App {
         app
     }
 
+    pub fn set_mode(&mut self, mode: Mode) {
+        self.mode = mode;
+        self.input_mode.set(mode);
+    }
+
     /// Set the output message shown in the command bar area.
     pub fn set_output(&mut self, message: String) {
         let trimmed = message.trim().to_string();
@@ -209,13 +230,67 @@ impl App {
     }
 }
 
-/// Get the path for mouse debug logging.
-fn mouse_log_path() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    Some(
-        home.join(".local")
-            .join("state")
-            .join("blackpepper")
-            .join("mouse.log"),
-    )
+fn sync_resize(sender: &Sender<AppEvent>, last_size: &mut Option<(u16, u16)>) -> bool {
+    let size = crossterm::terminal::size().ok().map(|(cols, rows)| (rows, cols));
+    if let Some(size) = size {
+        let changed = *last_size != Some(size);
+        if changed {
+            *last_size = Some(size);
+            return sender.send(AppEvent::Resize(size.0, size.1)).is_ok();
+        }
+    }
+    true
+}
+
+fn read_raw_bytes(timeout: Duration) -> io::Result<Option<Vec<u8>>> {
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        use std::os::unix::io::AsRawFd;
+
+        let fd = io::stdin().as_raw_fd();
+        let mut fds = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        let timeout_ms = timeout
+            .as_millis()
+            .try_into()
+            .unwrap_or(i32::MAX);
+        let rc = unsafe { libc::poll(&mut fds, 1, timeout_ms) };
+        if rc == 0 {
+            return Ok(None);
+        }
+        if rc < 0 {
+            let err = io::Error::last_os_error();
+            if err.kind() == io::ErrorKind::Interrupted {
+                return Ok(None);
+            }
+            return Err(err);
+        }
+        if (fds.revents & libc::POLLIN) == 0 {
+            return Ok(None);
+        }
+        let mut buffer = [0u8; 4096];
+        let size = io::stdin().read(&mut buffer)?;
+        if size == 0 {
+            return Ok(None);
+        }
+        return Ok(Some(buffer[..size].to_vec()));
+    }
+    #[cfg(not(unix))]
+    {
+        use std::io::Read;
+
+        if !event::poll(timeout)? {
+            return Ok(None);
+        }
+        let mut buffer = [0u8; 4096];
+        let size = io::stdin().read(&mut buffer)?;
+        if size == 0 {
+            return Ok(None);
+        }
+        Ok(Some(buffer[..size].to_vec()))
+    }
 }

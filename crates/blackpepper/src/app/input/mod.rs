@@ -1,14 +1,12 @@
 //! Input event handling.
 //!
-//! Handles keyboard and mouse events, routing them to appropriate
-//! handlers based on current mode, overlays, and focus.
+//! Handles keyboard events, routing them to appropriate handlers
+//! based on current mode, overlays, and focus.
 
 mod command;
 mod event;
-mod mouse;
 mod overlay;
 mod terminal;
-mod utils;
 mod workspace;
 
 const NO_ACTIVE_WORKSPACE_HINT: &str =

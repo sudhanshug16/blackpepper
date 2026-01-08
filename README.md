@@ -48,7 +48,7 @@ Example:
 
 ```toml
 [keymap]
-toggle_mode = "ctrl+g"
+toggle_mode = "ctrl+g" # Work-mode toggle must be a single Ctrl chord.
 switch_workspace = "ctrl+p"
 
 [tmux]
@@ -66,6 +66,9 @@ command = "custom agent command {{PROMPT}}"
 provider = "github"
 
 ```
+
+Work-mode toggles require a control-only chord. Unsupported values fall back to
+`ctrl+g`.
 
 If `[tmux]` is omitted, Blackpepper uses `tmux` from `PATH`.
 If `[agent].provider` is set, `:pr create` uses the built-in agent templates; set
@@ -93,16 +96,23 @@ for parallel shells). Override the root with `[workspace].root` in `config.toml`
 Run `bp init` (or `:init` inside the TUI) to add gitignore entries and
 create an empty project config at `./.config/blackpepper/config.toml`.
 
-Selecting a workspace starts an embedded tmux client in that worktree. Customize
-the tmux command with `[tmux]`.
+Selecting a workspace starts an embedded tmux client in that worktree. Blackpepper
+enables tmux `extended-keys` for these sessions so modified keys can be preserved
+when your terminal supports them. Customize the tmux command with `[tmux]`.
 
 ## Modes
 
-- Work mode forwards input to the embedded terminal.
-- Manage mode enables global controls (`Ctrl+G` to toggle).
+- Work mode is raw input passthrough to tmux; only the toggle control byte is intercepted.
+- Toggle mode uses a control-only chord (e.g., `ctrl+g`, `ctrl+[`, `ctrl+space`).
+- Manage mode enables global controls (default toggle: `Ctrl+G`).
 - Use `:` in Manage mode to open the command line (hidden by default).
 - Use `Ctrl+P` to open the workspace switcher overlay.
 - Use `Esc` to close the command line or return to Work mode.
+
+Note: Some terminals send the same byte for Enter and Shift+Enter. In raw
+passthrough mode, tmux cannot distinguish them, so Shift+Enter behaves like
+Enter unless your terminal emits a distinct sequence. See
+https://github.com/openai/codex/discussions/3024 for background.
 
 ## Docs
 

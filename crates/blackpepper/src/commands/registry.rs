@@ -19,7 +19,6 @@ pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "init",
     "update",
     "version",
-    "debug",
     "help",
     "quit",
     "q",
@@ -75,11 +74,6 @@ pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "pr merge",
         description: "Merge the current pull request",
-        cli_exposed: false,
-    },
-    CommandSpec {
-        name: "debug mouse",
-        description: "Toggle mouse debug overlay",
         cli_exposed: false,
     },
     CommandSpec {

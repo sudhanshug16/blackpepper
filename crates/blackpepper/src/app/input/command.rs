@@ -110,11 +110,6 @@ fn execute_command(app: &mut App, raw: &str) {
         return;
     }
 
-    if parsed.name == "debug" {
-        handle_debug_command(app, &parsed.args);
-        return;
-    }
-
     if parsed.name == "refresh" {
         handle_refresh_command(app, &parsed.args);
         return;
@@ -199,32 +194,6 @@ fn needs_agent_provider_selection(app: &App, args: &[String]) -> bool {
         return false;
     }
     app.config.agent.provider.is_none() && app.config.agent.command.is_none()
-}
-
-fn handle_debug_command(app: &mut App, args: &[String]) {
-    let Some(subcommand) = args.first() else {
-        app.set_output("Usage: :debug <mouse>".to_string());
-        return;
-    };
-    match subcommand.as_str() {
-        "mouse" => {
-            app.mouse_debug = !app.mouse_debug;
-            let state = if app.mouse_debug { "on" } else { "off" };
-            if app.mouse_debug {
-                let path = app
-                    .mouse_log_path
-                    .as_ref()
-                    .map(|path| path.display().to_string())
-                    .unwrap_or_else(|| "<unavailable>".to_string());
-                app.set_output(format!("Mouse debug {state}. Logging to {path}."));
-            } else {
-                app.set_output(format!("Mouse debug {state}."));
-            }
-        }
-        _ => {
-            app.set_output("Usage: :debug <mouse>".to_string());
-        }
-    }
 }
 
 fn handle_refresh_command(app: &mut App, args: &[String]) {

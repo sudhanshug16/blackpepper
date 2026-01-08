@@ -15,7 +15,7 @@ use std::sync::mpsc::Sender;
 use std::thread;
 
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
-use vt100::{MouseProtocolEncoding, MouseProtocolMode, Parser};
+use vt100::Parser;
 
 use crate::events::AppEvent;
 
@@ -110,20 +110,6 @@ impl TerminalSession {
         self.id
     }
 
-    /// Returns the current mouse protocol mode and encoding from vt100.
-    pub fn mouse_protocol(&self) -> (MouseProtocolMode, MouseProtocolEncoding) {
-        let screen = self.parser.screen();
-        (
-            screen.mouse_protocol_mode(),
-            screen.mouse_protocol_encoding(),
-        )
-    }
-
-    /// Returns true if the terminal is in alternate screen mode.
-    pub fn alternate_screen(&self) -> bool {
-        self.parser.screen().alternate_screen()
-    }
-
     /// Process bytes received from PTY output.
     pub fn process_bytes(&mut self, bytes: &[u8]) {
         self.parser.process(bytes);
@@ -147,7 +133,7 @@ impl TerminalSession {
         });
     }
 
-    /// Write input bytes to the PTY (keystrokes, mouse events).
+    /// Write input bytes to the PTY.
     pub fn write_bytes(&mut self, bytes: &[u8]) {
         if bytes.is_empty() {
             return;
