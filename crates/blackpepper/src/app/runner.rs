@@ -100,7 +100,7 @@ fn spawn_input_thread(sender: Sender<AppEvent>, input_mode: InputModeHandle) {
                             }
                             Ok(Event::Resize(cols, rows)) => {
                                 last_size = Some((rows, cols));
-                                sent = sender.send(AppEvent::Resize(rows, cols)).is_ok();
+                                sent = sender.send(AppEvent::Resize).is_ok();
                             }
                             Ok(_) => {}
                             Err(_) => break,
@@ -136,6 +136,7 @@ impl App {
         let work_toggle_byte =
             parse_control_byte(&config.keymap.toggle_mode).unwrap_or(DEFAULT_WORK_TOGGLE_BYTE);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
+        let switch_tab_chord = parse_key_chord(&config.keymap.switch_tab);
         let refresh_chord = parse_key_chord(&config.keymap.refresh);
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
 
@@ -184,6 +185,7 @@ impl App {
             active_workspace,
             toggle_chord,
             switch_chord,
+            switch_tab_chord,
             refresh_chord,
             work_toggle_byte,
             input_mode,
@@ -236,7 +238,7 @@ fn sync_resize(sender: &Sender<AppEvent>, last_size: &mut Option<(u16, u16)>) ->
         let changed = *last_size != Some(size);
         if changed {
             *last_size = Some(size);
-            return sender.send(AppEvent::Resize(size.0, size.1)).is_ok();
+            return sender.send(AppEvent::Resize).is_ok();
         }
     }
     true

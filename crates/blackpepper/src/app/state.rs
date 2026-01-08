@@ -108,6 +108,7 @@ pub struct App {
     pub active_workspace: Option<String>,
     pub toggle_chord: Option<KeyChord>,
     pub switch_chord: Option<KeyChord>,
+    pub switch_tab_chord: Option<KeyChord>,
     pub refresh_chord: Option<KeyChord>,
     pub work_toggle_byte: u8,
     pub input_mode: InputModeHandle,

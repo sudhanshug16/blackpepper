@@ -62,7 +62,7 @@ fn run_git_cmd(args: &[&str], cwd: &Path) {
 
 fn init_repo() -> TempDir {
     let repo = TempDir::new().expect("temp repo");
-    run_git_cmd(&["init"], repo.path());
+    run_git_cmd(&["init", "-b", "main"], repo.path());
     fs::write(repo.path().join("README.md"), "hello").expect("write file");
     run_git_cmd(&["add", "."], repo.path());
     run_git_cmd(&["commit", "-m", "init"], repo.path());

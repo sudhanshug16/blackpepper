@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Deserialize;
@@ -10,7 +10,10 @@ use serde::Deserialize;
 use crate::events::AppEvent;
 use crate::git::{git_common_dir, run_git};
 
-const STATUS_DEBOUNCE: Duration = Duration::from_millis(250);
+// Notify events are debounced; explicit requests should compute immediately.
+const NOTIFY_DEBOUNCE: Duration = Duration::from_secs(5);
+// Rate-limit gh PR lookups globally; reuse the last known status when limited.
+const PR_STATUS_RATE_LIMIT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Default)]
 pub struct RepoStatus {
@@ -87,18 +90,46 @@ fn run_repo_status_worker(
     let mut current_cwd: Option<PathBuf> = None;
     let mut watcher: Option<RecommendedWatcher> = None;
     let mut watched_dir: Option<PathBuf> = None;
+    let mut notify_deadline: Option<Instant> = None;
+    let mut last_pr_fetch: Option<Instant> = None;
+    let mut last_pr_status: Option<PrStatus> = None;
 
     loop {
-        let signal = match signal_rx.recv() {
-            Ok(signal) => signal,
-            Err(_) => break,
+        let signal = match notify_deadline {
+            Some(deadline) => {
+                let timeout = deadline.saturating_duration_since(Instant::now());
+                match signal_rx.recv_timeout(timeout) {
+                    Ok(signal) => Some(signal),
+                    Err(mpsc::RecvTimeoutError::Timeout) => None,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+            }
+            None => match signal_rx.recv() {
+                Ok(signal) => Some(signal),
+                Err(_) => break,
+            },
         };
 
+        let mut compute_now = false;
+        let mut deadline_reached = false;
+
         match signal {
-            RepoStatusSignal::Request(cwd) => {
+            Some(RepoStatusSignal::Request(cwd)) => {
                 current_cwd = Some(cwd);
+                notify_deadline = None;
+                compute_now = true;
             }
-            RepoStatusSignal::Notify => {}
+            Some(RepoStatusSignal::Notify) => {
+                notify_deadline = Some(Instant::now() + NOTIFY_DEBOUNCE);
+            }
+            None => {
+                deadline_reached = notify_deadline
+                    .map(|deadline| Instant::now() >= deadline)
+                    .unwrap_or(false);
+                if deadline_reached {
+                    notify_deadline = None;
+                }
+            }
         }
 
         if let Some(cwd) = current_cwd.as_ref() {
@@ -118,20 +149,14 @@ fn run_repo_status_worker(
         }
 
         let _ = watcher.as_ref();
-        // Coalesce bursts of git changes so we only compute once.
-        std::thread::sleep(STATUS_DEBOUNCE);
-        while let Ok(extra) = signal_rx.try_recv() {
-            if let RepoStatusSignal::Request(cwd) = extra {
-                current_cwd = Some(cwd);
+        if compute_now || deadline_reached {
+            if let Some(cwd) = current_cwd.as_ref() {
+                let status = compute_repo_status(cwd, &mut last_pr_fetch, &mut last_pr_status);
+                let _ = event_tx.send(AppEvent::RepoStatusUpdated {
+                    cwd: cwd.clone(),
+                    status,
+                });
             }
-        }
-
-        if let Some(cwd) = current_cwd.as_ref() {
-            let status = compute_repo_status(cwd);
-            let _ = event_tx.send(AppEvent::RepoStatusUpdated {
-                cwd: cwd.clone(),
-                status,
-            });
         }
     }
 }
@@ -144,7 +169,11 @@ fn new_repo_watcher(signal_tx: Sender<RepoStatusSignal>) -> notify::Result<Recom
     })
 }
 
-fn compute_repo_status(cwd: &Path) -> RepoStatus {
+fn compute_repo_status(
+    cwd: &Path,
+    last_pr_fetch: &mut Option<Instant>,
+    last_pr_status: &mut Option<PrStatus>,
+) -> RepoStatus {
     let status = run_git(["status", "--porcelain=2", "-b"].as_ref(), cwd);
     if !status.ok {
         return RepoStatus::default();
@@ -153,7 +182,18 @@ fn compute_repo_status(cwd: &Path) -> RepoStatus {
     let head = parse_branch_head(&status.stdout);
     let dirty = parse_dirty(&status.stdout);
     let divergence = parse_divergence(&status.stdout);
-    let pr = fetch_pr_status(cwd);
+    let now = Instant::now();
+    let pr = if last_pr_fetch
+        .map(|last| now.duration_since(last) >= PR_STATUS_RATE_LIMIT)
+        .unwrap_or(true)
+    {
+        let pr = fetch_pr_status(cwd);
+        *last_pr_fetch = Some(now);
+        *last_pr_status = Some(pr.clone());
+        pr
+    } else {
+        last_pr_status.clone().unwrap_or_default()
+    };
     RepoStatus {
         head,
         dirty,

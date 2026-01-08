@@ -18,7 +18,7 @@ pub enum AppEvent {
     RawInput(Vec<u8>),
     PtyOutput(u64, Vec<u8>),
     PtyExit(u64),
-    Resize(u16, u16),
+    Resize,
     CommandOutput {
         name: String,
         chunk: String,

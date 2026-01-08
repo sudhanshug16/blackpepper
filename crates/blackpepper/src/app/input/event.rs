@@ -9,7 +9,7 @@ use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspa
 use super::terminal::process_terminal_output;
 use super::workspace::{
     active_terminal_mut, close_session_by_id, ensure_manage_mode_without_workspace, enter_work_mode,
-    request_refresh, set_active_workspace,
+    request_refresh, set_active_workspace, switch_tab,
 };
 use crate::app::state::{App, Mode};
 
@@ -22,7 +22,7 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
             process_terminal_output(app, id, &bytes);
         }
         AppEvent::PtyExit(id) => close_session_by_id(app, id),
-        AppEvent::Resize(_, _) => {}
+        AppEvent::Resize => {}
         AppEvent::CommandOutput { name, chunk } => {
             if !app.command_overlay.visible {
                 app.command_overlay.visible = true;
@@ -153,6 +153,14 @@ fn handle_key(app: &mut App, key: KeyEvent) {
     if let Some(chord) = &app.switch_chord {
         if matches_chord(key, chord) {
             open_workspace_overlay(app);
+            return;
+        }
+    }
+
+    // Switch tab chord (cycle active workspace session).
+    if let Some(chord) = &app.switch_tab_chord {
+        if matches_chord(key, chord) {
+            switch_tab(app);
             return;
         }
     }
