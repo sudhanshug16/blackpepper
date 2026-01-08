@@ -17,6 +17,8 @@ const DEFAULT_SWITCH_TAB: &str = "ctrl+o";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
 const DEFAULT_REFRESH: &str = "ctrl+r";
 const DEFAULT_TMUX_COMMAND: &str = "tmux";
+const DEFAULT_UI_BG: (u8, u8, u8) = (0x33, 0x33, 0x33);
+const DEFAULT_UI_FG: (u8, u8, u8) = (0xff, 0xff, 0xff);
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -25,6 +27,7 @@ pub struct Config {
     pub workspace: WorkspaceConfig,
     pub agent: AgentConfig,
     pub upstream: UpstreamConfig,
+    pub ui: UiConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +60,12 @@ pub struct UpstreamConfig {
     pub provider: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct UiConfig {
+    pub background: (u8, u8, u8),
+    pub foreground: (u8, u8, u8),
+}
+
 #[derive(Debug, Default, Deserialize)]
 struct RawConfig {
     keymap: Option<RawKeymap>,
@@ -64,6 +73,7 @@ struct RawConfig {
     workspace: Option<RawWorkspace>,
     agent: Option<RawAgent>,
     upstream: Option<RawUpstream>,
+    ui: Option<RawUi>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -98,6 +108,12 @@ struct RawAgent {
 #[derive(Debug, Default, Deserialize)]
 struct RawUpstream {
     provider: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RawUi {
+    background: Option<String>,
+    foreground: Option<String>,
 }
 
 fn read_toml(path: &Path) -> Option<RawConfig> {
@@ -136,6 +152,8 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
     let user_agent = user.as_ref().and_then(|c| c.agent.as_ref());
     let workspace_upstream = workspace.as_ref().and_then(|c| c.upstream.as_ref());
     let user_upstream = user.as_ref().and_then(|c| c.upstream.as_ref());
+    let workspace_ui = workspace.as_ref().and_then(|c| c.ui.as_ref());
+    let user_ui = user.as_ref().and_then(|c| c.ui.as_ref());
 
     let command = workspace_tmux
         .and_then(|t| t.command.clone())
@@ -159,6 +177,16 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         .and_then(|upstream| upstream.provider.clone())
         .or_else(|| user_upstream.and_then(|upstream| upstream.provider.clone()))
         .unwrap_or_else(|| "github".to_string());
+    let ui_background = parse_ui_color(
+        workspace_ui.and_then(|ui| ui.background.clone()),
+        user_ui.and_then(|ui| ui.background.clone()),
+        DEFAULT_UI_BG,
+    );
+    let ui_foreground = parse_ui_color(
+        workspace_ui.and_then(|ui| ui.foreground.clone()),
+        user_ui.and_then(|ui| ui.foreground.clone()),
+        DEFAULT_UI_FG,
+    );
 
     Config {
         keymap: KeymapConfig {
@@ -178,6 +206,42 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         upstream: UpstreamConfig {
             provider: upstream_provider,
         },
+        ui: UiConfig {
+            background: ui_background,
+            foreground: ui_foreground,
+        },
+    }
+}
+
+fn parse_ui_color(
+    workspace_value: Option<String>,
+    user_value: Option<String>,
+    default_value: (u8, u8, u8),
+) -> (u8, u8, u8) {
+    workspace_value
+        .as_deref()
+        .and_then(parse_hex_color)
+        .or_else(|| user_value.as_deref().and_then(parse_hex_color))
+        .unwrap_or(default_value)
+}
+
+fn parse_hex_color(value: &str) -> Option<(u8, u8, u8)> {
+    let trimmed = value.trim();
+    let hex = trimmed.strip_prefix('#').unwrap_or(trimmed);
+    match hex.len() {
+        3 => {
+            let r = u8::from_str_radix(&hex[0..1], 16).ok()?;
+            let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
+            let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
+            Some((r * 17, g * 17, b * 17))
+        }
+        6 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            Some((r, g, b))
+        }
+        _ => None,
     }
 }
 
@@ -293,6 +357,8 @@ mod tests {
         assert!(config.agent.provider.is_none());
         assert!(config.agent.command.is_none());
         assert_eq!(config.upstream.provider, "github");
+        assert_eq!(config.ui.background, (0x33, 0x33, 0x33));
+        assert_eq!(config.ui.foreground, (0xff, 0xff, 0xff));
 
         if let Some(home) = original_home {
             env::set_var("HOME", home);
@@ -319,7 +385,7 @@ mod tests {
         let user_config_path = config_home.path().join("blackpepper").join("config.toml");
         write_config(
             &user_config_path,
-            r#"
+            r##"
 [keymap]
 toggle_mode = "ctrl+x"
 switch_workspace = "ctrl+u"
@@ -337,7 +403,11 @@ provider = "codex"
 
 [upstream]
 provider = "gitlab"
-"#,
+
+[ui]
+background = "#111111"
+foreground = "#eeeeee"
+"##,
         );
 
         let repo = TempDir::new().expect("temp repo");
@@ -348,7 +418,7 @@ provider = "gitlab"
             .join("config.toml");
         write_config(
             &workspace_config_path,
-            r#"
+            r##"
 [keymap]
 toggle_mode = "ctrl+y"
 
@@ -364,7 +434,10 @@ command = "custom pr"
 
 [upstream]
 provider = "github"
-"#,
+
+[ui]
+foreground = "#cccccc"
+"##,
         );
 
         let config = load_config(repo.path());
@@ -378,6 +451,8 @@ provider = "github"
         assert_eq!(config.agent.provider.as_deref(), Some("codex"));
         assert_eq!(config.agent.command.as_deref(), Some("custom pr"));
         assert_eq!(config.upstream.provider, "github");
+        assert_eq!(config.ui.background, (0x11, 0x11, 0x11));
+        assert_eq!(config.ui.foreground, (0xcc, 0xcc, 0xcc));
 
         if let Some(home) = original_home {
             env::set_var("HOME", home);

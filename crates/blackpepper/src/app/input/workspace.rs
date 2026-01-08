@@ -131,6 +131,8 @@ fn spawn_workspace_session(
         &app.cwd,
         rows,
         cols,
+        app.config.ui.foreground,
+        app.config.ui.background,
         app.event_tx.clone(),
     )
     .map_err(|err| format!("Failed to start tmux: {err}"))?;

@@ -12,13 +12,25 @@ mod work_area;
 
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Paragraph};
 
 use super::state::{App, BOTTOM_HORIZONTAL_PADDING};
 
 /// Main render entry point. Called each frame by the event loop.
 pub fn render(app: &mut App, frame: &mut ratatui::Frame) {
     let area = frame.area();
+    let ui_style = Style::default()
+        .fg(Color::Rgb(
+            app.config.ui.foreground.0,
+            app.config.ui.foreground.1,
+            app.config.ui.foreground.2,
+        ))
+        .bg(Color::Rgb(
+            app.config.ui.background.0,
+            app.config.ui.background.1,
+            app.config.ui.background.2,
+        ));
+    frame.render_widget(Block::default().style(ui_style), area);
     let output_width =
         area.width
             .saturating_sub(BOTTOM_HORIZONTAL_PADDING.saturating_mul(2)) as usize;

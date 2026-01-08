@@ -65,6 +65,10 @@ command = "custom agent command {{PROMPT}}"
 [upstream]
 provider = "github"
 
+[ui]
+background = "#333333"
+foreground = "#ffffff"
+
 ```
 
 Work-mode toggles require a control-only chord. Unsupported values fall back to
@@ -98,7 +102,11 @@ create an empty project config at `./.config/blackpepper/config.toml`.
 
 Selecting a workspace starts an embedded tmux client in that worktree. Blackpepper
 enables tmux `extended-keys` for these sessions so modified keys can be preserved
-when your terminal supports them. Customize the tmux command with `[tmux]`.
+when your terminal supports them. If `COLORTERM` advertises truecolor, Blackpepper
+also appends a tmux `terminal-overrides` entry for the current `TERM` so tmux emits
+RGB colors. To support TUIs that query default colors (OSC 10/11), Blackpepper
+responds with the configured `[ui]` background/foreground. Customize the tmux
+command with `[tmux]`.
 
 ## Modes
 

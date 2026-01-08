@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::{Command, Output};
+use std::env;
 
 use crate::config::TmuxConfig;
 
@@ -35,6 +36,15 @@ pub fn client_command(
         "extended-keys".to_string(),
         "on".to_string(),
     ]);
+    if let Some(term) = truecolor_term() {
+        args.extend([
+            ";".to_string(),
+            "set-option".to_string(),
+            "-gaq".to_string(),
+            "terminal-overrides".to_string(),
+            format!(",{term}:Tc"),
+        ]);
+    }
     (command, args)
 }
 
@@ -89,6 +99,17 @@ fn sanitize_component(value: &str, fallback: &str) -> String {
         fallback.to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+fn truecolor_term() -> Option<String> {
+    let colorterm = env::var("COLORTERM").ok()?.to_lowercase();
+    if !colorterm.contains("truecolor") && !colorterm.contains("24bit") {
+        return None;
+    }
+    match env::var("TERM") {
+        Ok(value) if !value.trim().is_empty() => Some(value),
+        _ => None,
     }
 }
 
