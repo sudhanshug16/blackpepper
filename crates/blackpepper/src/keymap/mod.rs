@@ -16,7 +16,7 @@ pub struct KeyChord {
     pub meta: bool,
 }
 
-pub const DEFAULT_WORK_TOGGLE_BYTE: u8 = 0x07;
+pub const DEFAULT_WORK_TOGGLE_BYTE: u8 = 0x00;
 
 pub fn parse_key_chord(input: &str) -> Option<KeyChord> {
     let trimmed = input.trim().to_lowercase();
