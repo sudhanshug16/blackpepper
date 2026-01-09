@@ -11,7 +11,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const DEFAULT_TOGGLE_MODE: &str = "ctrl+space";
+const DEFAULT_TOGGLE_MODE: &str = "ctrl+]";
 const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+p";
 const DEFAULT_SWITCH_TAB: &str = "ctrl+o";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
@@ -347,7 +347,7 @@ mod tests {
         let repo = TempDir::new().expect("temp repo");
         let config = load_config(repo.path());
 
-        assert_eq!(config.keymap.toggle_mode, "ctrl+space");
+        assert_eq!(config.keymap.toggle_mode, "ctrl+]");
         assert_eq!(config.keymap.switch_workspace, "ctrl+p");
         assert_eq!(config.keymap.switch_tab, "ctrl+o");
         assert_eq!(config.keymap.refresh, "ctrl+r");

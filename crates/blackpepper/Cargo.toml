@@ -1,6 +1,6 @@
 [package]
 name = "blackpepper"
-version = "0.1.23"
+version = "0.1.24"
 edition = "2021"
 description = "Terminal orchestrator for TUI coding agents with isolated workspaces."
 

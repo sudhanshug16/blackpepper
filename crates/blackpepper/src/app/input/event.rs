@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::commands::CommandPhase;
 use crate::events::AppEvent;
-use crate::keymap::matches_chord;
+use crate::keymap::{control_byte_from_event, matches_chord};
 
 use super::command::handle_command_input;
 use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspace_overlay};
@@ -143,7 +143,9 @@ fn handle_key(app: &mut App, key: KeyEvent) {
 
     // Toggle mode chord
     if let Some(chord) = &app.toggle_chord {
-        if matches_chord(key, chord) {
+        if matches_chord(key, chord)
+            || control_byte_from_event(key).is_some_and(|byte| byte == app.work_toggle_byte)
+        {
             enter_work_mode(app);
             return;
         }

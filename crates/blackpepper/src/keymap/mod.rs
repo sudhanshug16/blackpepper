@@ -131,6 +131,32 @@ pub fn matches_chord(event: KeyEvent, chord: &KeyChord) -> bool {
     ctrl == chord.ctrl && alt == chord.alt && shift == chord.shift && meta == chord.meta
 }
 
+pub fn control_byte_from_event(event: KeyEvent) -> Option<u8> {
+    if !event.modifiers.contains(KeyModifiers::CONTROL)
+        || event.modifiers.contains(KeyModifiers::ALT)
+        || event.modifiers.contains(KeyModifiers::SHIFT)
+        || event.modifiers.contains(KeyModifiers::SUPER)
+        || event.modifiers.contains(KeyModifiers::META)
+    {
+        return None;
+    }
+
+    match event.code {
+        KeyCode::Char(ch) => {
+            if let Some(byte) = control_char_byte(ch) {
+                Some(byte)
+            } else if matches!(ch, '4' | '5' | '6' | '7') {
+                // crossterm maps 0x1C..=0x1F to ctrl+4..ctrl+7 on unix
+                Some(0x1C + (ch as u8 - b'4'))
+            } else {
+                None
+            }
+        }
+        KeyCode::Esc => Some(0x1b),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_control_byte;
