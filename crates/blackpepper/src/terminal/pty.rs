@@ -19,6 +19,7 @@ use vt100::Parser;
 
 use crate::events::AppEvent;
 
+use super::input_modes::InputModes;
 use super::render::render_lines;
 
 /// A running terminal session backed by a PTY.
@@ -155,6 +156,11 @@ impl TerminalSession {
     /// Render visible lines for display.
     pub fn render_lines(&self, rows: u16, cols: u16) -> Vec<ratatui::text::Line<'static>> {
         render_lines(&self.parser, rows, cols)
+    }
+
+    /// Current terminal input modes as requested by the session.
+    pub fn input_modes(&self) -> InputModes {
+        InputModes::from_screen(self.parser.screen())
     }
 
     fn respond_to_color_queries(&mut self, bytes: &[u8]) {

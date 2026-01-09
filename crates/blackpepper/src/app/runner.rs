@@ -4,6 +4,7 @@
 //! Events are read from an mpsc channel and dispatched to handlers.
 
 use std::io;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
@@ -25,6 +26,7 @@ use crate::git::resolve_repo_root;
 use crate::keymap::{parse_control_byte, parse_key_chord, DEFAULT_WORK_TOGGLE_BYTE};
 use crate::repo_status::{spawn_repo_status_worker, RepoStatus, RepoStatusSignal};
 use crate::state::{get_active_workspace, load_state, remove_active_workspace};
+use crate::terminal::InputModes;
 use crate::workspaces::{list_workspace_names, workspace_name_from_path};
 
 use super::state::{App, CommandOverlay, InputModeHandle, Mode, PromptOverlay, WorkspaceOverlay};
@@ -61,6 +63,7 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
     spawn_input_thread(event_tx.clone(), app.input_mode.clone());
     terminal.clear()?;
     terminal.draw(|frame| super::render::render(&mut app, frame))?;
+    flush_pending_input_modes(terminal, &mut app)?;
 
     while !app.should_quit {
         let event = match event_rx.recv() {
@@ -78,6 +81,7 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
             app.refresh_requested = false;
         }
 
+        flush_pending_input_modes(terminal, &mut app)?;
         terminal.draw(|frame| super::render::render(&mut app, frame))?;
     }
     Ok(())
@@ -202,6 +206,8 @@ impl App {
             loading: None,
             pending_command: None,
             refresh_requested: false,
+            input_modes_applied: InputModes::default(),
+            pending_input_mode_bytes: Vec::new(),
         };
 
         if let Err(err) = super::input::ensure_active_workspace_session(&mut app, 24, 80) {
@@ -212,12 +218,43 @@ impl App {
             let _ = tx.send(RepoStatusSignal::Request(app.cwd.clone()));
         }
 
+        app.sync_input_modes_for_mode();
         app
     }
 
     pub fn set_mode(&mut self, mode: Mode) {
+        if self.mode == mode {
+            return;
+        }
         self.mode = mode;
         self.input_mode.set(mode);
+        self.sync_input_modes_for_mode();
+    }
+
+    pub(crate) fn queue_input_mode_target(&mut self, target: InputModes) {
+        if target == self.input_modes_applied {
+            return;
+        }
+        let diff = target.diff_bytes(&self.input_modes_applied);
+        if !diff.is_empty() {
+            self.pending_input_mode_bytes.extend_from_slice(&diff);
+        }
+        self.input_modes_applied = target;
+    }
+
+    fn sync_input_modes_for_mode(&mut self) {
+        match self.mode {
+            Mode::Manage => self.queue_input_mode_target(InputModes::default()),
+            Mode::Work => {
+                let Some(active) = self.active_workspace.as_deref() else {
+                    return;
+                };
+                let Some(session) = self.sessions.get(active) else {
+                    return;
+                };
+                self.queue_input_mode_target(session.terminal.input_modes());
+            }
+        }
     }
 
     /// Set the output message shown in the command bar area.
@@ -229,6 +266,21 @@ impl App {
             self.output = Some(trimmed);
         }
     }
+}
+
+fn flush_pending_input_modes(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+) -> io::Result<()> {
+    if app.pending_input_mode_bytes.is_empty() {
+        return Ok(());
+    }
+    terminal
+        .backend_mut()
+        .write_all(&app.pending_input_mode_bytes)?;
+    terminal.backend_mut().flush()?;
+    app.pending_input_mode_bytes.clear();
+    Ok(())
 }
 
 fn sync_resize(sender: &Sender<AppEvent>, last_size: &mut Option<(u16, u16)>) -> bool {

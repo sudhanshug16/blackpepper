@@ -14,7 +14,7 @@ use crate::config::Config;
 use crate::events::AppEvent;
 use crate::keymap::KeyChord;
 use crate::repo_status::{RepoStatus, RepoStatusSignal};
-use crate::terminal::TerminalSession;
+use crate::terminal::{InputModes, TerminalSession};
 
 /// UI mode determines which keys are intercepted vs passed to terminal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,6 +126,8 @@ pub struct App {
     pub loading: Option<String>,
     pub pending_command: Option<PendingCommand>,
     pub refresh_requested: bool,
+    pub input_modes_applied: InputModes,
+    pub pending_input_mode_bytes: Vec<u8>,
 }
 
 pub const OUTPUT_MAX_LINES: usize = 6;

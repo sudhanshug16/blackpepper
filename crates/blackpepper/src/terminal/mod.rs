@@ -11,7 +11,9 @@
 
 mod pty;
 mod render;
+mod input_modes;
 
 pub mod hooks;
 
 pub use pty::TerminalSession;
+pub use input_modes::InputModes;
