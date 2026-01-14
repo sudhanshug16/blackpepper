@@ -23,11 +23,8 @@ crates/blackpepper/src/
 │   │   ├── mod.rs
 │   │   ├── command.rs
 │   │   ├── event.rs
-│   │   ├── mouse.rs
 │   │   ├── overlay.rs
-│   │   ├── search.rs
 │   │   ├── terminal.rs
-│   │   ├── utils.rs
 │   │   └── workspace.rs
 │   └── render/          # UI rendering methods
 │       ├── mod.rs
@@ -39,8 +36,9 @@ crates/blackpepper/src/
 │   ├── mod.rs           # Module entry, re-exports
 │   ├── pty.rs           # PTY spawning and session lifecycle
 │   ├── render.rs        # VT100 to ratatui rendering
-│   ├── input.rs         # Key/mouse event encoding for PTY
+│   ├── input_modes.rs   # Host terminal input mode mirroring
 │   └── hooks.rs         # Future provider adapter hooks (placeholder)
+├── input.rs             # Raw stdin decoding and toggle detection
 ├── commands/            # Command-mode system (:command)
 │   ├── mod.rs           # Module entry, re-exports
 │   ├── registry.rs      # Command specs and metadata
@@ -93,7 +91,7 @@ windows/panes for parallel shells instead of app-level tabs.
 - **Work mode**: Keys go to the terminal (except the toggle chord)
 - **Manage mode**: Keys are handled by the app for navigation/commands
 
-Toggle between modes with Ctrl+\ (configurable).
+Toggle between modes with Ctrl+] (configurable).
 
 ### Command System
 
@@ -118,6 +116,11 @@ Config resolution order:
 
 Config is TOML-based with sections for keymap, tmux, workspace, agent, and
 upstream provider settings.
+
+Input parsing uses `termwiz` to decode raw stdin bytes into key events in Manage
+mode. Work mode continues to pass bytes through to tmux while a toggle matcher
+strips the mode switch chord. Enable `BLACKPEPPER_DEBUG_INPUT=1` to log raw
+input and decoded events to `/tmp/blackpepper-input.log`.
 
 ## Extension Points
 

@@ -36,6 +36,7 @@ Terminal stack:
 
 - PTY: `portable-pty`
 - ANSI parsing: `vt100`
+- Input decoding: `termwiz`
 
 ## Configuration
 
@@ -48,7 +49,7 @@ Example:
 
 ```toml
 [keymap]
-toggle_mode = "ctrl+g" # Work-mode toggle must be a single Ctrl chord.
+toggle_mode = "ctrl+]"
 switch_workspace = "ctrl+p"
 
 [tmux]
@@ -71,8 +72,7 @@ foreground = "#ffffff"
 
 ```
 
-Work-mode toggles require a control-only chord. Unsupported values fall back to
-`ctrl+g`.
+Invalid key chords are treated as unbound.
 
 If `[tmux]` is omitted, Blackpepper uses `tmux` from `PATH`.
 If `[agent].provider` is set, `:pr create` uses the built-in agent templates; set
@@ -110,12 +110,15 @@ command with `[tmux]`.
 
 ## Modes
 
-- Work mode is raw input passthrough to tmux; only the toggle control byte is intercepted.
-- Toggle mode uses a control-only chord (e.g., `ctrl+g`, `ctrl+[`, `ctrl+space`).
-- Manage mode enables global controls (default toggle: `Ctrl+G`).
+- Work mode is raw input passthrough to tmux; only the toggle sequences are intercepted.
+- Toggle mode uses the configured chord (default: `Ctrl+]`).
+- Manage mode enables global controls (default toggle: `Ctrl+]`).
 - Use `:` in Manage mode to open the command line (hidden by default).
 - Use `Ctrl+P` to open the workspace switcher overlay.
 - Use `Esc` to close the command line or return to Work mode.
+
+To capture raw input for debugging, set `BLACKPEPPER_DEBUG_INPUT=1` to log to
+`/tmp/blackpepper-input.log`.
 
 Note: Some terminals send the same byte for Enter and Shift+Enter. In raw
 passthrough mode, tmux cannot distinguish them, so Shift+Enter behaves like
