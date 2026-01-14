@@ -1,5 +1,5 @@
 use crate::config::load_config;
-use crate::keymap::{parse_control_byte, parse_key_chord, DEFAULT_WORK_TOGGLE_BYTE};
+use crate::keymap::parse_key_chord;
 use crate::repo_status::RepoStatusSignal;
 use crate::state::{record_active_workspace, remove_active_workspace};
 use crate::terminal::TerminalSession;
@@ -52,11 +52,9 @@ pub(super) fn set_active_workspace(app: &mut App, name: &str) -> Result<(), Stri
     let _ = record_active_workspace(&root, &workspace_path);
     app.config = load_config(&root);
     app.toggle_chord = parse_key_chord(&app.config.keymap.toggle_mode);
-    app.work_toggle_byte =
-        parse_control_byte(&app.config.keymap.toggle_mode).unwrap_or(DEFAULT_WORK_TOGGLE_BYTE);
     app.switch_chord = parse_key_chord(&app.config.keymap.switch_workspace);
-    app.switch_tab_chord = parse_key_chord(&app.config.keymap.switch_tab);
-    app.refresh_chord = parse_key_chord(&app.config.keymap.refresh);
+    app.input_decoder
+        .update_toggle_chord(app.toggle_chord.clone());
     request_repo_status(app);
     ensure_active_workspace_session(app, 24, 80)
 }
@@ -97,30 +95,6 @@ pub(super) fn request_refresh(app: &mut App, message: Option<&str>) {
 pub(super) fn request_repo_status(app: &App) {
     if let Some(tx) = app.repo_status_tx.as_ref() {
         let _ = tx.send(RepoStatusSignal::Request(app.cwd.clone()));
-    }
-}
-
-pub(super) fn switch_tab(app: &mut App) {
-    if app.sessions.is_empty() {
-        return;
-    }
-
-    let mut names: Vec<String> = app.sessions.keys().cloned().collect();
-    names.sort();
-
-    let next = match app
-        .active_workspace
-        .as_deref()
-        .and_then(|current| names.iter().position(|name| name == current))
-    {
-        Some(index) => names.get((index + 1) % names.len()),
-        None => names.first(),
-    };
-
-    if let Some(name) = next {
-        if set_active_workspace(app, name).is_ok() {
-            app.set_output(format!("Active workspace: {name}"));
-        }
     }
 }
 

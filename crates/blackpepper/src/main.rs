@@ -4,6 +4,7 @@ mod commands;
 mod config;
 mod events;
 mod git;
+mod input;
 mod keymap;
 mod providers;
 mod repo_status;

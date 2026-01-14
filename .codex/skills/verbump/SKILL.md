@@ -34,11 +34,12 @@ For this project, commits are the changelog.
 
 5. Commit and push
    - Stage the relevant files (usually `crates/blackpepper/Cargo.toml`, plus anything already expected).
-   - Craft a Changelog style Commit message.
+   - Craft a Changelog style Commit message that includes a brief note on what changed since the last version tag.
    - `git commit -m "<message>"`.
    - `git push` the current branch.
 
 ## Output expectations
 
 - Always report the chosen version and the final commit message.
+- Call out the summary note that covers changes since the last version tag.
 - Summarize any unrelated diffs you saw and whether they were included.

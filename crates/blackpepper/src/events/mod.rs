@@ -8,14 +8,12 @@
 
 use std::path::PathBuf;
 
-use crossterm::event::KeyEvent;
-
 use crate::repo_status::RepoStatus;
 
 #[derive(Debug)]
 pub enum AppEvent {
-    Input(KeyEvent),
     RawInput(Vec<u8>),
+    InputFlush,
     PtyOutput(u64, Vec<u8>),
     PtyExit(u64),
     Resize,

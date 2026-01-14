@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use termwiz::input::{KeyCode, KeyEvent, Modifiers};
 
 use crate::commands::{
     complete_command_input, parse_command, run_command, run_command_with_output, CommandContext,
@@ -15,8 +15,8 @@ use crate::app::state::{App, PendingCommand};
 const REFRESH_USAGE: &str = "Usage: :refresh";
 
 pub(super) fn handle_command_input(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Esc => {
+    match key.key {
+        KeyCode::Escape => {
             app.command_active = false;
             app.command_input.clear();
         }
@@ -38,7 +38,12 @@ pub(super) fn handle_command_input(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Char(ch) => {
-            app.command_input.push(ch);
+            if !key
+                .modifiers
+                .intersects(Modifiers::CTRL | Modifiers::ALT | Modifiers::SUPER)
+            {
+                app.command_input.push(ch);
+            }
         }
         _ => {}
     }

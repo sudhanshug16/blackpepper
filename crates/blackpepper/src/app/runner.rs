@@ -9,10 +9,8 @@ use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
 
-use crossterm::event::{
-    self, Event, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
-    PushKeyboardEnhancementFlags,
-};
+#[cfg(not(unix))]
+use crossterm::event;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -23,23 +21,20 @@ use ratatui::Terminal;
 use crate::config::load_config;
 use crate::events::AppEvent;
 use crate::git::resolve_repo_root;
-use crate::keymap::{parse_control_byte, parse_key_chord, DEFAULT_WORK_TOGGLE_BYTE};
+use crate::input::InputDecoder;
+use crate::keymap::parse_key_chord;
 use crate::repo_status::{spawn_repo_status_worker, RepoStatus, RepoStatusSignal};
 use crate::state::{get_active_workspace, load_state, remove_active_workspace};
 use crate::terminal::InputModes;
 use crate::workspaces::{list_workspace_names, workspace_name_from_path};
 
-use super::state::{App, CommandOverlay, InputModeHandle, Mode, PromptOverlay, WorkspaceOverlay};
+use super::state::{App, CommandOverlay, Mode, PromptOverlay, WorkspaceOverlay};
 
 /// Entry point: set up terminal and run the event loop.
 pub fn run() -> io::Result<()> {
     let mut stdout = io::stdout();
     enable_raw_mode()?;
     stdout.execute(EnterAlternateScreen)?;
-    stdout.execute(PushKeyboardEnhancementFlags(
-        KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
-            | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS,
-    ))?;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -47,9 +42,6 @@ pub fn run() -> io::Result<()> {
     let result = run_loop(&mut terminal);
 
     disable_raw_mode()?;
-    terminal
-        .backend_mut()
-        .execute(PopKeyboardEnhancementFlags)?;
     terminal.backend_mut().execute(LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
@@ -60,7 +52,7 @@ pub fn run() -> io::Result<()> {
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
     let (event_tx, event_rx) = mpsc::channel::<AppEvent>();
     let mut app = App::new(event_tx.clone());
-    spawn_input_thread(event_tx.clone(), app.input_mode.clone());
+    spawn_input_thread(event_tx.clone());
     terminal.clear()?;
     terminal.draw(|frame| super::render::render(&mut app, frame))?;
     flush_pending_input_modes(terminal, &mut app)?;
@@ -87,38 +79,25 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
     Ok(())
 }
 
-/// Spawn a thread to read terminal input (key events in manage mode, raw bytes in work mode).
-fn spawn_input_thread(sender: Sender<AppEvent>, input_mode: InputModeHandle) {
+/// Spawn a thread to read raw terminal input bytes.
+fn spawn_input_thread(sender: Sender<AppEvent>) {
     std::thread::spawn(move || {
         let mut last_size: Option<(u16, u16)> = None;
+        let mut pending_flush = false;
         loop {
-            let mode = input_mode.get();
             let mut sent = false;
-            match mode {
-                Mode::Manage => {
-                    if event::poll(Duration::from_millis(25)).unwrap_or(false) {
-                        match event::read() {
-                            Ok(Event::Key(key)) => {
-                                sent = sender.send(AppEvent::Input(key)).is_ok();
-                            }
-                            Ok(Event::Resize(cols, rows)) => {
-                                last_size = Some((rows, cols));
-                                sent = sender.send(AppEvent::Resize).is_ok();
-                            }
-                            Ok(_) => {}
-                            Err(_) => break,
-                        }
+            match read_raw_bytes(Duration::from_millis(25)) {
+                Ok(Some(bytes)) => {
+                    pending_flush = true;
+                    sent = sender.send(AppEvent::RawInput(bytes)).is_ok();
+                }
+                Ok(None) => {
+                    if pending_flush {
+                        pending_flush = false;
+                        sent = sender.send(AppEvent::InputFlush).is_ok();
                     }
                 }
-                Mode::Work => {
-                    match read_raw_bytes(Duration::from_millis(25)) {
-                        Ok(Some(bytes)) => {
-                            sent = sender.send(AppEvent::RawInput(bytes)).is_ok();
-                        }
-                        Ok(None) => {}
-                        Err(_) => break,
-                    }
-                }
+                Err(_) => break,
             }
 
         if !sent && !sync_resize(&sender, &mut last_size) {
@@ -136,11 +115,8 @@ impl App {
         let config_root = repo_root.as_deref().unwrap_or(&cwd);
         let config = load_config(config_root);
         let toggle_chord = parse_key_chord(&config.keymap.toggle_mode);
-        let work_toggle_byte =
-            parse_control_byte(&config.keymap.toggle_mode).unwrap_or(DEFAULT_WORK_TOGGLE_BYTE);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
-        let switch_tab_chord = parse_key_chord(&config.keymap.switch_tab);
-        let refresh_chord = parse_key_chord(&config.keymap.refresh);
+        let input_decoder = InputDecoder::new(toggle_chord.clone());
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
 
         // Restore previous workspace if available.
@@ -177,7 +153,6 @@ impl App {
         } else {
             Mode::Manage
         };
-        let input_mode = InputModeHandle::new(mode);
         let mut app = Self {
             mode,
             command_active: false,
@@ -188,10 +163,7 @@ impl App {
             active_workspace,
             toggle_chord,
             switch_chord,
-            switch_tab_chord,
-            refresh_chord,
-            work_toggle_byte,
-            input_mode,
+            input_decoder,
             should_quit: false,
             config,
             sessions: std::collections::HashMap::new(),
@@ -227,7 +199,6 @@ impl App {
             return;
         }
         self.mode = mode;
-        self.input_mode.set(mode);
         self.sync_input_modes_for_mode();
     }
 

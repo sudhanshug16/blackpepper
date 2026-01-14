@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use termwiz::input::{KeyCode, KeyEvent};
 
 use crate::config::save_user_agent_provider;
 use crate::providers::agent;
@@ -8,8 +8,8 @@ use super::workspace::set_active_workspace;
 use crate::app::state::{App, PendingCommand};
 
 pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Esc => {
+    match key.key {
+        KeyCode::Escape => {
             app.overlay.visible = false;
         }
         KeyCode::Enter => {
@@ -22,10 +22,10 @@ pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
             }
             app.overlay.visible = false;
         }
-        KeyCode::Up | KeyCode::Char('k') => {
+        KeyCode::UpArrow | KeyCode::Char('k') => {
             move_overlay_selection(app, -1);
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        KeyCode::DownArrow | KeyCode::Char('j') => {
             move_overlay_selection(app, 1);
         }
         _ => {}
@@ -33,8 +33,8 @@ pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
 }
 
 pub(super) fn handle_prompt_overlay_key(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Esc => {
+    match key.key {
+        KeyCode::Escape => {
             app.prompt_overlay.visible = false;
             app.pending_command = None;
         }
@@ -61,10 +61,10 @@ pub(super) fn handle_prompt_overlay_key(app: &mut App, key: KeyEvent) {
                 app.pending_command = None;
             }
         }
-        KeyCode::Up | KeyCode::Char('k') => {
+        KeyCode::UpArrow | KeyCode::Char('k') => {
             move_prompt_overlay_selection(app, -1);
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        KeyCode::DownArrow | KeyCode::Char('j') => {
             move_prompt_overlay_selection(app, 1);
         }
         _ => {}

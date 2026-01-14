@@ -1,23 +1,23 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use termwiz::input::{InputEvent, KeyCode, KeyEvent, Modifiers};
 
 use crate::commands::CommandPhase;
 use crate::events::AppEvent;
-use crate::keymap::{control_byte_from_event, matches_chord};
+use crate::keymap::matches_chord;
 
 use super::command::handle_command_input;
 use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspace_overlay};
 use super::terminal::process_terminal_output;
 use super::workspace::{
     active_terminal_mut, close_session_by_id, ensure_manage_mode_without_workspace, enter_work_mode,
-    request_refresh, set_active_workspace, switch_tab,
+    set_active_workspace,
 };
 use crate::app::state::{App, Mode};
 
 /// Main event dispatcher.
 pub fn handle_event(app: &mut App, event: AppEvent) {
     match event {
-        AppEvent::Input(key) => handle_key(app, key),
         AppEvent::RawInput(bytes) => handle_raw_input(app, bytes),
+        AppEvent::InputFlush => flush_input(app),
         AppEvent::PtyOutput(id, bytes) => {
             process_terminal_output(app, id, &bytes);
         }
@@ -109,19 +109,16 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) {
-    // Ignore key releases; manage mode only needs press/repeat events.
-    if key.kind == KeyEventKind::Release {
-        return;
-    }
     if app.mode == Mode::Work {
         return;
     }
 
+    let mods = key.modifiers.remove_positional_mods();
     if app.loading.is_some() {
         return;
     }
     if app.command_overlay.visible {
-        if key.code == KeyCode::Esc && key.modifiers.is_empty() {
+        if key.key == KeyCode::Escape && mods == Modifiers::NONE {
             app.command_overlay.visible = false;
             app.command_overlay.output.clear();
             app.command_overlay.title.clear();
@@ -143,9 +140,7 @@ fn handle_key(app: &mut App, key: KeyEvent) {
 
     // Toggle mode chord
     if let Some(chord) = &app.toggle_chord {
-        if matches_chord(key, chord)
-            || control_byte_from_event(key).is_some_and(|byte| byte == app.work_toggle_byte)
-        {
+        if matches_chord(&key, chord) {
             enter_work_mode(app);
             return;
         }
@@ -153,62 +148,93 @@ fn handle_key(app: &mut App, key: KeyEvent) {
 
     // Switch workspace chord
     if let Some(chord) = &app.switch_chord {
-        if matches_chord(key, chord) {
+        if matches_chord(&key, chord) {
             open_workspace_overlay(app);
             return;
         }
     }
 
-    // Switch tab chord (cycle active workspace session).
-    if let Some(chord) = &app.switch_tab_chord {
-        if matches_chord(key, chord) {
-            switch_tab(app);
-            return;
-        }
-    }
-
-    // Refresh UI chord (manage mode only)
-    if let Some(chord) = &app.refresh_chord {
-        if matches_chord(key, chord) {
-            request_refresh(app, None);
-            return;
-        }
-    }
-
     // Manage mode: open command bar with ':'
-    if key.code == KeyCode::Char(':') {
+    if key.key == KeyCode::Char(':') {
         super::command::open_command(app);
         return;
     }
 
     // Manage mode: quit with 'q'
-    if key.code == KeyCode::Char('q') && key.modifiers.is_empty() {
+    if key.key == KeyCode::Char('q') && mods == Modifiers::NONE {
         app.should_quit = true;
         return;
     }
 
     // Manage mode: escape returns to work mode
-    if key.code == KeyCode::Esc {
+    if key.key == KeyCode::Escape {
         enter_work_mode(app);
         return;
     }
 }
 
 fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
-    if app.mode != Mode::Work || bytes.is_empty() {
+    if bytes.is_empty() {
         return;
     }
-    let toggle = app.work_toggle_byte;
-    if let Some(pos) = bytes.iter().position(|byte| *byte == toggle) {
-        if pos > 0 {
-            if let Some(terminal) = active_terminal_mut(app) {
-                terminal.write_bytes(&bytes[..pos]);
+
+    match app.mode {
+        Mode::Manage => {
+            let (filtered, toggled) = app.input_decoder.consume_work_bytes(&bytes);
+            let events = app.input_decoder.parse_manage_vec(&filtered, true);
+            for event in events {
+                handle_input_event(app, event);
+            }
+            if toggled {
+                enter_work_mode(app);
             }
         }
-        app.set_mode(Mode::Manage);
-        return;
+        Mode::Work => {
+            let (out, toggled) = app.input_decoder.consume_work_bytes(&bytes);
+            if let Some(terminal) = active_terminal_mut(app) {
+                if !out.is_empty() {
+                    terminal.write_bytes(&out);
+                }
+            }
+            if toggled {
+                app.set_mode(Mode::Manage);
+            }
+        }
     }
-    if let Some(terminal) = active_terminal_mut(app) {
-        terminal.write_bytes(&bytes);
+}
+
+fn flush_input(app: &mut App) {
+    match app.mode {
+        Mode::Manage => {
+            let buffered = app.input_decoder.flush_work();
+            let events = app.input_decoder.parse_manage_vec(&buffered, false);
+            for event in events {
+                handle_input_event(app, event);
+            }
+            let events = app.input_decoder.flush_manage_vec();
+            for event in events {
+                handle_input_event(app, event);
+            }
+        }
+        Mode::Work => {
+            let out = app.input_decoder.flush_work();
+            if let Some(terminal) = active_terminal_mut(app) {
+                if !out.is_empty() {
+                    terminal.write_bytes(&out);
+                }
+            }
+        }
+    }
+}
+
+fn handle_input_event(app: &mut App, event: InputEvent) {
+    match event {
+        InputEvent::Key(key) => handle_key(app, key),
+        InputEvent::Paste(paste) => {
+            if app.command_active {
+                app.command_input.push_str(&paste);
+            }
+        }
+        _ => {}
     }
 }

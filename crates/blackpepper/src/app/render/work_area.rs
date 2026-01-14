@@ -54,8 +54,6 @@ fn body_lines(app: &App) -> Vec<Line<'_>> {
     } else {
         let toggle_mode = keymap_label(&app.config.keymap.toggle_mode);
         let switch_workspace = keymap_label(&app.config.keymap.switch_workspace);
-        let refresh = keymap_label(&app.config.keymap.refresh);
-
         lines.push(Line::raw("No active workspace."));
         lines.push(Line::raw("Quick start:"));
         lines.push(Line::raw(
@@ -68,7 +66,6 @@ fn body_lines(app: &App) -> Vec<Line<'_>> {
             "- Switch workspace: {switch_workspace} or :workspace list"
         )));
         lines.push(Line::raw("- Create workspace: :workspace create [name]"));
-        lines.push(Line::raw(format!("- Refresh UI (Manage): {refresh} or :refresh")));
         lines.push(Line::raw("- Quit: q (Manage) or :quit"));
         lines.push(Line::raw(""));
         lines.push(Line::raw("Commands:"));

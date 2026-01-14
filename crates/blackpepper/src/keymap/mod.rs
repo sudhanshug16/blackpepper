@@ -1,22 +1,12 @@
-//! Key chord parsing and matching.
-//!
-//! Parses key chord strings like "ctrl+p" or "alt+shift+t" from config
-//! and matches them against crossterm KeyEvents at runtime.
-//!
-//! Used for configurable keybindings (toggle mode, switch workspace, etc.).
+//! Key chord parsing and matching for configurable bindings.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use termwiz::input::{KeyCode, KeyEvent, Modifiers};
 
 #[derive(Debug, Clone)]
 pub struct KeyChord {
     pub key: KeyCode,
-    pub ctrl: bool,
-    pub alt: bool,
-    pub shift: bool,
-    pub meta: bool,
+    pub modifiers: Modifiers,
 }
-
-pub const DEFAULT_WORK_TOGGLE_BYTE: u8 = 0x00;
 
 pub fn parse_key_chord(input: &str) -> Option<KeyChord> {
     let trimmed = input.trim().to_lowercase();
@@ -33,57 +23,45 @@ pub fn parse_key_chord(input: &str) -> Option<KeyChord> {
         return None;
     }
 
-    let mut chord = KeyChord {
-        key: KeyCode::Null,
-        ctrl: false,
-        alt: false,
-        shift: false,
-        meta: false,
-    };
+    let mut key = None;
+    let mut modifiers = Modifiers::NONE;
 
     for part in parts {
         match part {
-            "ctrl" | "control" => chord.ctrl = true,
-            "alt" | "option" => chord.alt = true,
-            "shift" => chord.shift = true,
-            "meta" | "cmd" | "super" => chord.meta = true,
-            key => {
-                if chord.key != KeyCode::Null {
+            "ctrl" | "control" => modifiers |= Modifiers::CTRL,
+            "alt" | "option" | "opt" | "meta" => modifiers |= Modifiers::ALT,
+            "shift" => modifiers |= Modifiers::SHIFT,
+            "super" | "cmd" | "command" | "win" => modifiers |= Modifiers::SUPER,
+            value => {
+                if key.is_some() {
                     return None;
                 }
-                chord.key = parse_key(key)?;
+                key = parse_key(value);
             }
         }
     }
 
-    if chord.key == KeyCode::Null {
-        return None;
-    }
-
-    Some(chord)
+    let key = key?;
+    Some(KeyChord { key, modifiers })
 }
 
-/// Parse a key chord into a single control byte for raw work-mode toggles.
-///
-/// Only control-only chords are supported (e.g., "ctrl+g", "ctrl+[", "ctrl+space").
-pub fn parse_control_byte(input: &str) -> Option<u8> {
-    let chord = parse_key_chord(input)?;
-    if !chord.ctrl || chord.alt || chord.shift || chord.meta {
-        return None;
-    }
-    match chord.key {
-        KeyCode::Char(ch) => control_char_byte(ch),
-        KeyCode::Esc => Some(0x1b),
-        _ => None,
-    }
+pub fn matches_chord(event: &KeyEvent, chord: &KeyChord) -> bool {
+    let mods = event.modifiers.remove_positional_mods();
+    let chord_mods = chord.modifiers.remove_positional_mods();
+    event.key == chord.key && mods == chord_mods
 }
 
 fn parse_key(key: &str) -> Option<KeyCode> {
     match key {
-        "esc" | "escape" => Some(KeyCode::Esc),
+        "esc" | "escape" => Some(KeyCode::Escape),
         "enter" | "return" => Some(KeyCode::Enter),
         "tab" => Some(KeyCode::Tab),
         "space" | "spacebar" => Some(KeyCode::Char(' ')),
+        "backspace" | "bs" => Some(KeyCode::Backspace),
+        "up" => Some(KeyCode::UpArrow),
+        "down" => Some(KeyCode::DownArrow),
+        "left" => Some(KeyCode::LeftArrow),
+        "right" => Some(KeyCode::RightArrow),
         _ => {
             let mut chars = key.chars();
             let first = chars.next()?;
@@ -96,89 +74,32 @@ fn parse_key(key: &str) -> Option<KeyCode> {
     }
 }
 
-fn control_char_byte(ch: char) -> Option<u8> {
-    match ch {
-        ' ' => Some(0x00),
-        '@' => Some(0x00),
-        '[' => Some(0x1b),
-        '\\' => Some(0x1c),
-        ']' => Some(0x1d),
-        '^' => Some(0x1e),
-        '_' => Some(0x1f),
-        '?' => Some(0x7f),
-        _ => {
-            let lower = ch.to_ascii_lowercase();
-            if lower.is_ascii_lowercase() {
-                Some((lower as u8 - b'a') + 1)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-pub fn matches_chord(event: KeyEvent, chord: &KeyChord) -> bool {
-    if event.code != chord.key {
-        return false;
-    }
-
-    let modifiers = event.modifiers;
-    let ctrl = modifiers.contains(KeyModifiers::CONTROL);
-    let alt = modifiers.contains(KeyModifiers::ALT);
-    let shift = modifiers.contains(KeyModifiers::SHIFT);
-    let meta = modifiers.contains(KeyModifiers::SUPER) || modifiers.contains(KeyModifiers::META);
-
-    ctrl == chord.ctrl && alt == chord.alt && shift == chord.shift && meta == chord.meta
-}
-
-pub fn control_byte_from_event(event: KeyEvent) -> Option<u8> {
-    if !event.modifiers.contains(KeyModifiers::CONTROL)
-        || event.modifiers.contains(KeyModifiers::ALT)
-        || event.modifiers.contains(KeyModifiers::SHIFT)
-        || event.modifiers.contains(KeyModifiers::SUPER)
-        || event.modifiers.contains(KeyModifiers::META)
-    {
-        return None;
-    }
-
-    match event.code {
-        KeyCode::Char(ch) => {
-            if let Some(byte) = control_char_byte(ch) {
-                Some(byte)
-            } else if matches!(ch, '4' | '5' | '6' | '7') {
-                // crossterm maps 0x1C..=0x1F to ctrl+4..ctrl+7 on unix
-                Some(0x1C + (ch as u8 - b'4'))
-            } else {
-                None
-            }
-        }
-        KeyCode::Esc => Some(0x1b),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::parse_control_byte;
+    use super::*;
 
     #[test]
-    fn parse_control_byte_accepts_ctrl_letters() {
-        assert_eq!(parse_control_byte("ctrl+g"), Some(0x07));
-        assert_eq!(parse_control_byte("ctrl+A"), Some(0x01));
+    fn parse_key_chord_accepts_simple() {
+        let chord = parse_key_chord("ctrl+]").expect("chord");
+        assert_eq!(chord.key, KeyCode::Char(']'));
+        assert!(chord.modifiers.contains(Modifiers::CTRL));
     }
 
     #[test]
-    fn parse_control_byte_accepts_ctrl_symbols() {
-        assert_eq!(parse_control_byte("ctrl+["), Some(0x1b));
-        assert_eq!(parse_control_byte("ctrl+space"), Some(0x00));
-        assert_eq!(parse_control_byte("ctrl+?"), Some(0x7f));
+    fn parse_key_chord_rejects_duplicate_key() {
+        assert!(parse_key_chord("ctrl+a+b").is_none());
     }
 
     #[test]
-    fn parse_control_byte_rejects_non_control() {
-        assert_eq!(parse_control_byte("alt+g"), None);
-        assert_eq!(parse_control_byte("shift+g"), None);
-        assert_eq!(parse_control_byte("ctrl+shift+g"), None);
-        assert_eq!(parse_control_byte("enter"), None);
+    fn matches_chord_ignores_positional_mods() {
+        let chord = KeyChord {
+            key: KeyCode::Char('p'),
+            modifiers: Modifiers::CTRL,
+        };
+        let event = KeyEvent {
+            key: KeyCode::Char('p'),
+            modifiers: Modifiers::CTRL | Modifiers::LEFT_CTRL,
+        };
+        assert!(matches_chord(&event, &chord));
     }
 }

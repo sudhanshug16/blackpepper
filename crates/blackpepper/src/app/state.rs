@@ -5,13 +5,12 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::Sender;
-use std::sync::Arc;
 use ratatui::layout::Rect;
 
 use crate::config::Config;
 use crate::events::AppEvent;
+use crate::input::InputDecoder;
 use crate::keymap::KeyChord;
 use crate::repo_status::{RepoStatus, RepoStatusSignal};
 use crate::terminal::{InputModes, TerminalSession};
@@ -23,37 +22,6 @@ pub enum Mode {
     Work,
     /// Keys are handled by the app for navigation/commands.
     Manage,
-}
-
-#[derive(Clone)]
-pub struct InputModeHandle {
-    mode: Arc<AtomicU8>,
-}
-
-impl InputModeHandle {
-    pub fn new(mode: Mode) -> Self {
-        Self {
-            mode: Arc::new(AtomicU8::new(mode_to_u8(mode))),
-        }
-    }
-
-    pub fn get(&self) -> Mode {
-        match self.mode.load(Ordering::Relaxed) {
-            1 => Mode::Work,
-            _ => Mode::Manage,
-        }
-    }
-
-    pub fn set(&self, mode: Mode) {
-        self.mode.store(mode_to_u8(mode), Ordering::Relaxed);
-    }
-}
-
-fn mode_to_u8(mode: Mode) -> u8 {
-    match mode {
-        Mode::Manage => 0,
-        Mode::Work => 1,
-    }
 }
 
 /// Workspace selection overlay state.
@@ -108,10 +76,7 @@ pub struct App {
     pub active_workspace: Option<String>,
     pub toggle_chord: Option<KeyChord>,
     pub switch_chord: Option<KeyChord>,
-    pub switch_tab_chord: Option<KeyChord>,
-    pub refresh_chord: Option<KeyChord>,
-    pub work_toggle_byte: u8,
-    pub input_mode: InputModeHandle,
+    pub input_decoder: InputDecoder,
     pub should_quit: bool,
     pub config: Config,
     pub sessions: HashMap<String, WorkspaceSession>,
