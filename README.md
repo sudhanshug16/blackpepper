@@ -128,3 +128,5 @@ https://github.com/openai/codex/discussions/3024 for background.
 ## Docs
 
 See `docs/` for ADRs and CLI examples, including command mode flows.
+
+Blackpepper is inspired by Conductor (https://docs.conductor.build/).
