@@ -294,11 +294,18 @@ mod tests {
             modifiers: Modifiers::CTRL,
         };
         let sequences = toggle_sequences(Some(&chord));
+        let sequence = sequences
+            .iter()
+            .find(|seq| seq.len() > 1)
+            .cloned()
+            .expect("expected multi-byte toggle sequence");
+        let split_at = 2.min(sequence.len() - 1);
+        let (first, rest) = sequence.split_at(split_at);
         let mut matcher = ToggleMatcher::new(sequences);
-        let (out, toggled, _) = matcher.feed(b"\x1b[");
+        let (out, toggled, _) = matcher.feed(first);
         assert!(!toggled);
         assert!(out.is_empty());
-        let (out, toggled, _) = matcher.feed(b"27;5u");
+        let (out, toggled, _) = matcher.feed(rest);
         assert!(toggled);
         assert!(out.is_empty());
     }

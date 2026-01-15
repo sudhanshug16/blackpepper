@@ -4,8 +4,8 @@
 //! 1. User-level: `~/.config/blackpepper/config.toml`
 //! 2. Workspace-level: `<repo>/.config/blackpepper/config.toml`
 //!
-//! Supports keymap customization, tmux command override, and
-//! workspace root configuration. Uses TOML format with serde.
+//! Supports keymap customization, tmux command override, workspace root
+//! configuration, and workspace setup scripts. Uses TOML format with serde.
 
 use serde::Deserialize;
 use std::fs;
@@ -43,6 +43,7 @@ pub struct TmuxConfig {
 #[derive(Debug, Clone)]
 pub struct WorkspaceConfig {
     pub root: PathBuf,
+    pub setup_scripts: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +90,12 @@ struct RawTmux {
 #[derive(Debug, Default, Deserialize)]
 struct RawWorkspace {
     root: Option<String>,
+    setup: Option<RawWorkspaceSetup>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RawWorkspaceSetup {
+    scripts: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -151,6 +158,15 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         .and_then(|w| w.root.clone())
         .or_else(|| user_workspace.and_then(|w| w.root.clone()))
         .unwrap_or_else(|| DEFAULT_WORKSPACE_ROOT.to_string());
+    let workspace_setup_scripts = workspace_workspace
+        .and_then(|workspace| workspace.setup.as_ref())
+        .and_then(|setup| setup.scripts.clone())
+        .or_else(|| {
+            user_workspace
+                .and_then(|workspace| workspace.setup.as_ref())
+                .and_then(|setup| setup.scripts.clone())
+        })
+        .unwrap_or_default();
     let agent_provider = workspace_agent
         .and_then(|agent| agent.provider.clone())
         .or_else(|| user_agent.and_then(|agent| agent.provider.clone()));
@@ -180,6 +196,7 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         tmux: TmuxConfig { command, args },
         workspace: WorkspaceConfig {
             root: PathBuf::from(workspace_root),
+            setup_scripts: workspace_setup_scripts,
         },
         agent: AgentConfig {
             provider: agent_provider,

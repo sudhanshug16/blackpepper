@@ -59,6 +59,9 @@ args = ["-f", "/path/to/tmux.conf"]
 [workspace]
 root = ".blackpepper/workspaces"
 
+[workspace.setup]
+scripts = ["./scripts/setup.sh", "make bootstrap"]
+
 [agent]
 provider = "codex"
 command = "custom agent command {{PROMPT}}"
@@ -78,6 +81,8 @@ If `[tmux]` is omitted, Blackpepper uses `tmux` from `PATH`.
 If `[agent].provider` is set, `:pr create` uses the built-in agent templates; set
 `[agent].command` to override the command (optional `{{PROMPT}}` placeholder).
 `[upstream].provider` selects the PR backend (default `github` via the `gh` CLI).
+Workspace setup scripts in `[workspace.setup].scripts` run after `:workspace create`
+and can be re-run with `:workspace setup` (executed via `sh -c` or `cmd /C`).
 
 State:
 

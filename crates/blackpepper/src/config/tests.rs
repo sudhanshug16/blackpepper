@@ -36,6 +36,7 @@ fn load_config_uses_defaults_when_empty() {
     assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
     assert!(config.tmux.args.is_empty());
     assert_eq!(config.workspace.root, Path::new(".blackpepper/workspaces"));
+    assert!(config.workspace.setup_scripts.is_empty());
     assert!(config.agent.provider.is_none());
     assert!(config.agent.command.is_none());
     assert_eq!(config.upstream.provider, "github");
@@ -79,6 +80,9 @@ args = ["-f", "/tmp/tmux.conf"]
 [workspace]
 root = "user/workspaces"
 
+[workspace.setup]
+scripts = ["user-setup"]
+
 [agent]
 provider = "codex"
 
@@ -110,6 +114,9 @@ args = ["-L", "alt"]
 [workspace]
 root = ".pepper/workspaces"
 
+[workspace.setup]
+scripts = ["workspace-setup"]
+
 [agent]
 command = "custom pr"
 
@@ -128,6 +135,10 @@ foreground = "#cccccc"
     assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
     assert_eq!(config.tmux.args, vec!["-L".to_string(), "alt".to_string()]);
     assert_eq!(config.workspace.root, Path::new(".pepper/workspaces"));
+    assert_eq!(
+        config.workspace.setup_scripts,
+        vec!["workspace-setup".to_string()]
+    );
     assert_eq!(config.agent.provider.as_deref(), Some("codex"));
     assert_eq!(config.agent.command.as_deref(), Some("custom pr"));
     assert_eq!(config.upstream.provider, "github");

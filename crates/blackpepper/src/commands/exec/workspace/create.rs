@@ -1,12 +1,17 @@
 use std::collections::HashSet;
+use std::path::Path;
 
+use crate::config::load_config;
 use crate::git::{resolve_repo_root, run_git};
 use crate::workspaces::{
-    ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_path,
+    ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_absolute_path,
+    workspace_name_from_path, workspace_path,
 };
 
 use super::super::{CommandContext, CommandResult};
-use super::helpers::{branch_exists, format_exec_output, pick_unused_animal_name};
+use super::helpers::{
+    branch_exists, format_exec_output, pick_unused_animal_name, run_shell_command,
+};
 
 /// Create a new workspace worktree.
 pub(crate) fn workspace_create(args: &[String], ctx: &CommandContext) -> CommandResult {
@@ -105,12 +110,142 @@ pub(crate) fn workspace_create(args: &[String], ctx: &CommandContext) -> Command
     } else {
         format!("\n{output}")
     };
+    let workspace_absolute_path =
+        workspace_absolute_path(&repo_root, &ctx.workspace_root, &workspace_name);
+    let setup_output = match run_workspace_setup_scripts(&repo_root, &workspace_absolute_path) {
+        Ok(output) => output,
+        Err(err) => {
+            return CommandResult {
+                ok: false,
+                message: format!(
+                    "Created workspace '{workspace_name}' at {}.{details}\n{err}",
+                    worktree_path.to_string_lossy()
+                ),
+                data: None,
+            };
+        }
+    };
+    let mut message = format!(
+        "Created workspace '{workspace_name}' at {}.{details}",
+        worktree_path.to_string_lossy()
+    );
+    if let Some(output) = setup_output {
+        let setup_message = format_setup_success(&workspace_name, &output);
+        message.push('\n');
+        message.push_str(&setup_message);
+    }
     CommandResult {
         ok: true,
-        message: format!(
-            "Created workspace '{workspace_name}' at {}.{details}",
-            worktree_path.to_string_lossy()
-        ),
+        message,
         data: Some(workspace_name),
+    }
+}
+
+pub(crate) fn workspace_setup(args: &[String], ctx: &CommandContext) -> CommandResult {
+    let repo_root = ctx
+        .repo_root
+        .clone()
+        .or_else(|| resolve_repo_root(&ctx.cwd))
+        .ok_or_else(|| CommandResult {
+            ok: false,
+            message: "Not inside a git repository.".to_string(),
+            data: None,
+        });
+    let repo_root = match repo_root {
+        Ok(root) => root,
+        Err(result) => return result,
+    };
+
+    let workspace_name = if let Some(name) = args.first() {
+        name.to_string()
+    } else {
+        match workspace_name_from_path(&repo_root, &ctx.workspace_root, &ctx.cwd) {
+            Some(name) => name,
+            None => {
+                return CommandResult {
+                    ok: false,
+                    message: "Provide a workspace name or run this from a workspace.".to_string(),
+                    data: None,
+                };
+            }
+        }
+    };
+
+    if !is_valid_workspace_name(&workspace_name) {
+        return CommandResult {
+            ok: false,
+            message: "Workspace name must use lowercase letters, numbers, or dashes.".to_string(),
+            data: None,
+        };
+    }
+
+    let workspace_path = workspace_absolute_path(&repo_root, &ctx.workspace_root, &workspace_name);
+    if !workspace_path.exists() {
+        return CommandResult {
+            ok: false,
+            message: format!("Workspace '{workspace_name}' does not exist."),
+            data: None,
+        };
+    }
+
+    let setup_output = match run_workspace_setup_scripts(&repo_root, &workspace_path) {
+        Ok(output) => output,
+        Err(err) => {
+            return CommandResult {
+                ok: false,
+                message: format!("Workspace setup failed for '{workspace_name}': {err}"),
+                data: None,
+            };
+        }
+    };
+
+    let message = match setup_output {
+        None => format!("No workspace setup scripts configured for '{workspace_name}'."),
+        Some(output) => format_setup_success(&workspace_name, &output),
+    };
+
+    CommandResult {
+        ok: true,
+        message,
+        data: None,
+    }
+}
+
+/// Run configured workspace setup scripts sequentially.
+fn run_workspace_setup_scripts(
+    repo_root: &Path,
+    workspace_path: &Path,
+) -> Result<Option<String>, String> {
+    let config = load_config(repo_root);
+    let scripts = config.workspace.setup_scripts;
+    if scripts.is_empty() {
+        return Ok(None);
+    }
+
+    let mut outputs = Vec::new();
+    for script in &scripts {
+        let result = run_shell_command(script, workspace_path);
+        let output = format_exec_output(&result);
+        if !result.ok {
+            let details = if output.is_empty() {
+                "".to_string()
+            } else {
+                format!("\n{output}")
+            };
+            return Err(format!("Setup script '{script}' failed.{details}"));
+        }
+        if !output.is_empty() {
+            outputs.push(output);
+        }
+    }
+
+    Ok(Some(outputs.join("\n")))
+}
+
+fn format_setup_success(workspace_name: &str, output: &str) -> String {
+    if output.is_empty() {
+        format!("Setup scripts completed for '{workspace_name}'.")
+    } else {
+        format!("Setup scripts completed for '{workspace_name}':\n{output}")
     }
 }

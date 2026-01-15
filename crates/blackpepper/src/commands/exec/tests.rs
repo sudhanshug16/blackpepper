@@ -1,6 +1,7 @@
 use super::init::{ensure_gitignore_entries, ensure_project_config};
 use super::workspace::{
     pick_unused_animal_name, unique_animal_names, workspace_create, workspace_destroy,
+    workspace_setup,
 };
 use super::{run_command, CommandContext, CommandSource};
 use crate::config::workspace_config_path;
@@ -179,6 +180,46 @@ fn workspace_create_and_destroy_workflow() {
         repo.path(),
     );
     assert!(!result.ok);
+}
+
+#[test]
+#[cfg(unix)]
+fn workspace_setup_runs_configured_scripts() {
+    let repo = init_repo();
+    let workspace_root = Path::new(".blackpepper/workspaces");
+    let config_path = workspace_config_path(repo.path());
+    fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
+    let config = r##"
+[workspace]
+root = ".blackpepper/workspaces"
+
+[workspace.setup]
+scripts = ["touch setup.txt"]
+"##;
+    fs::write(&config_path, config).expect("write config");
+    let ctx = CommandContext {
+        cwd: repo.path().to_path_buf(),
+        repo_root: Some(repo.path().to_path_buf()),
+        workspace_root: workspace_root.to_path_buf(),
+        source: CommandSource::Cli,
+    };
+
+    let name = "otter";
+    let create = workspace_create(&[name.to_string()], &ctx);
+    assert!(create.ok, "create failed: {}", create.message);
+
+    let setup_file = repo
+        .path()
+        .join(workspace_root)
+        .join(name)
+        .join("setup.txt");
+    assert!(setup_file.exists());
+
+    fs::remove_file(&setup_file).expect("remove setup file");
+
+    let setup = workspace_setup(&[name.to_string()], &ctx);
+    assert!(setup.ok, "setup failed: {}", setup.message);
+    assert!(setup_file.exists());
 }
 
 #[test]

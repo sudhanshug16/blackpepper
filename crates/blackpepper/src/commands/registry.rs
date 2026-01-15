@@ -48,6 +48,11 @@ pub const COMMANDS: &[CommandSpec] = &[
         cli_exposed: true,
     },
     CommandSpec {
+        name: "workspace setup",
+        description: "Run setup scripts for a workspace",
+        cli_exposed: true,
+    },
+    CommandSpec {
         name: "rename",
         description: "Rename the active workspace and branch",
         cli_exposed: true,

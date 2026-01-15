@@ -16,7 +16,9 @@ use super::registry::{command_help_lines, command_help_lines_cli};
 use init::init_project;
 use pr_command::pr_create;
 use update::update_command;
-use workspace::{workspace_create, workspace_destroy, workspace_list, workspace_rename};
+use workspace::{
+    workspace_create, workspace_destroy, workspace_list, workspace_rename, workspace_setup,
+};
 
 /// Result of command execution.
 #[derive(Debug, Clone)]
@@ -91,13 +93,14 @@ where
             let Some(subcommand) = args.first() else {
                 return CommandResult {
                     ok: false,
-                    message: "Usage: :workspace <list|switch|create|destroy>".to_string(),
+                    message: "Usage: :workspace <list|switch|create|destroy|setup>".to_string(),
                     data: None,
                 };
             };
             match subcommand.as_str() {
                 "create" => workspace_create(&args[1..], ctx),
                 "destroy" => workspace_destroy(&args[1..], ctx),
+                "setup" => workspace_setup(&args[1..], ctx),
                 "list" => workspace_list(ctx),
                 "switch" => CommandResult {
                     ok: true,
@@ -106,7 +109,7 @@ where
                 },
                 _ => CommandResult {
                     ok: false,
-                    message: "Usage: :workspace <list|switch|create|destroy>".to_string(),
+                    message: "Usage: :workspace <list|switch|create|destroy|setup>".to_string(),
                     data: None,
                 },
             }

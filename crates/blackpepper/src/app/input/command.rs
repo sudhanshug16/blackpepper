@@ -140,7 +140,7 @@ fn execute_command(app: &mut App, raw: &str) {
 
 fn handle_workspace_command(app: &mut App, args: &[String]) {
     let Some(subcommand) = args.first() else {
-        app.set_output("Usage: :workspace <list|switch|create|destroy>".to_string());
+        app.set_output("Usage: :workspace <list|switch|create|destroy|setup>".to_string());
         return;
     };
     match subcommand.as_str() {
@@ -161,8 +161,8 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
                 Err(err) => app.set_output(err),
             }
         }
-        "create" | "destroy" => {
-            if subcommand == "destroy" && args.len() == 1 {
+        "create" | "destroy" | "setup" => {
+            if (subcommand == "destroy" || subcommand == "setup") && args.len() == 1 {
                 if let Some(active) = app.active_workspace.as_ref() {
                     let mut args = args.to_vec();
                     args.push(active.clone());
@@ -173,7 +173,7 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
             start_command(app, "workspace", args.to_vec());
         }
         _ => {
-            app.set_output("Usage: :workspace <list|switch|create|destroy>".to_string());
+            app.set_output("Usage: :workspace <list|switch|create|destroy|setup>".to_string());
         }
     }
 }
