@@ -117,7 +117,7 @@ where
     }
 }
 
-fn run_shell_with_output<F>(script: &str, cwd: &Path, on_output: &mut F) -> ExecResult
+pub(super) fn run_shell_with_output<F>(script: &str, cwd: &Path, on_output: &mut F) -> ExecResult
 where
     F: FnMut(&str),
 {
@@ -225,7 +225,7 @@ where
     on_output(CommandOutput::Chunk(format!("\n{chunk}\n")));
 }
 
-fn format_command_failure(prefix: &str, result: &ExecResult) -> String {
+pub(super) fn format_command_failure(prefix: &str, result: &ExecResult) -> String {
     let detail = if !result.stderr.trim().is_empty() {
         result.stderr.trim()
     } else {

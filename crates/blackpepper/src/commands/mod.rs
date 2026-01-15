@@ -12,6 +12,7 @@ mod exec;
 mod parse;
 pub mod pr;
 mod registry;
+pub mod rename;
 
 pub use exec::{
     run_command, run_command_with_output, CommandContext, CommandOutput, CommandPhase,

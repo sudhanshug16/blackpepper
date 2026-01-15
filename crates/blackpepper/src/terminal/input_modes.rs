@@ -74,11 +74,7 @@ impl InputModes {
     }
 }
 
-fn write_mouse_mode_diff(
-    mode: MouseProtocolMode,
-    prev: MouseProtocolMode,
-    out: &mut Vec<u8>,
-) {
+fn write_mouse_mode_diff(mode: MouseProtocolMode, prev: MouseProtocolMode, out: &mut Vec<u8>) {
     if mode == prev {
         return;
     }

@@ -98,11 +98,7 @@ pub(super) fn request_repo_status(app: &App) {
     }
 }
 
-pub fn ensure_active_workspace_session(
-    app: &mut App,
-    rows: u16,
-    cols: u16,
-) -> Result<(), String> {
+pub fn ensure_active_workspace_session(app: &mut App, rows: u16, cols: u16) -> Result<(), String> {
     let Some(workspace) = app.active_workspace.clone() else {
         return Ok(());
     };

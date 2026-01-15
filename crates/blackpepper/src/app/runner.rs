@@ -100,10 +100,10 @@ fn spawn_input_thread(sender: Sender<AppEvent>) {
                 Err(_) => break,
             }
 
-        if !sent && !sync_resize(&sender, &mut last_size) {
-            break;
+            if !sent && !sync_resize(&sender, &mut last_size) {
+                break;
+            }
         }
-    }
     });
 }
 
@@ -255,7 +255,9 @@ fn flush_pending_input_modes(
 }
 
 fn sync_resize(sender: &Sender<AppEvent>, last_size: &mut Option<(u16, u16)>) -> bool {
-    let size = crossterm::terminal::size().ok().map(|(cols, rows)| (rows, cols));
+    let size = crossterm::terminal::size()
+        .ok()
+        .map(|(cols, rows)| (rows, cols));
     if let Some(size) = size {
         let changed = *last_size != Some(size);
         if changed {
@@ -278,10 +280,7 @@ fn read_raw_bytes(timeout: Duration) -> io::Result<Option<Vec<u8>>> {
             events: libc::POLLIN,
             revents: 0,
         };
-        let timeout_ms = timeout
-            .as_millis()
-            .try_into()
-            .unwrap_or(i32::MAX);
+        let timeout_ms = timeout.as_millis().try_into().unwrap_or(i32::MAX);
         let rc = unsafe { libc::poll(&mut fds, 1, timeout_ms) };
         if rc == 0 {
             return Ok(None);

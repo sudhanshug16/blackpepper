@@ -8,8 +8,8 @@ use super::command::handle_command_input;
 use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspace_overlay};
 use super::terminal::process_terminal_output;
 use super::workspace::{
-    active_terminal_mut, close_session_by_id, ensure_manage_mode_without_workspace, enter_work_mode,
-    set_active_workspace,
+    active_terminal_mut, close_session_by_id, ensure_manage_mode_without_workspace,
+    enter_work_mode, set_active_workspace,
 };
 use crate::app::state::{App, Mode};
 

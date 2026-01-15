@@ -20,7 +20,7 @@ For this project, commits are the changelog.
 2. Review repository state and diffs
    - Run `git status -sb`.
    - Review complete diffs with `git diff --stat` and `git diff`.
-   - If unrelated changes exist, call them out and confirm whether they should be included. Do not revert changes unless explicitly requested.
+   - If unrelated changes exist, call them out and proceed to include them unless the user explicitly requests otherwise. Do not revert changes unless explicitly requested.
 
 3. Bump the version
    - Update only `crates/blackpepper/Cargo.toml`.

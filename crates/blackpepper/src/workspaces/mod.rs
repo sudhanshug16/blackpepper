@@ -19,11 +19,11 @@ pub fn is_valid_workspace_name(name: &str) -> bool {
     let Some(first) = chars.next() else {
         return false;
     };
-    if !first.is_ascii_lowercase() {
+    if !(first.is_ascii_lowercase() || first.is_ascii_digit()) {
         return false;
     }
     for ch in chars {
-        if !(ch.is_ascii_lowercase() || ch == '-') {
+        if !(ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-') {
             return false;
         }
     }
@@ -137,6 +137,8 @@ mod tests {
     fn workspace_name_validation() {
         assert!(is_valid_workspace_name("otter"));
         assert!(is_valid_workspace_name("red-fox"));
+        assert!(is_valid_workspace_name("feature-123"));
+        assert!(is_valid_workspace_name("2026-plan"));
         assert!(!is_valid_workspace_name(""));
         assert!(!is_valid_workspace_name("Otter"));
         assert!(!is_valid_workspace_name("red_fox"));

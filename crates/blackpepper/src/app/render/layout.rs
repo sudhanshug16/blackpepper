@@ -41,8 +41,7 @@ pub(super) fn render_command_bar(app: &App, frame: &mut ratatui::Frame, area: Re
                 let command_line = command_line(app);
                 frame.render_widget(Paragraph::new(command_line), chunks[0]);
 
-                let label = Paragraph::new(Line::from(label.spans))
-                    .alignment(Alignment::Right);
+                let label = Paragraph::new(Line::from(label.spans)).alignment(Alignment::Right);
                 frame.render_widget(label, chunks[1]);
                 return;
             }
@@ -223,11 +222,7 @@ fn joined_len(segments: &[Segment]) -> usize {
     total + separator_len.saturating_mul(segments.len().saturating_sub(1))
 }
 
-fn format_divergence_segment(
-    divergence: &Divergence,
-    compact: bool,
-    style: Style,
-) -> Segment {
+fn format_divergence_segment(divergence: &Divergence, compact: bool, style: Style) -> Segment {
     let mut parts = Vec::new();
     if divergence.ahead > 0 {
         parts.push(format!("↑{}", divergence.ahead));
@@ -235,7 +230,11 @@ fn format_divergence_segment(
     if divergence.behind > 0 {
         parts.push(format!("↓{}", divergence.behind));
     }
-    let text = if compact { parts.join("") } else { parts.join(" ") };
+    let text = if compact {
+        parts.join("")
+    } else {
+        parts.join(" ")
+    };
     segment_plain(text, style)
 }
 

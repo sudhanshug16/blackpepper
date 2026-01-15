@@ -16,7 +16,7 @@ use super::registry::{command_help_lines, command_help_lines_cli};
 use init::init_project;
 use pr_command::pr_create;
 use update::update_command;
-use workspace::{workspace_create, workspace_destroy, workspace_list};
+use workspace::{workspace_create, workspace_destroy, workspace_list, workspace_rename};
 
 /// Result of command execution.
 #[derive(Debug, Clone)]
@@ -86,6 +86,7 @@ where
             },
             data: None,
         },
+        "rename" => workspace_rename(args, ctx, on_output),
         "workspace" => {
             let Some(subcommand) = args.first() else {
                 return CommandResult {

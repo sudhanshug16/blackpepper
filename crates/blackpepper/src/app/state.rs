@@ -3,10 +3,10 @@
 //! Defines the App struct which holds all mutable application state,
 //! plus supporting types for modes, overlays, and workspaces.
 
+use ratatui::layout::Rect;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
-use ratatui::layout::Rect;
 
 use crate::config::Config;
 use crate::events::AppEvent;

@@ -1,6 +1,6 @@
+use std::env;
 use std::path::Path;
 use std::process::{Command, Output};
-use std::env;
 
 use crate::config::TmuxConfig;
 
@@ -16,11 +16,7 @@ pub fn session_name(repo_root: &Path, workspace: &str) -> String {
     format!("{repo}:{workspace}")
 }
 
-pub fn client_command(
-    config: &TmuxConfig,
-    session: &str,
-    cwd: &Path,
-) -> (String, Vec<String>) {
+pub fn client_command(config: &TmuxConfig, session: &str, cwd: &Path) -> (String, Vec<String>) {
     let command = resolve_command(config);
     let mut args = config.args.clone();
     args.extend([
@@ -58,6 +54,21 @@ pub fn kill_session(config: &TmuxConfig, session: &str) -> Result<bool, String> 
     } else {
         Err(format!(
             "Failed to kill tmux session '{session}'.{}",
+            format_output(&output)
+        ))
+    }
+}
+
+pub fn rename_session(config: &TmuxConfig, current: &str, next: &str) -> Result<bool, String> {
+    if !has_session(config, current)? {
+        return Ok(false);
+    }
+    let output = run_tmux(config, &["rename-session", "-t", current, next])?;
+    if output.status.success() {
+        Ok(true)
+    } else {
+        Err(format!(
+            "Failed to rename tmux session '{current}' to '{next}'.{}",
             format_output(&output)
         ))
     }

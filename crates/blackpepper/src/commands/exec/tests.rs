@@ -147,7 +147,9 @@ fn workspace_create_and_destroy_workflow() {
     fs::write(&tmux_stub, stub_contents).expect("write tmux stub");
     #[cfg(unix)]
     {
-        let mut perms = fs::metadata(&tmux_stub).expect("stat tmux stub").permissions();
+        let mut perms = fs::metadata(&tmux_stub)
+            .expect("stat tmux stub")
+            .permissions();
         perms.set_mode(0o755);
         fs::set_permissions(&tmux_stub, perms).expect("chmod tmux stub");
     }
