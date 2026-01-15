@@ -1,17 +1,14 @@
-use std::collections::HashSet;
-use std::path::Path;
-
 use crate::config::load_config;
 use crate::git::{resolve_repo_root, run_git};
+use crate::tmux;
 use crate::workspaces::{
     ensure_workspace_root, is_valid_workspace_name, list_workspace_names, workspace_absolute_path,
     workspace_name_from_path, workspace_path,
 };
+use std::collections::HashSet;
 
 use super::super::{CommandContext, CommandResult};
-use super::helpers::{
-    branch_exists, format_exec_output, pick_unused_animal_name, run_shell_command,
-};
+use super::helpers::{branch_exists, format_exec_output, pick_unused_animal_name};
 
 /// Create a new workspace worktree.
 pub(crate) fn workspace_create(args: &[String], ctx: &CommandContext) -> CommandResult {
@@ -110,30 +107,10 @@ pub(crate) fn workspace_create(args: &[String], ctx: &CommandContext) -> Command
     } else {
         format!("\n{output}")
     };
-    let workspace_absolute_path =
-        workspace_absolute_path(&repo_root, &ctx.workspace_root, &workspace_name);
-    let setup_output = match run_workspace_setup_scripts(&repo_root, &workspace_absolute_path) {
-        Ok(output) => output,
-        Err(err) => {
-            return CommandResult {
-                ok: false,
-                message: format!(
-                    "Created workspace '{workspace_name}' at {}.{details}\n{err}",
-                    worktree_path.to_string_lossy()
-                ),
-                data: None,
-            };
-        }
-    };
-    let mut message = format!(
+    let message = format!(
         "Created workspace '{workspace_name}' at {}.{details}",
         worktree_path.to_string_lossy()
     );
-    if let Some(output) = setup_output {
-        let setup_message = format_setup_success(&workspace_name, &output);
-        message.push('\n');
-        message.push_str(&setup_message);
-    }
     CommandResult {
         ok: true,
         message,
@@ -188,64 +165,78 @@ pub(crate) fn workspace_setup(args: &[String], ctx: &CommandContext) -> CommandR
         };
     }
 
-    let setup_output = match run_workspace_setup_scripts(&repo_root, &workspace_path) {
-        Ok(output) => output,
-        Err(err) => {
+    let config = load_config(&repo_root);
+    let setup_body = match tmux::setup_shell_body(&config.workspace.setup_scripts) {
+        Some(body) => body,
+        None => {
+            return CommandResult {
+                ok: true,
+                message: format!("No workspace setup scripts configured for '{workspace_name}'."),
+                data: None,
+            };
+        }
+    };
+    let setup_command = match tmux::setup_command_args(&config.workspace.setup_scripts) {
+        Some(command) => command,
+        None => {
             return CommandResult {
                 ok: false,
-                message: format!("Workspace setup failed for '{workspace_name}': {err}"),
+                message: format!("Setup scripts are invalid for '{workspace_name}'."),
                 data: None,
             };
         }
     };
 
-    let message = match setup_output {
-        None => format!("No workspace setup scripts configured for '{workspace_name}'."),
-        Some(output) => format_setup_success(&workspace_name, &output),
+    let session_name = tmux::session_name(&repo_root, &workspace_name);
+    let tabs = tmux::resolve_tabs(&config.tmux);
+    let setup_tab = tmux::SetupTab {
+        name: tmux::SETUP_TMUX_TAB.to_string(),
+        command: setup_command,
     };
+    let created = match tmux::ensure_session_layout(
+        &config.tmux,
+        &session_name,
+        &workspace_path,
+        Some(setup_tab),
+        &tabs,
+    ) {
+        Ok(created) => created,
+        Err(err) => {
+            return CommandResult {
+                ok: false,
+                message: format!("Failed to prepare tmux session for '{workspace_name}': {err}"),
+                data: None,
+            };
+        }
+    };
+
+    if created {
+        return CommandResult {
+            ok: true,
+            message: format!(
+                "Started tmux session '{session_name}' and running setup scripts in '{}'.",
+                tmux::SETUP_TMUX_TAB
+            ),
+            data: None,
+        };
+    }
+
+    let target = format!("{session_name}:0");
+    let _ = tmux::rename_window(&config.tmux, &target, tmux::SETUP_TMUX_TAB);
+    if let Err(err) = tmux::send_keys(&config.tmux, &target, &setup_body) {
+        return CommandResult {
+            ok: false,
+            message: format!("Workspace setup failed for '{workspace_name}': {err}"),
+            data: None,
+        };
+    }
 
     CommandResult {
         ok: true,
-        message,
+        message: format!(
+            "Running setup scripts for '{workspace_name}' in tmux tab '{}'.",
+            tmux::SETUP_TMUX_TAB
+        ),
         data: None,
-    }
-}
-
-/// Run configured workspace setup scripts sequentially.
-fn run_workspace_setup_scripts(
-    repo_root: &Path,
-    workspace_path: &Path,
-) -> Result<Option<String>, String> {
-    let config = load_config(repo_root);
-    let scripts = config.workspace.setup_scripts;
-    if scripts.is_empty() {
-        return Ok(None);
-    }
-
-    let mut outputs = Vec::new();
-    for script in &scripts {
-        let result = run_shell_command(script, workspace_path);
-        let output = format_exec_output(&result);
-        if !result.ok {
-            let details = if output.is_empty() {
-                "".to_string()
-            } else {
-                format!("\n{output}")
-            };
-            return Err(format!("Setup script '{script}' failed.{details}"));
-        }
-        if !output.is_empty() {
-            outputs.push(output);
-        }
-    }
-
-    Ok(Some(outputs.join("\n")))
-}
-
-fn format_setup_success(workspace_name: &str, output: &str) -> String {
-    if output.is_empty() {
-        format!("Setup scripts completed for '{workspace_name}'.")
-    } else {
-        format!("Setup scripts completed for '{workspace_name}':\n{output}")
     }
 }

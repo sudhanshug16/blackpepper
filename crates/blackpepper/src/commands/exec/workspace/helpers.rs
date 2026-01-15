@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::path::Path;
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::animals::ANIMAL_NAMES;
@@ -16,40 +15,6 @@ pub(super) fn format_exec_output(result: &ExecResult) -> String {
         .map(|text| text.to_string())
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-pub(super) fn run_shell_command(command: &str, cwd: &Path) -> ExecResult {
-    let output = if cfg!(windows) {
-        Command::new("cmd")
-            .args(["/C", command])
-            .current_dir(cwd)
-            .output()
-    } else {
-        Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .current_dir(cwd)
-            .output()
-    };
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            let exit_code = out.status.code().unwrap_or(-1);
-            ExecResult {
-                ok: out.status.success(),
-                exit_code,
-                stdout,
-                stderr,
-            }
-        }
-        Err(err) => ExecResult {
-            ok: false,
-            exit_code: -1,
-            stdout: String::new(),
-            stderr: err.to_string(),
-        },
-    }
 }
 
 pub(super) fn branch_exists(repo_root: &Path, name: &str) -> bool {

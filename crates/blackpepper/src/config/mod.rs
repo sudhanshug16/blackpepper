@@ -8,6 +8,7 @@
 //! configuration, and workspace setup scripts. Uses TOML format with serde.
 
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -38,6 +39,13 @@ pub struct KeymapConfig {
 pub struct TmuxConfig {
     pub command: Option<String>,
     pub args: Vec<String>,
+    pub tabs: Vec<TmuxTabConfig>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TmuxTabConfig {
+    pub name: String,
+    pub command: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,6 +93,12 @@ struct RawKeymap {
 struct RawTmux {
     command: Option<String>,
     args: Option<Vec<String>>,
+    tabs: Option<BTreeMap<String, RawTmuxTab>>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RawTmuxTab {
+    command: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -154,6 +168,11 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         .and_then(|t| t.args.clone())
         .or_else(|| user_tmux.and_then(|t| t.args.clone()))
         .unwrap_or_default();
+    let tabs = workspace_tmux
+        .and_then(|t| t.tabs.as_ref())
+        .or_else(|| user_tmux.and_then(|t| t.tabs.as_ref()))
+        .map(collect_tmux_tabs)
+        .unwrap_or_default();
     let workspace_root = workspace_workspace
         .and_then(|w| w.root.clone())
         .or_else(|| user_workspace.and_then(|w| w.root.clone()))
@@ -193,7 +212,11 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
             toggle_mode,
             switch_workspace,
         },
-        tmux: TmuxConfig { command, args },
+        tmux: TmuxConfig {
+            command,
+            args,
+            tabs,
+        },
         workspace: WorkspaceConfig {
             root: PathBuf::from(workspace_root),
             setup_scripts: workspace_setup_scripts,
@@ -210,6 +233,27 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
             foreground: ui_foreground,
         },
     }
+}
+
+fn collect_tmux_tabs(tabs: &BTreeMap<String, RawTmuxTab>) -> Vec<TmuxTabConfig> {
+    tabs.iter()
+        .filter_map(|(name, tab)| {
+            let trimmed = name.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            let command = tab
+                .command
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| value.to_string());
+            Some(TmuxTabConfig {
+                name: trimmed.to_string(),
+                command,
+            })
+        })
+        .collect()
 }
 
 fn parse_ui_color(

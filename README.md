@@ -56,6 +56,11 @@ switch_workspace = "ctrl+p"
 command = "tmux"
 args = ["-f", "/path/to/tmux.conf"]
 
+[tmux.tabs.work]
+command = "npm run dev"
+
+[tmux.tabs.server]
+
 [workspace]
 root = ".blackpepper/workspaces"
 
@@ -81,8 +86,11 @@ If `[tmux]` is omitted, Blackpepper uses `tmux` from `PATH`.
 If `[agent].provider` is set, `:pr create` uses the built-in agent templates; set
 `[agent].command` to override the command (optional `{{PROMPT}}` placeholder).
 `[upstream].provider` selects the PR backend (default `github` via the `gh` CLI).
-Workspace setup scripts in `[workspace.setup].scripts` run after `:workspace create`
-and can be re-run with `:workspace setup` (executed via `sh -c` or `cmd /C`).
+Workspace setup scripts in `[workspace.setup].scripts` run in the first tmux tab
+(`setup`) when a workspace session starts and can be re-run with `:workspace setup`.
+`[tmux.tabs.<name>].command` configures additional tabs (and optional first
+commands); if no tabs are defined, Blackpepper opens a single default `work` tab
+(the `setup` tab only appears when scripts exist).
 
 State:
 

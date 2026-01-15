@@ -118,6 +118,15 @@ fn spawn_workspace_session(
         return Err("Not inside a git repository.".to_string());
     };
     let session_name = tmux::session_name(repo_root, workspace);
+    let tabs = tmux::resolve_tabs(&app.config.tmux);
+    let setup_tab = tmux::setup_command_args(&app.config.workspace.setup_scripts).map(|command| {
+        tmux::SetupTab {
+            name: tmux::SETUP_TMUX_TAB.to_string(),
+            command,
+        }
+    });
+    tmux::ensure_session_layout(&app.config.tmux, &session_name, &app.cwd, setup_tab, &tabs)
+        .map_err(|err| format!("Failed to prepare tmux session: {err}"))?;
     let (command, args) = tmux::client_command(&app.config.tmux, &session_name, &app.cwd);
     let session = TerminalSession::spawn(
         app.terminal_seq,

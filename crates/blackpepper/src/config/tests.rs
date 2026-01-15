@@ -1,4 +1,4 @@
-use super::{load_config, save_user_agent_provider, user_config_path};
+use super::{load_config, save_user_agent_provider, user_config_path, TmuxTabConfig};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -35,6 +35,7 @@ fn load_config_uses_defaults_when_empty() {
     assert_eq!(config.keymap.switch_workspace, "ctrl+p");
     assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
     assert!(config.tmux.args.is_empty());
+    assert!(config.tmux.tabs.is_empty());
     assert_eq!(config.workspace.root, Path::new(".blackpepper/workspaces"));
     assert!(config.workspace.setup_scripts.is_empty());
     assert!(config.agent.provider.is_none());
@@ -77,6 +78,9 @@ switch_workspace = "ctrl+u"
 command = "tmux"
 args = ["-f", "/tmp/tmux.conf"]
 
+[tmux.tabs.user]
+command = "echo user"
+
 [workspace]
 root = "user/workspaces"
 
@@ -111,6 +115,11 @@ toggle_mode = "ctrl+y"
 command = "tmux"
 args = ["-L", "alt"]
 
+[tmux.tabs.workspace]
+command = "make server"
+
+[tmux.tabs.logs]
+
 [workspace]
 root = ".pepper/workspaces"
 
@@ -134,6 +143,19 @@ foreground = "#cccccc"
     assert_eq!(config.keymap.switch_workspace, "ctrl+u");
     assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
     assert_eq!(config.tmux.args, vec!["-L".to_string(), "alt".to_string()]);
+    assert_eq!(
+        config.tmux.tabs,
+        vec![
+            TmuxTabConfig {
+                name: "logs".to_string(),
+                command: None,
+            },
+            TmuxTabConfig {
+                name: "workspace".to_string(),
+                command: Some("make server".to_string()),
+            },
+        ]
+    );
     assert_eq!(config.workspace.root, Path::new(".pepper/workspaces"));
     assert_eq!(
         config.workspace.setup_scripts,
