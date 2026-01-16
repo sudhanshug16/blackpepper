@@ -59,8 +59,10 @@ pub fn ensure_session_layout(
     cwd: &Path,
     setup: Option<SetupTab>,
     tabs: &[TmuxTabConfig],
+    env: &[(String, String)],
 ) -> Result<bool, String> {
     if has_session(config, session)? {
+        set_environment(config, session, env)?;
         return Ok(false);
     }
 
@@ -72,10 +74,11 @@ pub fn ensure_session_layout(
                 cwd,
                 Some(&setup_tab.name),
                 Some(&setup_tab.command),
+                env,
             )?;
             for tab in tabs {
                 let command = tab_command_args(tab.command.as_deref());
-                new_window(config, session, &tab.name, cwd, command.as_deref())?;
+                new_window(config, session, &tab.name, cwd, command.as_deref(), env)?;
             }
         }
         None => {
@@ -83,14 +86,22 @@ pub fn ensure_session_layout(
                 .split_first()
                 .ok_or_else(|| "No tmux tabs configured.".to_string())?;
             let command = tab_command_args(first.command.as_deref());
-            new_session(config, session, cwd, Some(&first.name), command.as_deref())?;
+            new_session(
+                config,
+                session,
+                cwd,
+                Some(&first.name),
+                command.as_deref(),
+                env,
+            )?;
             for tab in rest {
                 let command = tab_command_args(tab.command.as_deref());
-                new_window(config, session, &tab.name, cwd, command.as_deref())?;
+                new_window(config, session, &tab.name, cwd, command.as_deref(), env)?;
             }
         }
     }
 
+    set_environment(config, session, env)?;
     Ok(true)
 }
 
@@ -173,6 +184,7 @@ pub fn new_window(
     name: &str,
     cwd: &Path,
     command: Option<&[String]>,
+    env: &[(String, String)],
 ) -> Result<(), String> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -187,6 +199,10 @@ pub fn new_window(
         "-c".to_string(),
         cwd.to_string_lossy().to_string(),
     ];
+    for (key, value) in env {
+        args.push("-e".to_string());
+        args.push(format!("{key}={value}"));
+    }
     if let Some(command) = command {
         args.extend(command.iter().cloned());
     }
@@ -213,6 +229,23 @@ pub fn send_keys(config: &TmuxConfig, target: &str, command: &str) -> Result<(),
     }
 }
 
+pub fn set_environment(
+    config: &TmuxConfig,
+    session: &str,
+    env: &[(String, String)],
+) -> Result<(), String> {
+    for (key, value) in env {
+        let output = run_tmux(config, &["set-environment", "-t", session, key, value])?;
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to set tmux environment '{key}'.{}",
+                format_output(&output)
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub fn has_session(config: &TmuxConfig, session: &str) -> Result<bool, String> {
     let output = run_tmux(config, &["has-session", "-t", session])?;
     Ok(output.status.success())
@@ -224,6 +257,7 @@ fn new_session(
     cwd: &Path,
     window_name: Option<&str>,
     command: Option<&[String]>,
+    env: &[(String, String)],
 ) -> Result<(), String> {
     let mut args = vec![
         "new-session".to_string(),
@@ -233,6 +267,10 @@ fn new_session(
         "-c".to_string(),
         cwd.to_string_lossy().to_string(),
     ];
+    for (key, value) in env {
+        args.push("-e".to_string());
+        args.push(format!("{key}={value}"));
+    }
     if let Some(name) = window_name {
         let trimmed = name.trim();
         if !trimmed.is_empty() {

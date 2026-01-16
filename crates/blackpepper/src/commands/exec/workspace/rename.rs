@@ -4,6 +4,7 @@ use crate::commands::{pr, rename};
 use crate::config::load_config;
 use crate::git::{resolve_repo_root, run_git};
 use crate::providers::agent;
+use crate::state::rename_workspace_ports;
 use crate::tmux;
 use crate::workspaces::{
     is_valid_workspace_name, list_workspace_names, workspace_absolute_path,
@@ -220,6 +221,9 @@ where
     let mut message = format!("Renamed workspace '{current_name}' to '{normalized_name}'.");
     if raw_name != normalized_name {
         message.push_str(&format!(" Normalized from '{raw_name}'."));
+    }
+    if let Err(err) = rename_workspace_ports(&old_path, &new_path) {
+        message.push_str(&format!("\nWarning: failed to move workspace ports: {err}"));
     }
 
     if ctx.source == CommandSource::Tui {

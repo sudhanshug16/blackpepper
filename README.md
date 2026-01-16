@@ -96,12 +96,17 @@ State:
 
 - Active workspaces are tracked in `~/.config/blackpepper/state.toml` under `[active_workspaces]`.
 - Each entry maps a project root (git common dir) to the last active worktree path.
+- Workspace port blocks live under `[workspace_ports]`; each workspace gets 10 ports
+  exported as `WORKSPACE_PORT_0` through `WORKSPACE_PORT_9` in tmux sessions.
 
 Example:
 
 ```toml
 [active_workspaces]
 "/path/to/blackpepper" = "/path/to/blackpepper/.blackpepper/workspaces/otter"
+
+[workspace_ports]
+"/path/to/blackpepper/.blackpepper/workspaces/otter" = 30000
 ```
 
 ## Workspaces

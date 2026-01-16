@@ -1,7 +1,8 @@
 use crate::config::load_config;
 use crate::git::{resolve_repo_root, run_git};
+use crate::state::remove_workspace_ports;
 use crate::tmux;
-use crate::workspaces::{is_valid_workspace_name, workspace_path};
+use crate::workspaces::{is_valid_workspace_name, workspace_absolute_path, workspace_path};
 
 use super::super::{CommandContext, CommandResult};
 use super::helpers::{branch_exists, format_exec_output};
@@ -46,6 +47,7 @@ pub(crate) fn workspace_destroy(args: &[String], ctx: &CommandContext) -> Comman
         };
     }
 
+    let workspace_absolute = workspace_absolute_path(&repo_root, &ctx.workspace_root, name);
     let worktree_path_str = workspace_path(&ctx.workspace_root, name)
         .to_string_lossy()
         .to_string();
@@ -93,16 +95,20 @@ pub(crate) fn workspace_destroy(args: &[String], ctx: &CommandContext) -> Comman
     } else {
         format!("\n{output}")
     };
+    let port_warning = match remove_workspace_ports(&workspace_absolute) {
+        Ok(()) => String::new(),
+        Err(err) => format!("\nWarning: failed to remove workspace ports: {err}"),
+    };
     CommandResult {
         ok: true,
         message: if deleted_branch {
             format!(
-                "Removed workspace '{name}' from {} and deleted its branch.{details}",
+                "Removed workspace '{name}' from {} and deleted its branch.{details}{port_warning}",
                 workspace_path(&ctx.workspace_root, name).to_string_lossy()
             )
         } else {
             format!(
-                "Removed workspace '{name}' from {}.{details}",
+                "Removed workspace '{name}' from {}.{details}{port_warning}",
                 workspace_path(&ctx.workspace_root, name).to_string_lossy()
             )
         },

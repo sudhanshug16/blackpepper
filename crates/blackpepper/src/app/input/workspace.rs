@@ -1,7 +1,9 @@
 use crate::config::load_config;
 use crate::keymap::parse_key_chord;
 use crate::repo_status::RepoStatusSignal;
-use crate::state::{record_active_workspace, remove_active_workspace};
+use crate::state::{
+    ensure_workspace_ports, record_active_workspace, remove_active_workspace, workspace_port_env,
+};
 use crate::terminal::TerminalSession;
 use crate::tmux;
 use crate::workspaces::{list_workspace_names, workspace_absolute_path};
@@ -125,8 +127,18 @@ fn spawn_workspace_session(
             command,
         }
     });
-    tmux::ensure_session_layout(&app.config.tmux, &session_name, &app.cwd, setup_tab, &tabs)
-        .map_err(|err| format!("Failed to prepare tmux session: {err}"))?;
+    let workspace_ports = ensure_workspace_ports(&app.cwd)
+        .map_err(|err| format!("Failed to allocate workspace ports: {err}"))?;
+    let env = workspace_port_env(workspace_ports);
+    tmux::ensure_session_layout(
+        &app.config.tmux,
+        &session_name,
+        &app.cwd,
+        setup_tab,
+        &tabs,
+        &env,
+    )
+    .map_err(|err| format!("Failed to prepare tmux session: {err}"))?;
     let (command, args) = tmux::client_command(&app.config.tmux, &session_name, &app.cwd);
     let session = TerminalSession::spawn(
         app.terminal_seq,

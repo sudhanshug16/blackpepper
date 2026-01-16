@@ -193,12 +193,24 @@ pub(crate) fn workspace_setup(args: &[String], ctx: &CommandContext) -> CommandR
         name: tmux::SETUP_TMUX_TAB.to_string(),
         command: setup_command,
     };
+    let workspace_ports = match crate::state::ensure_workspace_ports(&workspace_path) {
+        Ok(base) => base,
+        Err(err) => {
+            return CommandResult {
+                ok: false,
+                message: format!("Failed to allocate workspace ports: {err}"),
+                data: None,
+            };
+        }
+    };
+    let env = crate::state::workspace_port_env(workspace_ports);
     let created = match tmux::ensure_session_layout(
         &config.tmux,
         &session_name,
         &workspace_path,
         Some(setup_tab),
         &tabs,
+        &env,
     ) {
         Ok(created) => created,
         Err(err) => {
