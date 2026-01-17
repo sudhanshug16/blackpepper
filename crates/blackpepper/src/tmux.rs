@@ -22,7 +22,7 @@ pub fn session_name(repo_root: &Path, workspace: &str) -> String {
         .unwrap_or("repo");
     let repo = sanitize_component(repo_dir, "repo");
     let workspace = sanitize_component(workspace, "workspace");
-    format!("{repo}:{workspace}")
+    format!("{repo}_{workspace}")
 }
 
 pub fn client_command(config: &TmuxConfig, session: &str, cwd: &Path) -> (String, Vec<String>) {
