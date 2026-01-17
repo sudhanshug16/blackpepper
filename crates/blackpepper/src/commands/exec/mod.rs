@@ -88,12 +88,12 @@ where
             },
             data: None,
         },
-        "rename" => workspace_rename(args, ctx, on_output),
         "workspace" => {
             let Some(subcommand) = args.first() else {
                 return CommandResult {
                     ok: false,
-                    message: "Usage: :workspace <list|switch|create|destroy|setup>".to_string(),
+                    message: "Usage: :workspace <list|switch|create|destroy|setup|rename>"
+                        .to_string(),
                     data: None,
                 };
             };
@@ -101,6 +101,7 @@ where
                 "create" => workspace_create(&args[1..], ctx),
                 "destroy" => workspace_destroy(&args[1..], ctx),
                 "setup" => workspace_setup(&args[1..], ctx),
+                "rename" => workspace_rename(&args[1..], ctx, on_output),
                 "list" => workspace_list(ctx),
                 "switch" => CommandResult {
                     ok: true,
@@ -109,7 +110,8 @@ where
                 },
                 _ => CommandResult {
                     ok: false,
-                    message: "Usage: :workspace <list|switch|create|destroy|setup>".to_string(),
+                    message: "Usage: :workspace <list|switch|create|destroy|setup|rename>"
+                        .to_string(),
                     data: None,
                 },
             }

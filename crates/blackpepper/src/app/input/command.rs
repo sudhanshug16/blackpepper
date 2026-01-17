@@ -115,11 +115,6 @@ fn execute_command(app: &mut App, raw: &str) {
         return;
     }
 
-    if parsed.name == "rename" {
-        handle_rename_command(app, &parsed.name, &parsed.args);
-        return;
-    }
-
     if parsed.name == "refresh" {
         handle_refresh_command(app, &parsed.args);
         return;
@@ -140,9 +135,10 @@ fn execute_command(app: &mut App, raw: &str) {
 
 fn handle_workspace_command(app: &mut App, args: &[String]) {
     let Some(subcommand) = args.first() else {
-        app.set_output("Usage: :workspace <list|switch|create|destroy|setup>".to_string());
+        app.set_output("Usage: :workspace <list|switch|create|destroy|setup|rename>".to_string());
         return;
     };
+
     match subcommand.as_str() {
         "list" => {
             open_workspace_overlay(app);
@@ -161,7 +157,11 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
                 Err(err) => app.set_output(err),
             }
         }
-        "create" | "destroy" | "setup" => {
+        "create" | "destroy" | "setup" | "rename" => {
+            if subcommand == "rename" && app.active_workspace.is_none() {
+                app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
+                return;
+            }
             if (subcommand == "destroy" || subcommand == "setup") && args.len() == 1 {
                 if let Some(active) = app.active_workspace.as_ref() {
                     let mut args = args.to_vec();
@@ -170,10 +170,22 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
                     return;
                 }
             }
+            if subcommand == "rename" && needs_agent_provider_selection_for_rename(app, args) {
+                open_agent_provider_overlay(
+                    app,
+                    PendingCommand {
+                        name: "workspace".to_string(),
+                        args: args.to_vec(),
+                    },
+                );
+                return;
+            }
             start_command(app, "workspace", args.to_vec());
         }
         _ => {
-            app.set_output("Usage: :workspace <list|switch|create|destroy|setup>".to_string());
+            app.set_output(
+                "Usage: :workspace <list|switch|create|destroy|setup|rename>".to_string(),
+            );
         }
     }
 }
@@ -184,24 +196,6 @@ fn handle_pr_command(app: &mut App, name: &str, args: &[String]) {
         return;
     }
     if needs_agent_provider_selection(app, args) {
-        open_agent_provider_overlay(
-            app,
-            PendingCommand {
-                name: name.to_string(),
-                args: args.to_vec(),
-            },
-        );
-        return;
-    }
-    start_command(app, name, args.to_vec());
-}
-
-fn handle_rename_command(app: &mut App, name: &str, args: &[String]) {
-    if app.active_workspace.is_none() {
-        app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
-        return;
-    }
-    if needs_agent_provider_selection_for_rename(app, args) {
         open_agent_provider_overlay(
             app,
             PendingCommand {
@@ -225,7 +219,7 @@ fn needs_agent_provider_selection(app: &App, args: &[String]) -> bool {
 }
 
 fn needs_agent_provider_selection_for_rename(app: &App, args: &[String]) -> bool {
-    if !args.is_empty() {
+    if args.len() > 1 {
         return false;
     }
     app.config.agent.provider.is_none() && app.config.agent.command.is_none()

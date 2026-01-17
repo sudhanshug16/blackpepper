@@ -4,7 +4,7 @@
 List of Conductor features to implement in Blackpepper. No timelines included.
 
 ## Workspace
-- [x] Add a `:rename` command to rename the workspace and its branch.
+- [x] Add a `:workspace rename` command to rename the workspace and its branch.
 - [x] Add workspace setup scripts for bootstrapping non-git files and local setup.
 - Surface setup script completion status (success/failure) in the workspace UI.
 

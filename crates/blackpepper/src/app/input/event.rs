@@ -85,6 +85,20 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
                         }
                         enter_work_mode(app);
                     }
+                    if subcommand == "rename" && result.ok {
+                        if let Some(name) = result.data.as_deref() {
+                            if let Some(old) = app.active_workspace.clone() {
+                                if let Some(session) = app.sessions.remove(&old) {
+                                    app.sessions.insert(name.to_string(), session);
+                                }
+                                app.active_workspace = None;
+                            }
+                            if set_active_workspace(app, name).is_ok() {
+                                app.set_output(format!("Active workspace: {name}"));
+                            }
+                        }
+                        enter_work_mode(app);
+                    }
                     if subcommand == "destroy" && result.ok {
                         if let Some(name) = args.get(1) {
                             app.sessions.remove(name);
@@ -236,5 +250,139 @@ fn handle_input_event(app: &mut App, event: InputEvent) {
             }
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_event;
+    use crate::app::state::{App, WorkspaceSession};
+    use crate::commands::CommandResult;
+    use crate::events::AppEvent;
+    use crate::terminal::TerminalSession;
+    use std::env;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::sync::{mpsc, Mutex};
+    use tempfile::TempDir;
+
+    static STATE_LOCK: Mutex<()> = Mutex::new(());
+
+    struct DirGuard {
+        previous: PathBuf,
+    }
+
+    impl Drop for DirGuard {
+        fn drop(&mut self) {
+            let _ = env::set_current_dir(&self.previous);
+        }
+    }
+
+    fn enter_dir(path: &Path) -> DirGuard {
+        let previous = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        env::set_current_dir(path).expect("set current dir");
+        DirGuard { previous }
+    }
+
+    fn with_state_path<T>(path: &Path, action: impl FnOnce() -> T) -> T {
+        let _guard = STATE_LOCK.lock().expect("state lock");
+        let key = "BLACKPEPPER_STATE_PATH";
+        let previous = env::var(key).ok();
+        env::set_var(key, path);
+        let result = action();
+        match previous {
+            Some(value) => env::set_var(key, value),
+            None => env::remove_var(key),
+        }
+        result
+    }
+
+    fn run_git_cmd(args: &[&str], cwd: &Path) {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .env("GIT_AUTHOR_NAME", "Test User")
+            .env("GIT_AUTHOR_EMAIL", "test@example.com")
+            .env("GIT_COMMITTER_NAME", "Test User")
+            .env("GIT_COMMITTER_EMAIL", "test@example.com")
+            .status()
+            .expect("run git");
+        assert!(status.success(), "git {:?} failed", args);
+    }
+
+    fn init_repo() -> TempDir {
+        let repo = TempDir::new().expect("temp repo");
+        run_git_cmd(&["init", "-b", "main"], repo.path());
+        fs::write(repo.path().join("README.md"), "hello").expect("write file");
+        run_git_cmd(&["add", "."], repo.path());
+        run_git_cmd(&["commit", "-m", "init"], repo.path());
+        repo
+    }
+
+    fn add_worktree(repo: &Path, path: &Path, branch: &str) {
+        run_git_cmd(
+            &["worktree", "add", "-b", branch, path.to_str().unwrap()],
+            repo,
+        );
+    }
+
+    fn spawn_stub_session(tx: mpsc::Sender<AppEvent>, cwd: &Path) -> TerminalSession {
+        let (shell, args) = if cfg!(windows) {
+            ("cmd", vec!["/C".to_string(), "exit 0".to_string()])
+        } else {
+            ("sh", vec!["-c".to_string(), "exit 0".to_string()])
+        };
+        TerminalSession::spawn(1, shell, &args, cwd, 24, 80, (255, 255, 255), (0, 0, 0), tx)
+            .expect("spawn stub session")
+    }
+
+    #[test]
+    fn workspace_rename_switches_active_workspace() {
+        let repo = init_repo();
+        let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
+        let workspace_root = repo_root.join(".blackpepper/workspaces");
+        fs::create_dir_all(&workspace_root).expect("workspace root");
+        let new_path = workspace_root.join("new");
+        add_worktree(&repo_root, &new_path, "new");
+        let state_path = repo_root.join("state.toml");
+        let config_path = repo_root
+            .join(".config")
+            .join("blackpepper")
+            .join("config.toml");
+        fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
+        fs::write(
+            &config_path,
+            "[workspace]\nroot = \".blackpepper/workspaces\"\n",
+        )
+        .expect("write config");
+        let _guard = enter_dir(&repo_root);
+
+        with_state_path(&state_path, || {
+            let (tx, _rx) = mpsc::channel();
+            let mut app = App::new(tx.clone());
+            app.repo_root = Some(repo_root.clone());
+            app.cwd = repo_root.clone();
+            app.active_workspace = Some("old".to_string());
+            let session = spawn_stub_session(tx, repo.path());
+            app.sessions
+                .insert("old".to_string(), WorkspaceSession { terminal: session });
+
+            let result = CommandResult {
+                ok: true,
+                message: "Renamed workspace".to_string(),
+                data: Some("new".to_string()),
+            };
+            let event = AppEvent::CommandDone {
+                name: "workspace".to_string(),
+                args: vec!["rename".to_string(), "new".to_string()],
+                result,
+            };
+            handle_event(&mut app, event);
+
+            assert_eq!(app.active_workspace.as_deref(), Some("new"));
+            assert!(app.sessions.contains_key("new"));
+            assert!(!app.sessions.contains_key("old"));
+        });
     }
 }

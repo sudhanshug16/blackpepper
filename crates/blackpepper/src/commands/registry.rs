@@ -14,7 +14,6 @@ pub struct CommandSpec {
 /// Top-level command names (first word after `:`).
 pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "workspace",
-    "rename",
     "pr",
     "refresh",
     "init",
@@ -53,7 +52,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         cli_exposed: true,
     },
     CommandSpec {
-        name: "rename",
+        name: "workspace rename",
         description: "Rename the active workspace and branch",
         cli_exposed: true,
     },
