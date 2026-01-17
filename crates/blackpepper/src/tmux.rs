@@ -40,6 +40,11 @@ pub fn client_command(config: &TmuxConfig, session: &str, cwd: &Path) -> (String
         "-gq".to_string(),
         "extended-keys".to_string(),
         "on".to_string(),
+        ";".to_string(),
+        "set-option".to_string(),
+        "-gq".to_string(),
+        "allow-passthrough".to_string(),
+        "on".to_string(),
     ]);
     if let Some(term) = truecolor_term() {
         args.extend([

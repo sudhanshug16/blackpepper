@@ -11,11 +11,14 @@
 
 use std::io::{self, Read, Write};
 use std::path::Path;
+#[cfg(target_os = "macos")]
+use std::process::Command;
 use std::sync::mpsc::Sender;
 use std::thread;
 
 use arboard::Clipboard;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+#[cfg(not(target_os = "macos"))]
 use notify_rust::Notification;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use vt100::Parser;
@@ -248,7 +251,7 @@ impl TerminalSession {
             let text = String::from_utf8_lossy(message).trim().to_string();
             if !text.is_empty() {
                 let summary = format!("[bp] {}", self.workspace_name);
-                let _ = Notification::new().summary(&summary).body(&text).show();
+                send_notification(&summary, &text);
             }
             return;
         }
@@ -288,6 +291,31 @@ fn write_to_stdout(bytes: &[u8]) {
     if stdout.write_all(bytes).is_ok() {
         let _ = stdout.flush();
     }
+}
+
+#[cfg(target_os = "macos")]
+fn send_notification(summary: &str, body: &str) {
+    let summary = escape_osascript(summary);
+    let body = escape_osascript(body);
+    let script = format!(
+        "display notification \"{}\" with title \"{}\"",
+        body, summary
+    );
+    let _ = Command::new("osascript").arg("-e").arg(script).status();
+}
+
+#[cfg(target_os = "macos")]
+fn escape_osascript(input: &str) -> String {
+    input
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+}
+
+#[cfg(not(target_os = "macos"))]
+fn send_notification(summary: &str, body: &str) {
+    let _ = Notification::new().summary(summary).body(body).show();
 }
 
 fn osc_color_response(kind: u8, rgb: (u8, u8, u8)) -> Vec<u8> {
