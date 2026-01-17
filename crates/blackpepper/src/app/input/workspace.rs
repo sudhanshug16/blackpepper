@@ -142,6 +142,7 @@ fn spawn_workspace_session(
     let (command, args) = tmux::client_command(&app.config.tmux, &session_name, &app.cwd);
     let session = TerminalSession::spawn(
         app.terminal_seq,
+        workspace,
         &command,
         &args,
         &app.cwd,

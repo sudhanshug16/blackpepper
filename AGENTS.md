@@ -66,6 +66,11 @@ with an embedded shell per workspace.
 - Prefer stdlib; use `portable-pty` for PTY access and `vt100` (or equivalent) for ANSI parsing when rendering terminals.
 - Avoid shelling out unless necessary; centralize git/worktree calls.
 
+## Terminal Transparency Principle
+
+- In work mode, Blackpepper is a transparent layer for tmux. Do not implement selection, copy, scrollback search, or other terminal UX that tmux already provides.
+- Handle OSC 52 so tmux copy-mode writes to the system clipboard.
+
 ## Configuration & Secrets
 
 - Config resolution order: workspace-local `.config/blackpepper/config.toml`, then user-level `~/.config/blackpepper/config.toml`.

@@ -333,8 +333,19 @@ mod tests {
         } else {
             ("sh", vec!["-c".to_string(), "exit 0".to_string()])
         };
-        TerminalSession::spawn(1, shell, &args, cwd, 24, 80, (255, 255, 255), (0, 0, 0), tx)
-            .expect("spawn stub session")
+        TerminalSession::spawn(
+            1,
+            "test",
+            shell,
+            &args,
+            cwd,
+            24,
+            80,
+            (255, 255, 255),
+            (0, 0, 0),
+            tx,
+        )
+        .expect("spawn stub session")
     }
 
     #[test]

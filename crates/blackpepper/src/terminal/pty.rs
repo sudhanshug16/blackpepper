@@ -9,11 +9,14 @@
 //! The session owns the PTY master, writer, and vt100 parser.
 //! Output is sent to the app via AppEvent::PtyOutput.
 
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::path::Path;
 use std::sync::mpsc::Sender;
 use std::thread;
 
+use arboard::Clipboard;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use notify_rust::Notification;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use vt100::Parser;
 
@@ -28,6 +31,7 @@ use super::render::render_lines;
 /// correct tab. The session manages its own vt100 parser for screen state.
 pub struct TerminalSession {
     id: u64,
+    workspace_name: String,
     parser: Parser,
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
@@ -46,6 +50,7 @@ impl TerminalSession {
     /// via the provided channel. Returns an error if PTY creation fails.
     pub fn spawn(
         id: u64,
+        workspace_name: &str,
         shell: &str,
         args: &[String],
         cwd: &Path,
@@ -103,6 +108,7 @@ impl TerminalSession {
 
         Ok(Self {
             id,
+            workspace_name: workspace_name.to_string(),
             parser: Parser::new(rows.max(1), cols.max(1), 1000),
             writer,
             master: pair.master,
@@ -121,7 +127,7 @@ impl TerminalSession {
 
     /// Process bytes received from PTY output.
     pub fn process_bytes(&mut self, bytes: &[u8]) {
-        self.respond_to_color_queries(bytes);
+        self.respond_to_osc(bytes);
         self.parser.process(bytes);
     }
 
@@ -163,7 +169,7 @@ impl TerminalSession {
         InputModes::from_screen(self.parser.screen())
     }
 
-    fn respond_to_color_queries(&mut self, bytes: &[u8]) {
+    fn respond_to_osc(&mut self, bytes: &[u8]) {
         if bytes.is_empty() {
             return;
         }
@@ -212,6 +218,9 @@ impl TerminalSession {
                     return;
                 }
             } else {
+                if bytes[idx] == 0x07 {
+                    write_to_stdout(&[0x07]);
+                }
                 idx += 1;
             }
         }
@@ -220,9 +229,64 @@ impl TerminalSession {
     fn maybe_reply_to_osc(&mut self, body: &[u8]) {
         if body.starts_with(b"10;?") {
             self.write_bytes(&osc_color_response(10, self.default_fg));
-        } else if body.starts_with(b"11;?") {
-            self.write_bytes(&osc_color_response(11, self.default_bg));
+            return;
         }
+        if body.starts_with(b"11;?") {
+            self.write_bytes(&osc_color_response(11, self.default_bg));
+            return;
+        }
+        if body.starts_with(b"0;") || body.starts_with(b"2;") {
+            write_to_stdout(b"\x1b]");
+            write_to_stdout(body);
+            write_to_stdout(b"\x07");
+            return;
+        }
+        if let Some(message) = body
+            .strip_prefix(b"9;")
+            .or_else(|| body.strip_prefix(b"777;"))
+        {
+            let text = String::from_utf8_lossy(message).trim().to_string();
+            if !text.is_empty() {
+                let summary = format!("[bp] {}", self.workspace_name);
+                let _ = Notification::new().summary(&summary).body(&text).show();
+            }
+            return;
+        }
+        if let Some(rest) = body.strip_prefix(b"52;") {
+            let mut parts = rest.splitn(2, |byte| *byte == b';');
+            let target = parts.next().unwrap_or_default();
+            let payload = parts.next().unwrap_or_default();
+            if payload == b"?" {
+                if let Ok(mut clipboard) = Clipboard::new() {
+                    if let Ok(text) = clipboard.get_text() {
+                        let target = if target.is_empty() {
+                            b"c".as_ref()
+                        } else {
+                            target
+                        };
+                        let encoded = STANDARD.encode(text.as_bytes());
+                        let response = format!(
+                            "\x1b]52;{};{}\x07",
+                            String::from_utf8_lossy(target),
+                            encoded
+                        );
+                        self.write_bytes(response.as_bytes());
+                    }
+                }
+            } else if let Ok(decoded) = STANDARD.decode(payload) {
+                let text = String::from_utf8_lossy(&decoded).to_string();
+                if let Ok(mut clipboard) = Clipboard::new() {
+                    let _ = clipboard.set_text(text);
+                }
+            }
+        }
+    }
+}
+
+fn write_to_stdout(bytes: &[u8]) {
+    let mut stdout = io::stdout();
+    if stdout.write_all(bytes).is_ok() {
+        let _ = stdout.flush();
     }
 }
 
