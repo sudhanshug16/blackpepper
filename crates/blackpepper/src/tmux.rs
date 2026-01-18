@@ -108,6 +108,8 @@ pub fn ensure_session_layout(
     }
 
     set_environment(config, session, env)?;
+    // Focus the first tab
+    select_window(config, &format!("{session}:1"))?;
     Ok(true)
 }
 
@@ -190,6 +192,18 @@ pub fn rename_window(config: &TmuxConfig, target: &str, name: &str) -> Result<()
     } else {
         Err(format!(
             "Failed to rename tmux window '{target}' to '{name}'.{}",
+            format_output(&output)
+        ))
+    }
+}
+
+pub fn select_window(config: &TmuxConfig, target: &str) -> Result<(), String> {
+    let output = run_tmux(config, &["select-window", "-t", target])?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Failed to select tmux window '{target}'.{}",
             format_output(&output)
         ))
     }
@@ -396,8 +410,10 @@ fn tab_command_args(command: Option<&str>) -> Option<Vec<String>> {
             command.to_string(),
         ])
     } else {
-        let body = format!("set -e; {command}; exec \"${{SHELL:-sh}}\"");
-        Some(vec!["sh".to_string(), "-lc".to_string(), body])
+        // Use user's shell with login + interactive flags to source .zshrc/.bashrc
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
+        let body = format!("{command}; exec \"${{SHELL:-sh}}\"");
+        Some(vec![shell, "-lic".to_string(), body])
     }
 }
 

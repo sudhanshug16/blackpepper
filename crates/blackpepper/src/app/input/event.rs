@@ -227,7 +227,6 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
                     app.set_mode(Mode::Manage);
                 }
                 MatchedChord::Switch => {
-                    app.set_mode(Mode::Manage);
                     open_workspace_overlay(app);
                 }
                 MatchedChord::None => {}
