@@ -214,7 +214,9 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
                 }
             }
             if toggled {
+                // Toggle chord in work mode opens workspace switcher
                 app.set_mode(Mode::Manage);
+                open_workspace_overlay(app);
             }
         }
     }

@@ -13,8 +13,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const DEFAULT_TOGGLE_MODE: &str = "ctrl+]";
-const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+p";
+const DEFAULT_TOGGLE_MODE: &str = "ctrl+\\";
+const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+\\";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
 const DEFAULT_TMUX_COMMAND: &str = "tmux";
 const DEFAULT_GIT_REMOTE: &str = "origin";
