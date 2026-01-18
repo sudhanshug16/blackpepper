@@ -16,11 +16,11 @@ vt100 = "0.16.2"
 termwiz = "0.23.3"
 serde = { version = "1.0.228", features = ["derive"] }
 indexmap = { version = "2", features = ["serde"] }
-toml = { version = "0.9.10", features = ["preserve_order"] }
+toml = { version = "0.9.11", features = ["preserve_order"] }
 dirs = "6.0.0"
 notify = "8.2.0"
 serde_json = "1.0.149"
-libc = "0.2.179"
+libc = "0.2.180"
 arboard = "3"
 base64 = "0.22"
 notify-rust = "4"
