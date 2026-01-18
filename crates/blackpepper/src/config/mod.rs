@@ -54,6 +54,7 @@ pub struct TmuxTabConfig {
 pub struct WorkspaceConfig {
     pub root: PathBuf,
     pub setup_scripts: Vec<String>,
+    pub env: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone)]
@@ -113,6 +114,7 @@ struct RawTmuxTab {
 struct RawWorkspace {
     root: Option<String>,
     setup: Option<RawWorkspaceSetup>,
+    env: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -201,6 +203,17 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
                 .and_then(|setup| setup.scripts.clone())
         })
         .unwrap_or_default();
+    // Merge env vars: user config first, then workspace overrides
+    let workspace_env: Vec<(String, String)> = {
+        let mut env = BTreeMap::new();
+        if let Some(user_env) = user_workspace.and_then(|w| w.env.as_ref()) {
+            env.extend(user_env.clone());
+        }
+        if let Some(ws_env) = workspace_workspace.and_then(|w| w.env.as_ref()) {
+            env.extend(ws_env.clone());
+        }
+        env.into_iter().collect()
+    };
     let agent_provider = workspace_agent
         .and_then(|agent| agent.provider.clone())
         .or_else(|| user_agent.and_then(|agent| agent.provider.clone()));
@@ -239,6 +252,7 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         workspace: WorkspaceConfig {
             root: PathBuf::from(workspace_root),
             setup_scripts: workspace_setup_scripts,
+            env: workspace_env,
         },
         git: GitConfig { remote: git_remote },
         agent: AgentConfig {

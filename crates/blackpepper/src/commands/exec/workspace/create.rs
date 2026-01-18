@@ -10,6 +10,16 @@ use std::collections::HashSet;
 use super::super::{CommandContext, CommandResult};
 use super::helpers::{branch_exists, format_exec_output, pick_unused_animal_name};
 
+/// Expand `$VAR` and `${VAR}` references in a string using the provided env vars.
+fn expand_env_vars(template: &str, env: &[(String, String)]) -> String {
+    let mut result = template.to_string();
+    for (key, value) in env {
+        result = result.replace(&format!("${{{key}}}"), value);
+        result = result.replace(&format!("${key}"), value);
+    }
+    result
+}
+
 /// Create a new workspace worktree.
 pub(crate) fn workspace_create(args: &[String], ctx: &CommandContext) -> CommandResult {
     let repo_root = ctx
@@ -203,7 +213,16 @@ pub(crate) fn workspace_setup(args: &[String], ctx: &CommandContext) -> CommandR
             };
         }
     };
-    let env = crate::state::workspace_port_env(workspace_ports);
+    let mut env = crate::state::workspace_port_env(workspace_ports);
+    env.push((
+        "BLACKPEPPER_REPO_ROOT".to_string(),
+        repo_root.to_string_lossy().to_string(),
+    ));
+    // Add workspace-defined env vars with variable expansion
+    for (key, value) in &config.workspace.env {
+        let expanded = expand_env_vars(value, &env);
+        env.push((key.clone(), expanded));
+    }
     let created = match tmux::ensure_session_layout(
         &config.tmux,
         &session_name,

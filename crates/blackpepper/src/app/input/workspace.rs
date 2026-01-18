@@ -12,6 +12,17 @@ use crate::app::state::{App, Mode, WorkspaceSession};
 
 use super::NO_ACTIVE_WORKSPACE_HINT;
 
+/// Expand `$VAR` and `${VAR}` references in a string using the provided env vars.
+fn expand_env_vars(template: &str, env: &[(String, String)]) -> String {
+    let mut result = template.to_string();
+    for (key, value) in env {
+        // Replace ${VAR} and $VAR patterns
+        result = result.replace(&format!("${{{key}}}"), value);
+        result = result.replace(&format!("${key}"), value);
+    }
+    result
+}
+
 pub(super) fn prune_missing_active_workspace(app: &mut App, names: &[String]) {
     let Some(root) = app.repo_root.as_ref() else {
         return;
@@ -129,7 +140,16 @@ fn spawn_workspace_session(
     });
     let workspace_ports = ensure_workspace_ports(&app.cwd)
         .map_err(|err| format!("Failed to allocate workspace ports: {err}"))?;
-    let env = workspace_port_env(workspace_ports);
+    let mut env = workspace_port_env(workspace_ports);
+    env.push((
+        "BLACKPEPPER_REPO_ROOT".to_string(),
+        repo_root.to_string_lossy().to_string(),
+    ));
+    // Add workspace-defined env vars with variable expansion
+    for (key, value) in &app.config.workspace.env {
+        let expanded = expand_env_vars(value, &env);
+        env.push((key.clone(), expanded));
+    }
     tmux::ensure_session_layout(
         &app.config.tmux,
         &session_name,
