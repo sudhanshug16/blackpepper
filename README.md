@@ -126,6 +126,24 @@ RGB colors. To support TUIs that query default colors (OSC 10/11), Blackpepper
 responds with the configured `[ui]` background/foreground. Customize the tmux
 command with `[tmux]`.
 
+## Tmux Clipboard and Notifications
+
+Blackpepper is a transparent layer for tmux in work mode. Clipboard integration
+relies on tmux copy-mode emitting OSC 52, so ensure `set-clipboard on` is enabled
+in your tmux config. Blackpepper enables `allow-passthrough` for its sessions so
+OSC notifications reach your host terminal.
+
+Test a notification from a tmux pane:
+
+```sh
+printf '\033Ptmux;\033\033]9;Build done\007\033\\'
+```
+
+Cross-platform notes:
+
+- OSC 52 clipboard works when a GUI clipboard is available (macOS/Windows/Linux with X11 or Wayland); headless sessions ignore clipboard requests.
+- Notifications use `osascript` on macOS and `notify-rust` on Linux/Windows; on Linux this requires a running D-Bus notification daemon.
+
 ## Modes
 
 - Work mode is raw input passthrough to tmux; only the toggle sequences are intercepted.

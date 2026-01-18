@@ -9,19 +9,35 @@
 //! The session owns the PTY master, writer, and vt100 parser.
 //! Output is sent to the app via AppEvent::PtyOutput.
 
-use std::io::{self, Read, Write};
+#[cfg(not(test))]
+use std::io;
+use std::io::{Read, Write};
 use std::path::Path;
-#[cfg(target_os = "macos")]
+#[cfg(all(not(test), target_os = "macos"))]
 use std::process::Command;
 use std::sync::mpsc::Sender;
+#[cfg(test)]
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 
+#[cfg(not(test))]
 use arboard::Clipboard;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(test), not(target_os = "macos")))]
 use notify_rust::Notification;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use vt100::Parser;
+
+#[cfg(test)]
+static TEST_STDOUT: OnceLock<Arc<Mutex<Vec<u8>>>> = OnceLock::new();
+#[cfg(test)]
+static TEST_NOTIFICATIONS: OnceLock<Arc<Mutex<Vec<(String, String)>>>> = OnceLock::new();
+#[cfg(test)]
+static TEST_CLIPBOARD: OnceLock<Arc<Mutex<Option<String>>>> = OnceLock::new();
+#[cfg(test)]
+static TEST_PTY_WRITES: OnceLock<Arc<Mutex<Vec<u8>>>> = OnceLock::new();
+#[cfg(test)]
+static TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 use crate::events::AppEvent;
 
@@ -157,6 +173,14 @@ impl TerminalSession {
         if bytes.is_empty() {
             return;
         }
+        #[cfg(test)]
+        {
+            let buffer = TEST_PTY_WRITES.get_or_init(|| Arc::new(Mutex::new(Vec::new())));
+            buffer
+                .lock()
+                .expect("test pty writes")
+                .extend_from_slice(bytes);
+        }
         if self.writer.write_all(bytes).is_ok() {
             let _ = self.writer.flush();
         }
@@ -260,32 +284,29 @@ impl TerminalSession {
             let target = parts.next().unwrap_or_default();
             let payload = parts.next().unwrap_or_default();
             if payload == b"?" {
-                if let Ok(mut clipboard) = Clipboard::new() {
-                    if let Ok(text) = clipboard.get_text() {
-                        let target = if target.is_empty() {
-                            b"c".as_ref()
-                        } else {
-                            target
-                        };
-                        let encoded = STANDARD.encode(text.as_bytes());
-                        let response = format!(
-                            "\x1b]52;{};{}\x07",
-                            String::from_utf8_lossy(target),
-                            encoded
-                        );
-                        self.write_bytes(response.as_bytes());
-                    }
+                if let Some(text) = clipboard_get_text() {
+                    let target = if target.is_empty() {
+                        b"c".as_ref()
+                    } else {
+                        target
+                    };
+                    let encoded = STANDARD.encode(text.as_bytes());
+                    let response = format!(
+                        "\x1b]52;{};{}\x07",
+                        String::from_utf8_lossy(target),
+                        encoded
+                    );
+                    self.write_bytes(response.as_bytes());
                 }
             } else if let Ok(decoded) = STANDARD.decode(payload) {
                 let text = String::from_utf8_lossy(&decoded).to_string();
-                if let Ok(mut clipboard) = Clipboard::new() {
-                    let _ = clipboard.set_text(text);
-                }
+                clipboard_set_text(text);
             }
         }
     }
 }
 
+#[cfg(not(test))]
 fn write_to_stdout(bytes: &[u8]) {
     let mut stdout = io::stdout();
     if stdout.write_all(bytes).is_ok() {
@@ -293,7 +314,13 @@ fn write_to_stdout(bytes: &[u8]) {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(test)]
+fn write_to_stdout(bytes: &[u8]) {
+    let buffer = TEST_STDOUT.get_or_init(|| Arc::new(Mutex::new(Vec::new())));
+    buffer.lock().expect("test stdout").extend_from_slice(bytes);
+}
+
+#[cfg(all(not(test), target_os = "macos"))]
 fn send_notification(summary: &str, body: &str) {
     let summary = escape_osascript(summary);
     let body = escape_osascript(body);
@@ -304,7 +331,7 @@ fn send_notification(summary: &str, body: &str) {
     let _ = Command::new("osascript").arg("-e").arg(script).status();
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(not(test), target_os = "macos"))]
 fn escape_osascript(input: &str) -> String {
     input
         .replace('\\', "\\\\")
@@ -313,9 +340,50 @@ fn escape_osascript(input: &str) -> String {
         .replace('\r', "\\r")
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(test), not(target_os = "macos")))]
 fn send_notification(summary: &str, body: &str) {
     let _ = Notification::new().summary(summary).body(body).show();
+}
+
+#[cfg(test)]
+fn send_notification(summary: &str, body: &str) {
+    let buffer = TEST_NOTIFICATIONS.get_or_init(|| Arc::new(Mutex::new(Vec::new())));
+    buffer
+        .lock()
+        .expect("test notifications")
+        .push((summary.to_string(), body.to_string()));
+}
+
+#[cfg(not(test))]
+fn clipboard_get_text() -> Option<String> {
+    if let Ok(mut clipboard) = Clipboard::new() {
+        if let Ok(text) = clipboard.get_text() {
+            return Some(text);
+        }
+    }
+    None
+}
+
+#[cfg(not(test))]
+fn clipboard_set_text(text: String) {
+    if let Ok(mut clipboard) = Clipboard::new() {
+        let _ = clipboard.set_text(text);
+    }
+}
+
+#[cfg(test)]
+fn clipboard_get_text() -> Option<String> {
+    TEST_CLIPBOARD
+        .get_or_init(|| Arc::new(Mutex::new(None)))
+        .lock()
+        .expect("test clipboard")
+        .clone()
+}
+
+#[cfg(test)]
+fn clipboard_set_text(text: String) {
+    let buffer = TEST_CLIPBOARD.get_or_init(|| Arc::new(Mutex::new(None)));
+    *buffer.lock().expect("test clipboard") = Some(text);
 }
 
 fn osc_color_response(kind: u8, rgb: (u8, u8, u8)) -> Vec<u8> {
@@ -327,4 +395,176 @@ fn osc_color_response(kind: u8, rgb: (u8, u8, u8)) -> Vec<u8> {
         to_16(rgb.2)
     )
     .into_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    fn test_guard() -> std::sync::MutexGuard<'static, ()> {
+        TEST_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("test lock")
+    }
+
+    fn reset_buffers() {
+        TEST_STDOUT
+            .get_or_init(|| Arc::new(Mutex::new(Vec::new())))
+            .lock()
+            .expect("test stdout")
+            .clear();
+        TEST_NOTIFICATIONS
+            .get_or_init(|| Arc::new(Mutex::new(Vec::new())))
+            .lock()
+            .expect("test notifications")
+            .clear();
+        TEST_PTY_WRITES
+            .get_or_init(|| Arc::new(Mutex::new(Vec::new())))
+            .lock()
+            .expect("test pty writes")
+            .clear();
+        *TEST_CLIPBOARD
+            .get_or_init(|| Arc::new(Mutex::new(None)))
+            .lock()
+            .expect("test clipboard") = None;
+    }
+
+    fn take_stdout() -> Vec<u8> {
+        let buffer = TEST_STDOUT.get_or_init(|| Arc::new(Mutex::new(Vec::new())));
+        let mut guard = buffer.lock().expect("test stdout");
+        let data = guard.clone();
+        guard.clear();
+        data
+    }
+
+    fn take_notifications() -> Vec<(String, String)> {
+        let buffer = TEST_NOTIFICATIONS.get_or_init(|| Arc::new(Mutex::new(Vec::new())));
+        let mut guard = buffer.lock().expect("test notifications");
+        let data = guard.clone();
+        guard.clear();
+        data
+    }
+
+    fn take_pty_writes() -> Vec<u8> {
+        let buffer = TEST_PTY_WRITES.get_or_init(|| Arc::new(Mutex::new(Vec::new())));
+        let mut guard = buffer.lock().expect("test pty writes");
+        let data = guard.clone();
+        guard.clear();
+        data
+    }
+
+    fn set_clipboard(value: Option<&str>) {
+        let buffer = TEST_CLIPBOARD.get_or_init(|| Arc::new(Mutex::new(None)));
+        *buffer.lock().expect("test clipboard") = value.map(str::to_string);
+    }
+
+    fn get_clipboard() -> Option<String> {
+        TEST_CLIPBOARD
+            .get_or_init(|| Arc::new(Mutex::new(None)))
+            .lock()
+            .expect("test clipboard")
+            .clone()
+    }
+
+    #[cfg(windows)]
+    fn test_command() -> (String, Vec<String>) {
+        let shell = std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string());
+        let args = vec!["/C".to_string(), "exit".to_string()];
+        (shell, args)
+    }
+
+    #[cfg(not(windows))]
+    fn test_command() -> (String, Vec<String>) {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
+        let args = vec!["-c".to_string(), "true".to_string()];
+        (shell, args)
+    }
+
+    fn spawn_test_session() -> TerminalSession {
+        let (shell, args) = test_command();
+        let (tx, _rx) = mpsc::channel();
+        TerminalSession::spawn(
+            1,
+            "test-workspace",
+            &shell,
+            &args,
+            &std::env::current_dir().expect("current dir"),
+            24,
+            80,
+            (255, 255, 255),
+            (0, 0, 0),
+            tx,
+        )
+        .expect("spawn test session")
+    }
+
+    #[test]
+    fn osc_52_write_sets_clipboard() {
+        let _guard = test_guard();
+        reset_buffers();
+        let mut session = spawn_test_session();
+
+        let payload = STANDARD.encode("hello".as_bytes());
+        let sequence = format!("\x1b]52;c;{}\x07", payload);
+        session.process_bytes(sequence.as_bytes());
+
+        assert_eq!(get_clipboard(), Some("hello".to_string()));
+    }
+
+    #[test]
+    fn osc_52_read_writes_response() {
+        let _guard = test_guard();
+        reset_buffers();
+        set_clipboard(Some("clip"));
+        let mut session = spawn_test_session();
+
+        session.process_bytes(b"\x1b]52;c;?\x07");
+
+        let encoded = STANDARD.encode("clip".as_bytes());
+        let expected = format!("\x1b]52;c;{}\x07", encoded);
+        assert_eq!(take_pty_writes(), expected.as_bytes());
+    }
+
+    #[test]
+    fn osc_notifications_accept_9_and_777() {
+        let _guard = test_guard();
+        reset_buffers();
+        let mut session = spawn_test_session();
+
+        session.process_bytes(b"\x1b]9;Build done\x07");
+        session.process_bytes(b"\x1b]777;Deploy done\x07");
+
+        let notifications = take_notifications();
+        assert_eq!(
+            notifications,
+            vec![
+                ("[bp] test-workspace".to_string(), "Build done".to_string()),
+                ("[bp] test-workspace".to_string(), "Deploy done".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn osc_title_passthrough() {
+        let _guard = test_guard();
+        reset_buffers();
+        let mut session = spawn_test_session();
+
+        session.process_bytes(b"\x1b]0;Title\x07");
+
+        assert_eq!(take_stdout(), b"\x1b]0;Title\x07");
+    }
+
+    #[test]
+    fn bell_passthrough() {
+        let _guard = test_guard();
+        reset_buffers();
+        let mut session = spawn_test_session();
+
+        session.process_bytes(b"\x07");
+
+        assert_eq!(take_stdout(), vec![0x07]);
+    }
 }
