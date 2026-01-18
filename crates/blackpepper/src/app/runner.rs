@@ -26,7 +26,7 @@ use crate::keymap::parse_key_chord;
 use crate::repo_status::{spawn_repo_status_worker, RepoStatus, RepoStatusSignal};
 use crate::state::{get_active_workspace, load_state, remove_active_workspace};
 use crate::terminal::InputModes;
-use crate::workspaces::{list_workspace_names, workspace_name_from_path};
+use crate::workspaces::{list_workspace_names, prune_stale_workspaces, workspace_name_from_path};
 
 use super::state::{App, CommandOverlay, Mode, PromptOverlay, WorkspaceOverlay};
 
@@ -118,6 +118,11 @@ impl App {
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
         let input_decoder = InputDecoder::new(toggle_chord.clone());
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
+
+        // Prune stale bp.* worktrees on startup
+        if let Some(root) = repo_root.as_ref() {
+            let _ = prune_stale_workspaces(root, &config.workspace.root);
+        }
 
         // Restore previous workspace if available.
         let mut active_workspace = None;

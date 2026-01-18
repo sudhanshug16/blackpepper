@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::animals::ANIMAL_NAMES;
 use crate::git::{run_git, ExecResult};
-use crate::workspaces::is_valid_workspace_name;
+use crate::workspaces::{is_valid_workspace_name, WORKSPACE_PREFIX};
 
 pub(super) fn format_exec_output(result: &ExecResult) -> String {
     let stdout = result.stdout.trim();
@@ -31,6 +31,7 @@ pub(super) fn branch_exists(repo_root: &Path, name: &str) -> bool {
     result.ok
 }
 
+/// Normalize a raw name to a valid workspace name with bp. prefix.
 pub(super) fn normalize_workspace_name(raw: &str) -> String {
     let mut out = String::new();
     let mut last_dash = false;
@@ -49,7 +50,16 @@ pub(super) fn normalize_workspace_name(raw: &str) -> String {
             last_dash = true;
         }
     }
-    out.trim_matches('-').to_string()
+    let normalized = out.trim_matches('-').to_string();
+    if normalized.is_empty() {
+        return normalized;
+    }
+    // Add bp. prefix if not already present
+    if normalized.starts_with(WORKSPACE_PREFIX) {
+        normalized
+    } else {
+        format!("{WORKSPACE_PREFIX}{normalized}")
+    }
 }
 
 pub(crate) fn unique_animal_names() -> Vec<String> {
@@ -67,7 +77,12 @@ pub(crate) fn unique_animal_names() -> Vec<String> {
 }
 
 pub(crate) fn pick_unused_animal_name(used: &HashSet<String>) -> Option<String> {
-    let unused: Vec<String> = unique_animal_names()
+    // Generate prefixed names (bp.otter, bp.lynx, etc.)
+    let prefixed_names: Vec<String> = unique_animal_names()
+        .into_iter()
+        .map(|name| format!("{WORKSPACE_PREFIX}{name}"))
+        .collect();
+    let unused: Vec<String> = prefixed_names
         .into_iter()
         .filter(|name| !used.contains(name))
         .collect();

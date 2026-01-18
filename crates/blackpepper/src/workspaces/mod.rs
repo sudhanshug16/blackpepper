@@ -6,6 +6,10 @@
 //! - Name validation (lowercase + dashes only)
 //! - Listing existing workspaces via git worktree
 //! - Extracting workspace names from paths
+//! - Pruning stale worktrees
+//!
+//! Workspace names are prefixed with `bp.` so blackpepper can identify
+//! and safely prune its own stale worktrees on startup.
 //!
 //! The actual worktree creation/deletion is in commands/exec.rs.
 
@@ -14,7 +18,12 @@ use std::path::{Path, PathBuf};
 
 use crate::git::run_git;
 
+/// Prefix for all blackpepper workspace names.
+pub const WORKSPACE_PREFIX: &str = "bp.";
+
 pub fn is_valid_workspace_name(name: &str) -> bool {
+    // Allow bp.* prefix
+    let name = name.strip_prefix(WORKSPACE_PREFIX).unwrap_or(name);
     let mut chars = name.chars();
     let Some(first) = chars.next() else {
         return false;
@@ -98,6 +107,54 @@ pub fn workspace_name_from_path(
     } else {
         Some(name.to_string())
     }
+}
+
+/// Prune stale blackpepper worktrees (those with `bp.` prefix whose directories no longer exist).
+///
+/// This is safe because we only prune worktrees that:
+/// 1. Have the `bp.` prefix (created by blackpepper)
+/// 2. Have directories that no longer exist on disk
+///
+/// Returns the names of pruned worktrees.
+pub fn prune_stale_workspaces(repo_root: &Path, workspace_root: &Path) -> Vec<String> {
+    let result = run_git(["worktree", "list", "--porcelain"].as_ref(), repo_root);
+    if !result.ok {
+        return Vec::new();
+    }
+
+    let root = workspace_root_path(repo_root, workspace_root);
+    let mut pruned = Vec::new();
+
+    for line in result.stdout.lines() {
+        let line = line.trim();
+        if let Some(worktree_path) = line.strip_prefix("worktree ") {
+            let path = Path::new(worktree_path);
+            // Only consider worktrees under our workspace root
+            if !path.starts_with(&root) {
+                continue;
+            }
+            // Extract workspace name
+            if let Some(name) = workspace_name_from_path(repo_root, workspace_root, path) {
+                // Only prune bp.* workspaces
+                if !name.starts_with(WORKSPACE_PREFIX) {
+                    continue;
+                }
+                // Check if directory exists
+                if !path.exists() {
+                    // Prune this stale worktree
+                    let prune_result = run_git(
+                        ["worktree", "remove", "--force", worktree_path].as_ref(),
+                        repo_root,
+                    );
+                    if prune_result.ok {
+                        pruned.push(name);
+                    }
+                }
+            }
+        }
+    }
+
+    pruned
 }
 
 #[cfg(test)]

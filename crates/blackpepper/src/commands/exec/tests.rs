@@ -128,8 +128,13 @@ fn unique_animal_names_are_valid_and_unique() {
 
 #[test]
 fn pick_unused_returns_none_when_exhausted() {
+    use crate::workspaces::WORKSPACE_PREFIX;
+    // Build set of prefixed names (bp.otter, bp.lynx, etc.)
     let names = unique_animal_names();
-    let used: HashSet<String> = names.into_iter().collect();
+    let used: HashSet<String> = names
+        .into_iter()
+        .map(|name| format!("{WORKSPACE_PREFIX}{name}"))
+        .collect();
     let picked = pick_unused_animal_name(&used);
     assert!(picked.is_none());
 }
