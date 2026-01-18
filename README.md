@@ -67,6 +67,13 @@ root = ".blackpepper/workspaces"
 [workspace.setup]
 scripts = ["./scripts/setup.sh", "make bootstrap"]
 
+[workspace.env]
+# Custom env vars injected into all tmux tabs
+API_URL = "http://localhost:$WORKSPACE_PORT_0"
+
+[git]
+remote = "origin"
+
 [agent]
 provider = "codex"
 command = "custom agent command {{PROMPT}}"
@@ -77,27 +84,98 @@ provider = "github"
 [ui]
 background = "#333333"
 foreground = "#ffffff"
-
 ```
 
-Invalid key chords are treated as unbound.
+### Config Reference
 
-If `[tmux]` is omitted, Blackpepper uses `tmux` from `PATH`.
-If `[agent].provider` is set, `:pr create` uses the built-in agent templates; set
-`[agent].command` to override the command (optional `{{PROMPT}}` placeholder).
-`[upstream].provider` selects the PR backend (default `github` via the `gh` CLI).
-Workspace setup scripts in `[workspace.setup].scripts` run in the first tmux tab
-(`setup`) when a workspace session starts and can be re-run with `:workspace setup`.
-`[tmux.tabs.<name>].command` configures additional tabs (and optional first
-commands); if no tabs are defined, Blackpepper opens a single default `work` tab
-(the `setup` tab only appears when scripts exist).
+- **`[keymap]`** — Key bindings. Invalid chords are treated as unbound.
+- **`[tmux]`** — Tmux command and args. Defaults to `tmux` from `PATH`.
+- **`[tmux.tabs.<name>]`** — Additional tabs with optional startup commands. If no tabs are defined, Blackpepper opens a single `work` tab.
+- **`[workspace]`** — Workspace root directory (default: `.blackpepper/workspaces`).
+- **`[workspace.setup]`** — Setup scripts run in the first tmux tab when a workspace starts. Re-run with `:workspace setup`.
+- **`[workspace.env]`** — Custom env vars injected into all tmux tabs. Supports `$VAR` and `${VAR}` expansion.
+- **`[git]`** — Git settings. `remote` defaults to `origin` (used by `:workspace from-branch` and `:workspace from-pr`).
+- **`[agent]`** — AI agent provider and command. `{{PROMPT}}` placeholder is replaced with the generated prompt.
+- **`[upstream]`** — PR backend (default: `github` via `gh` CLI).
+- **`[ui]`** — Background/foreground colors for the TUI.
 
-State:
+## Workspace Ports
+
+Each workspace gets 10 dedicated ports exported as `WORKSPACE_PORT_0` through
+`WORKSPACE_PORT_9` in all tmux tabs. Ports are allocated from range 30000-39999
+and persist across sessions.
+
+Use these ports directly in your commands:
+
+```bash
+# Start Rails on the workspace's first port
+rails server -p $WORKSPACE_PORT_0
+
+# Start a frontend dev server on the second port
+npm run dev -- --port $WORKSPACE_PORT_1
+```
+
+Or define computed env vars in your config:
+
+```toml
+[workspace.env]
+RAILS_ORIGIN = "http://localhost:$WORKSPACE_PORT_0"
+API_URL = "http://localhost:$WORKSPACE_PORT_1/api"
+```
+
+These are expanded and injected into all tmux tabs, so you can reference them:
+
+```bash
+# In any tmux tab
+echo $RAILS_ORIGIN  # => http://localhost:30000
+curl $API_URL/health
+```
+
+## Workspace Setup Example
+
+A typical monorepo setup with Rails backend and JS frontend:
+
+```toml
+# .config/blackpepper/config.toml
+
+[workspace.setup]
+scripts = [
+    "mise trust",                          # Trust mise config
+    "yarn install",                        # Install JS dependencies
+    "cd apps/api && bundle install",       # Install Ruby gems
+]
+
+[workspace.env]
+API_ORIGIN = "http://localhost:$WORKSPACE_PORT_0"
+WEB_ORIGIN = "http://localhost:$WORKSPACE_PORT_1"
+EXPO_ORIGIN = "http://localhost:$WORKSPACE_PORT_2"
+
+[tmux.tabs.api]
+command = "cd apps/api && rails s -p $WORKSPACE_PORT_0"
+
+[tmux.tabs.web]
+command = "cd apps/web && npm run dev -- --port $WORKSPACE_PORT_1"
+
+[tmux.tabs.mobile]
+command = "cd apps/mobile && npx expo start --port $WORKSPACE_PORT_2"
+
+[tmux.tabs.work]
+# Empty tab for general work
+```
+
+The `$BLACKPEPPER_REPO_ROOT` env var points to the git repository root,
+useful for referencing files relative to the project:
+
+```toml
+[workspace.setup]
+scripts = ["ln -sf $BLACKPEPPER_REPO_ROOT/.env .env"]
+```
+
+## State
 
 - Active workspaces are tracked in `~/.config/blackpepper/state.toml` under `[active_workspaces]`.
 - Each entry maps a project root (git common dir) to the last active worktree path.
-- Workspace port blocks live under `[workspace_ports]`; each workspace gets 10 ports
-  exported as `WORKSPACE_PORT_0` through `WORKSPACE_PORT_9` in tmux sessions.
+- Workspace port blocks live under `[workspace_ports]`; each workspace gets 10 ports.
 
 Example:
 
@@ -117,6 +195,27 @@ for parallel shells). Override the root with `[workspace].root` in `config.toml`
 
 Run `bp init` (or `:init` inside the TUI) to add gitignore entries and
 create an empty project config at `./.config/blackpepper/config.toml`.
+
+### Creating Workspaces
+
+```bash
+# Create a new workspace (auto-generates animal name)
+:workspace create
+
+# Create with a specific name
+:workspace create my-feature
+
+# Create from an existing remote branch
+:workspace from-branch feature/auth
+
+# Create from an existing PR (by number or URL)
+:workspace from-pr 123
+:workspace from-pr https://github.com/org/repo/pull/123
+```
+
+Branch names are normalized to valid workspace names (e.g., `feature/auth` becomes
+`feature-auth`). The `from-branch` and `from-pr` commands fetch from the configured
+`[git].remote` (default: `origin`).
 
 Selecting a workspace starts an embedded tmux client in that worktree. Blackpepper
 enables tmux `extended-keys` for these sessions so modified keys can be preserved
