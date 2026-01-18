@@ -77,7 +77,11 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
             }
             if name == "workspace" {
                 if let Some(subcommand) = args.first() {
-                    if subcommand == "create" && result.ok {
+                    if (subcommand == "create"
+                        || subcommand == "from-branch"
+                        || subcommand == "from-pr")
+                        && result.ok
+                    {
                         if let Some(name) = result.data.as_deref() {
                             if set_active_workspace(app, name).is_ok() {
                                 app.set_output(format!("Active workspace: {name}"));

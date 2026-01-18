@@ -41,6 +41,7 @@ fn load_config_uses_defaults_when_empty() {
     assert!(config.agent.provider.is_none());
     assert!(config.agent.command.is_none());
     assert_eq!(config.upstream.provider, "github");
+    assert_eq!(config.git.remote, "origin");
     assert_eq!(config.ui.background, (0x33, 0x33, 0x33));
     assert_eq!(config.ui.foreground, (0xff, 0xff, 0xff));
 

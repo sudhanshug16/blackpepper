@@ -57,6 +57,16 @@ pub const COMMANDS: &[CommandSpec] = &[
         cli_exposed: true,
     },
     CommandSpec {
+        name: "workspace from-branch",
+        description: "Create workspace from an existing remote branch",
+        cli_exposed: true,
+    },
+    CommandSpec {
+        name: "workspace from-pr",
+        description: "Create workspace from an existing pull request",
+        cli_exposed: true,
+    },
+    CommandSpec {
         name: "refresh",
         description: "Redraw the UI",
         cli_exposed: false,

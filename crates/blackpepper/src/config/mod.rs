@@ -16,6 +16,7 @@ const DEFAULT_TOGGLE_MODE: &str = "ctrl+]";
 const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+p";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
 const DEFAULT_TMUX_COMMAND: &str = "tmux";
+const DEFAULT_GIT_REMOTE: &str = "origin";
 const DEFAULT_UI_BG: (u8, u8, u8) = (0x33, 0x33, 0x33);
 const DEFAULT_UI_FG: (u8, u8, u8) = (0xff, 0xff, 0xff);
 
@@ -24,6 +25,7 @@ pub struct Config {
     pub keymap: KeymapConfig,
     pub tmux: TmuxConfig,
     pub workspace: WorkspaceConfig,
+    pub git: GitConfig,
     pub agent: AgentConfig,
     pub upstream: UpstreamConfig,
     pub ui: UiConfig,
@@ -65,6 +67,11 @@ pub struct UpstreamConfig {
     pub provider: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct GitConfig {
+    pub remote: String,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct UiConfig {
     pub background: (u8, u8, u8),
@@ -76,6 +83,7 @@ struct RawConfig {
     keymap: Option<RawKeymap>,
     tmux: Option<RawTmux>,
     workspace: Option<RawWorkspace>,
+    git: Option<RawGit>,
     agent: Option<RawAgent>,
     upstream: Option<RawUpstream>,
     ui: Option<RawUi>,
@@ -124,6 +132,11 @@ struct RawUpstream {
 }
 
 #[derive(Debug, Default, Deserialize)]
+struct RawGit {
+    remote: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
 struct RawUi {
     background: Option<String>,
     foreground: Option<String>,
@@ -155,6 +168,8 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
     let user_workspace = user.as_ref().and_then(|c| c.workspace.as_ref());
     let workspace_agent = workspace.as_ref().and_then(|c| c.agent.as_ref());
     let user_agent = user.as_ref().and_then(|c| c.agent.as_ref());
+    let workspace_git = workspace.as_ref().and_then(|c| c.git.as_ref());
+    let user_git = user.as_ref().and_then(|c| c.git.as_ref());
     let workspace_upstream = workspace.as_ref().and_then(|c| c.upstream.as_ref());
     let user_upstream = user.as_ref().and_then(|c| c.upstream.as_ref());
     let workspace_ui = workspace.as_ref().and_then(|c| c.ui.as_ref());
@@ -196,6 +211,10 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
         .and_then(|upstream| upstream.provider.clone())
         .or_else(|| user_upstream.and_then(|upstream| upstream.provider.clone()))
         .unwrap_or_else(|| "github".to_string());
+    let git_remote = workspace_git
+        .and_then(|git| git.remote.clone())
+        .or_else(|| user_git.and_then(|git| git.remote.clone()))
+        .unwrap_or_else(|| DEFAULT_GIT_REMOTE.to_string());
     let ui_background = parse_ui_color(
         workspace_ui.and_then(|ui| ui.background.clone()),
         user_ui.and_then(|ui| ui.background.clone()),
@@ -221,6 +240,7 @@ fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config
             root: PathBuf::from(workspace_root),
             setup_scripts: workspace_setup_scripts,
         },
+        git: GitConfig { remote: git_remote },
         agent: AgentConfig {
             provider: agent_provider,
             command: agent_command,

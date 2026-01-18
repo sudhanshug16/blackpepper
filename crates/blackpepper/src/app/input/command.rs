@@ -135,7 +135,10 @@ fn execute_command(app: &mut App, raw: &str) {
 
 fn handle_workspace_command(app: &mut App, args: &[String]) {
     let Some(subcommand) = args.first() else {
-        app.set_output("Usage: :workspace <list|switch|create|destroy|setup|rename>".to_string());
+        app.set_output(
+            "Usage: :workspace <list|switch|create|destroy|setup|rename|from-branch|from-pr>"
+                .to_string(),
+        );
         return;
     };
 
@@ -157,7 +160,7 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
                 Err(err) => app.set_output(err),
             }
         }
-        "create" | "destroy" | "setup" | "rename" => {
+        "create" | "destroy" | "setup" | "rename" | "from-branch" | "from-pr" => {
             if subcommand == "rename" && app.active_workspace.is_none() {
                 app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
                 return;
@@ -184,7 +187,8 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
         }
         _ => {
             app.set_output(
-                "Usage: :workspace <list|switch|create|destroy|setup|rename>".to_string(),
+                "Usage: :workspace <list|switch|create|destroy|setup|rename|from-branch|from-pr>"
+                    .to_string(),
             );
         }
     }

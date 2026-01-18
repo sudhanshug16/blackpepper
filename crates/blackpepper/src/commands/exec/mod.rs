@@ -17,7 +17,8 @@ use init::init_project;
 use pr_command::pr_create;
 use update::update_command;
 use workspace::{
-    workspace_create, workspace_destroy, workspace_list, workspace_rename, workspace_setup,
+    workspace_create, workspace_destroy, workspace_from_branch, workspace_from_pr, workspace_list,
+    workspace_rename, workspace_setup,
 };
 
 /// Result of command execution.
@@ -92,8 +93,9 @@ where
             let Some(subcommand) = args.first() else {
                 return CommandResult {
                     ok: false,
-                    message: "Usage: :workspace <list|switch|create|destroy|setup|rename>"
-                        .to_string(),
+                    message:
+                        "Usage: :workspace <list|switch|create|destroy|setup|rename|from-branch|from-pr>"
+                            .to_string(),
                     data: None,
                 };
             };
@@ -103,6 +105,8 @@ where
                 "setup" => workspace_setup(&args[1..], ctx),
                 "rename" => workspace_rename(&args[1..], ctx, on_output),
                 "list" => workspace_list(ctx),
+                "from-branch" => workspace_from_branch(&args[1..], ctx),
+                "from-pr" => workspace_from_pr(&args[1..], ctx),
                 "switch" => CommandResult {
                     ok: true,
                     message: "Use :workspace switch <name> to change.".to_string(),
@@ -110,8 +114,9 @@ where
                 },
                 _ => CommandResult {
                     ok: false,
-                    message: "Usage: :workspace <list|switch|create|destroy|setup|rename>"
-                        .to_string(),
+                    message:
+                        "Usage: :workspace <list|switch|create|destroy|setup|rename|from-branch|from-pr>"
+                            .to_string(),
                     data: None,
                 },
             }
