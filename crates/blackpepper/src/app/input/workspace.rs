@@ -67,7 +67,7 @@ pub(super) fn set_active_workspace(app: &mut App, name: &str) -> Result<(), Stri
     app.toggle_chord = parse_key_chord(&app.config.keymap.toggle_mode);
     app.switch_chord = parse_key_chord(&app.config.keymap.switch_workspace);
     app.input_decoder
-        .update_toggle_chord(app.toggle_chord.clone());
+        .update_chords(app.toggle_chord.clone(), app.switch_chord.clone());
     request_repo_status(app);
     ensure_active_workspace_session(app, 24, 80)
 }

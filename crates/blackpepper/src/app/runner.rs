@@ -116,7 +116,7 @@ impl App {
         let config = load_config(config_root);
         let toggle_chord = parse_key_chord(&config.keymap.toggle_mode);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
-        let input_decoder = InputDecoder::new(toggle_chord.clone());
+        let input_decoder = InputDecoder::new(toggle_chord.clone(), switch_chord.clone());
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
 
         // Prune stale bp.* worktrees on startup

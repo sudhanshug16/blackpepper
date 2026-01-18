@@ -9,24 +9,40 @@ use termwiz::input::{InputEvent, InputParser, KeyCodeEncodeModes, KeyboardEncodi
 
 use crate::keymap::KeyChord;
 
+/// Which chord was matched in work mode input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchedChord {
+    None,
+    Toggle,
+    Switch,
+}
+
 pub struct InputDecoder {
     parser: InputParser,
     toggle_matcher: ToggleMatcher,
+    switch_matcher: ToggleMatcher,
     logger: InputLogger,
 }
 
 impl InputDecoder {
-    pub fn new(toggle_chord: Option<KeyChord>) -> Self {
+    pub fn new(toggle_chord: Option<KeyChord>, switch_chord: Option<KeyChord>) -> Self {
         Self {
             parser: InputParser::new(),
             toggle_matcher: ToggleMatcher::new(toggle_sequences(toggle_chord.as_ref())),
+            switch_matcher: ToggleMatcher::new(toggle_sequences(switch_chord.as_ref())),
             logger: InputLogger::new(),
         }
     }
 
-    pub fn update_toggle_chord(&mut self, toggle_chord: Option<KeyChord>) {
+    pub fn update_chords(
+        &mut self,
+        toggle_chord: Option<KeyChord>,
+        switch_chord: Option<KeyChord>,
+    ) {
         self.toggle_matcher
             .update_sequences(toggle_sequences(toggle_chord.as_ref()));
+        self.switch_matcher
+            .update_sequences(toggle_sequences(switch_chord.as_ref()));
     }
 
     pub fn parse_manage_vec(&mut self, bytes: &[u8], maybe_more: bool) -> Vec<InputEvent> {
@@ -42,17 +58,34 @@ impl InputDecoder {
         self.parse_manage_vec(&[], false)
     }
 
-    pub fn consume_work_bytes(&mut self, bytes: &[u8]) -> (Vec<u8>, bool) {
+    pub fn consume_work_bytes(&mut self, bytes: &[u8]) -> (Vec<u8>, MatchedChord) {
         self.logger.log_raw(bytes);
+
+        // Check toggle chord first
         let (out, toggled, matched) = self.toggle_matcher.feed(bytes);
         if toggled {
             self.logger.log_toggle(&matched);
+            // Also feed to switch_matcher to keep it in sync (discard result)
+            let _ = self.switch_matcher.feed(bytes);
+            return (out, MatchedChord::Toggle);
         }
-        (out, toggled)
+
+        // Check switch chord
+        let (out2, switched, matched2) = self.switch_matcher.feed(bytes);
+        if switched {
+            self.logger.log_toggle(&matched2);
+            return (out2, MatchedChord::Switch);
+        }
+
+        // Neither matched - return the output from toggle_matcher
+        // (both matchers should produce same passthrough output)
+        (out, MatchedChord::None)
     }
 
     pub fn flush_work(&mut self) -> Vec<u8> {
-        self.toggle_matcher.flush()
+        let t = self.toggle_matcher.flush();
+        let _ = self.switch_matcher.flush();
+        t
     }
 }
 

@@ -197,26 +197,34 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
 
     match app.mode {
         Mode::Manage => {
-            let (filtered, toggled) = app.input_decoder.consume_work_bytes(&bytes);
+            use crate::input::MatchedChord;
+            let (filtered, matched) = app.input_decoder.consume_work_bytes(&bytes);
             let events = app.input_decoder.parse_manage_vec(&filtered, true);
             for event in events {
                 handle_input_event(app, event);
             }
-            if toggled {
+            // Both toggle and switch chords return to work mode from manage mode
+            if matched != MatchedChord::None {
                 enter_work_mode(app);
             }
         }
         Mode::Work => {
-            let (out, toggled) = app.input_decoder.consume_work_bytes(&bytes);
+            use crate::input::MatchedChord;
+            let (out, matched) = app.input_decoder.consume_work_bytes(&bytes);
             if let Some(terminal) = active_terminal_mut(app) {
                 if !out.is_empty() {
                     terminal.write_bytes(&out);
                 }
             }
-            if toggled {
-                // Toggle chord in work mode opens workspace switcher
-                app.set_mode(Mode::Manage);
-                open_workspace_overlay(app);
+            match matched {
+                MatchedChord::Toggle => {
+                    app.set_mode(Mode::Manage);
+                }
+                MatchedChord::Switch => {
+                    app.set_mode(Mode::Manage);
+                    open_workspace_overlay(app);
+                }
+                MatchedChord::None => {}
             }
         }
     }
