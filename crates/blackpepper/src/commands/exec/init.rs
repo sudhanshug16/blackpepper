@@ -32,10 +32,7 @@ pub(super) fn init_project(args: &[String], ctx: &CommandContext) -> CommandResu
     let gitignore_path = repo_root.join(".gitignore");
     match ensure_gitignore_entries(
         &gitignore_path,
-        &[
-            ".blackpepper/workspaces/",
-            ".config/blackpepper/config.local.toml",
-        ],
+        &[".blackpepper/workspaces/", ".blackpepper/config.local.toml"],
     ) {
         Ok(true) => actions.push("updated .gitignore"),
         Ok(false) => actions.push(".gitignore already up to date"),
@@ -48,12 +45,9 @@ pub(super) fn init_project(args: &[String], ctx: &CommandContext) -> CommandResu
         }
     }
 
-    let config_path = repo_root
-        .join(".config")
-        .join("blackpepper")
-        .join("config.toml");
+    let config_path = repo_root.join(".blackpepper").join("config.toml");
     match ensure_project_config(&config_path) {
-        Ok(true) => actions.push("created .config/blackpepper/config.toml"),
+        Ok(true) => actions.push("created .blackpepper/config.toml"),
         Ok(false) => actions.push("project config already exists"),
         Err(err) => {
             return CommandResult {

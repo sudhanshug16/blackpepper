@@ -2,8 +2,8 @@
 //!
 //! Config is loaded from three sources with later sources taking precedence:
 //! 1. User-level: `~/.config/blackpepper/config.toml`
-//! 2. Project-level: `<repo>/.config/blackpepper/config.toml` (committed)
-//! 3. User-project-level: `<repo>/.config/blackpepper/config.local.toml` (gitignored)
+//! 2. Project-level: `<repo>/.blackpepper/config.toml` (committed)
+//! 3. User-project-level: `<repo>/.blackpepper/config.local.toml` (gitignored)
 //!
 //! Supports keymap customization, tmux command override, workspace root
 //! configuration, and workspace setup scripts. Uses TOML format with serde.
@@ -331,13 +331,11 @@ fn parse_hex_color(value: &str) -> Option<(u8, u8, u8)> {
 // ============================================================================
 
 pub fn workspace_config_path(root: &Path) -> PathBuf {
-    root.join(".config").join("blackpepper").join("config.toml")
+    root.join(".blackpepper").join("config.toml")
 }
 
 pub fn workspace_local_config_path(root: &Path) -> PathBuf {
-    root.join(".config")
-        .join("blackpepper")
-        .join("config.local.toml")
+    root.join(".blackpepper").join("config.local.toml")
 }
 
 pub fn user_config_path() -> Option<PathBuf> {

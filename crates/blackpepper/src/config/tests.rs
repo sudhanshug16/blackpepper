@@ -104,11 +104,7 @@ foreground = "#eeeeee"
     );
 
     let repo = TempDir::new().expect("temp repo");
-    let workspace_config_path = repo
-        .path()
-        .join(".config")
-        .join("blackpepper")
-        .join("config.toml");
+    let workspace_config_path = repo.path().join(".blackpepper").join("config.toml");
     write_config(
         &workspace_config_path,
         r##"
@@ -216,11 +212,7 @@ fn load_config_local_overrides_project() {
     let repo = TempDir::new().expect("temp repo");
 
     // Project config
-    let project_config_path = repo
-        .path()
-        .join(".config")
-        .join("blackpepper")
-        .join("config.toml");
+    let project_config_path = repo.path().join(".blackpepper").join("config.toml");
     write_config(
         &project_config_path,
         r##"
@@ -299,11 +291,7 @@ remote = "user-remote"
     let repo = TempDir::new().expect("temp repo");
 
     // Project config (medium priority)
-    let project_config_path = repo
-        .path()
-        .join(".config")
-        .join("blackpepper")
-        .join("config.toml");
+    let project_config_path = repo.path().join(".blackpepper").join("config.toml");
     write_config(
         &project_config_path,
         r##"
@@ -379,11 +367,7 @@ SHARED_VAR = "user-shared"
     let repo = TempDir::new().expect("temp repo");
 
     // Project config
-    let project_config_path = repo
-        .path()
-        .join(".config")
-        .join("blackpepper")
-        .join("config.toml");
+    let project_config_path = repo.path().join(".blackpepper").join("config.toml");
     write_config(
         &project_config_path,
         r##"

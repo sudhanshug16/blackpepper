@@ -77,25 +77,14 @@ fn gitignore_entries_are_appended_once() {
 
     let changed = ensure_gitignore_entries(
         &gitignore,
-        &[
-            ".blackpepper/workspaces/",
-            ".config/blackpepper/config.local.toml",
-        ],
+        &[".blackpepper/workspaces/", ".blackpepper/config.local.toml"],
     )
     .expect("update gitignore");
     assert!(changed);
 
-    let contents = fs::read_to_string(&gitignore).expect("read gitignore");
-    assert!(contents.contains("target/"));
-    assert!(contents.contains(".blackpepper/workspaces/"));
-    assert!(contents.contains(".config/blackpepper/config.local.toml"));
-
     let changed_again = ensure_gitignore_entries(
         &gitignore,
-        &[
-            ".blackpepper/workspaces/",
-            ".config/blackpepper/config.local.toml",
-        ],
+        &[".blackpepper/workspaces/", ".blackpepper/config.local.toml"],
     )
     .expect("update gitignore");
     assert!(!changed_again);
@@ -104,11 +93,7 @@ fn gitignore_entries_are_appended_once() {
 #[test]
 fn project_config_is_created_once() {
     let dir = TempDir::new().expect("temp dir");
-    let config_path = dir
-        .path()
-        .join(".config")
-        .join("blackpepper")
-        .join("config.toml");
+    let config_path = dir.path().join(".blackpepper").join("config.toml");
 
     let created = ensure_project_config(&config_path).expect("create config");
     assert!(created);

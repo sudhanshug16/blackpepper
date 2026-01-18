@@ -67,7 +67,7 @@ where
         } else {
             return CommandResult {
                 ok: false,
-                message: "Agent provider not configured. Run :rename in the TUI to select one, set agent.provider, or set agent.command in ~/.config/blackpepper/config.toml.".to_string(),
+                message: "Agent provider not configured. Run :rename in the TUI to select one, set agent.provider, or set agent.command in ~/.config/blackpepper/config.toml or .blackpepper/config.toml.".to_string(),
                 data: None,
             };
         };
