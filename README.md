@@ -40,12 +40,22 @@ Terminal stack:
 
 ## Configuration
 
-Config resolution order:
+Config resolution order (later sources override earlier):
 
-1. `./.config/blackpepper/config.toml`
-2. `~/.config/blackpepper/config.toml`
+1. `~/.config/blackpepper/config.toml` — User global config
+2. `./.config/blackpepper/config.toml` — Project config (committed)
+3. `./.config/blackpepper/config.local.toml` — User-project config (gitignored)
 
-Example:
+The local config is useful for personal preferences that shouldn't be committed,
+like opening nvim by default:
+
+```toml
+# .config/blackpepper/config.local.toml
+[tmux.tabs.nvim]
+command = "nvim"
+```
+
+Example project config:
 
 ```toml
 [keymap]

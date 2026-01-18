@@ -77,7 +77,10 @@ fn gitignore_entries_are_appended_once() {
 
     let changed = ensure_gitignore_entries(
         &gitignore,
-        &[".blackpepper/workspaces/", ".config/blackpepper/"],
+        &[
+            ".blackpepper/workspaces/",
+            ".config/blackpepper/config.local.toml",
+        ],
     )
     .expect("update gitignore");
     assert!(changed);
@@ -85,11 +88,14 @@ fn gitignore_entries_are_appended_once() {
     let contents = fs::read_to_string(&gitignore).expect("read gitignore");
     assert!(contents.contains("target/"));
     assert!(contents.contains(".blackpepper/workspaces/"));
-    assert!(contents.contains(".config/blackpepper/"));
+    assert!(contents.contains(".config/blackpepper/config.local.toml"));
 
     let changed_again = ensure_gitignore_entries(
         &gitignore,
-        &[".blackpepper/workspaces/", ".config/blackpepper/"],
+        &[
+            ".blackpepper/workspaces/",
+            ".config/blackpepper/config.local.toml",
+        ],
     )
     .expect("update gitignore");
     assert!(!changed_again);

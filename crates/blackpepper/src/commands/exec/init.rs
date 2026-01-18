@@ -32,7 +32,10 @@ pub(super) fn init_project(args: &[String], ctx: &CommandContext) -> CommandResu
     let gitignore_path = repo_root.join(".gitignore");
     match ensure_gitignore_entries(
         &gitignore_path,
-        &[".blackpepper/workspaces/", ".config/blackpepper/"],
+        &[
+            ".blackpepper/workspaces/",
+            ".config/blackpepper/config.local.toml",
+        ],
     ) {
         Ok(true) => actions.push("updated .gitignore"),
         Ok(false) => actions.push(".gitignore already up to date"),

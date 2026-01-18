@@ -1,8 +1,9 @@
 //! Configuration loading and merging.
 //!
-//! Config is loaded from two sources with workspace taking precedence:
+//! Config is loaded from three sources with later sources taking precedence:
 //! 1. User-level: `~/.config/blackpepper/config.toml`
-//! 2. Workspace-level: `<repo>/.config/blackpepper/config.toml`
+//! 2. Project-level: `<repo>/.config/blackpepper/config.toml` (committed)
+//! 3. User-project-level: `<repo>/.config/blackpepper/config.local.toml` (gitignored)
 //!
 //! Supports keymap customization, tmux command override, workspace root
 //! configuration, and workspace setup scripts. Uses TOML format with serde.
@@ -19,6 +20,10 @@ const DEFAULT_TMUX_COMMAND: &str = "tmux";
 const DEFAULT_GIT_REMOTE: &str = "origin";
 const DEFAULT_UI_BG: (u8, u8, u8) = (0x33, 0x33, 0x33);
 const DEFAULT_UI_FG: (u8, u8, u8) = (0xff, 0xff, 0xff);
+
+// ============================================================================
+// Public config types
+// ============================================================================
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -78,6 +83,10 @@ pub struct UiConfig {
     pub background: (u8, u8, u8),
     pub foreground: (u8, u8, u8),
 }
+
+// ============================================================================
+// Raw deserialization types
+// ============================================================================
 
 #[derive(Debug, Default, Deserialize)]
 struct RawConfig {
@@ -144,6 +153,66 @@ struct RawUi {
     foreground: Option<String>,
 }
 
+// ============================================================================
+// Config layer helpers
+// ============================================================================
+
+/// Three config layers: user (lowest priority), project, local (highest priority).
+struct Layers {
+    user: Option<RawConfig>,
+    project: Option<RawConfig>,
+    local: Option<RawConfig>,
+}
+
+impl Layers {
+    /// Resolve a value from the three layers, highest priority first.
+    fn resolve<T, F>(&self, mut extract: F) -> Option<T>
+    where
+        F: FnMut(&RawConfig) -> Option<T>,
+    {
+        self.local
+            .as_ref()
+            .and_then(&mut extract)
+            .or_else(|| self.project.as_ref().and_then(&mut extract))
+            .or_else(|| self.user.as_ref().and_then(&mut extract))
+    }
+
+    /// Resolve a value with a default fallback.
+    fn resolve_or<T, F>(&self, extract: F, default: T) -> T
+    where
+        F: FnMut(&RawConfig) -> Option<T>,
+    {
+        self.resolve(extract).unwrap_or(default)
+    }
+
+    /// Resolve a string value with a default.
+    fn resolve_string<F>(&self, extract: F, default: &str) -> String
+    where
+        F: FnMut(&RawConfig) -> Option<String>,
+    {
+        self.resolve(extract).unwrap_or_else(|| default.to_string())
+    }
+
+    /// Merge env vars from all layers (user first, then project, then local overrides).
+    fn merge_env(&self) -> Vec<(String, String)> {
+        let mut env = BTreeMap::new();
+        for layer in [&self.user, &self.project, &self.local] {
+            if let Some(layer_env) = layer
+                .as_ref()
+                .and_then(|c| c.workspace.as_ref())
+                .and_then(|w| w.env.as_ref())
+            {
+                env.extend(layer_env.clone());
+            }
+        }
+        env.into_iter().collect()
+    }
+}
+
+// ============================================================================
+// Config loading and merging
+// ============================================================================
+
 fn read_toml(path: &Path) -> Option<RawConfig> {
     let contents = fs::read_to_string(path).ok()?;
     if contents.trim().is_empty() {
@@ -152,119 +221,65 @@ fn read_toml(path: &Path) -> Option<RawConfig> {
     toml::from_str::<RawConfig>(&contents).ok()
 }
 
-fn merge_config(user: Option<RawConfig>, workspace: Option<RawConfig>) -> Config {
-    let workspace_keymap = workspace.as_ref().and_then(|c| c.keymap.as_ref());
-    let user_keymap = user.as_ref().and_then(|c| c.keymap.as_ref());
-    let toggle_mode = workspace_keymap
-        .and_then(|k| k.toggle_mode.clone())
-        .or_else(|| user_keymap.and_then(|k| k.toggle_mode.clone()))
-        .unwrap_or_else(|| DEFAULT_TOGGLE_MODE.to_string());
-    let switch_workspace = workspace_keymap
-        .and_then(|k| k.switch_workspace.clone())
-        .or_else(|| user_keymap.and_then(|k| k.switch_workspace.clone()))
-        .unwrap_or_else(|| DEFAULT_SWITCH_WORKSPACE.to_string());
-
-    let workspace_tmux = workspace.as_ref().and_then(|c| c.tmux.as_ref());
-    let user_tmux = user.as_ref().and_then(|c| c.tmux.as_ref());
-    let workspace_workspace = workspace.as_ref().and_then(|c| c.workspace.as_ref());
-    let user_workspace = user.as_ref().and_then(|c| c.workspace.as_ref());
-    let workspace_agent = workspace.as_ref().and_then(|c| c.agent.as_ref());
-    let user_agent = user.as_ref().and_then(|c| c.agent.as_ref());
-    let workspace_git = workspace.as_ref().and_then(|c| c.git.as_ref());
-    let user_git = user.as_ref().and_then(|c| c.git.as_ref());
-    let workspace_upstream = workspace.as_ref().and_then(|c| c.upstream.as_ref());
-    let user_upstream = user.as_ref().and_then(|c| c.upstream.as_ref());
-    let workspace_ui = workspace.as_ref().and_then(|c| c.ui.as_ref());
-    let user_ui = user.as_ref().and_then(|c| c.ui.as_ref());
-
-    let command = workspace_tmux
-        .and_then(|t| t.command.clone())
-        .or_else(|| user_tmux.and_then(|t| t.command.clone()))
-        .or_else(|| Some(DEFAULT_TMUX_COMMAND.to_string()));
-    let args = workspace_tmux
-        .and_then(|t| t.args.clone())
-        .or_else(|| user_tmux.and_then(|t| t.args.clone()))
-        .unwrap_or_default();
-    let tabs = workspace_tmux
-        .and_then(|t| t.tabs.as_ref())
-        .or_else(|| user_tmux.and_then(|t| t.tabs.as_ref()))
-        .map(collect_tmux_tabs)
-        .unwrap_or_default();
-    let workspace_root = workspace_workspace
-        .and_then(|w| w.root.clone())
-        .or_else(|| user_workspace.and_then(|w| w.root.clone()))
-        .unwrap_or_else(|| DEFAULT_WORKSPACE_ROOT.to_string());
-    let workspace_setup_scripts = workspace_workspace
-        .and_then(|workspace| workspace.setup.as_ref())
-        .and_then(|setup| setup.scripts.clone())
-        .or_else(|| {
-            user_workspace
-                .and_then(|workspace| workspace.setup.as_ref())
-                .and_then(|setup| setup.scripts.clone())
-        })
-        .unwrap_or_default();
-    // Merge env vars: user config first, then workspace overrides
-    let workspace_env: Vec<(String, String)> = {
-        let mut env = BTreeMap::new();
-        if let Some(user_env) = user_workspace.and_then(|w| w.env.as_ref()) {
-            env.extend(user_env.clone());
-        }
-        if let Some(ws_env) = workspace_workspace.and_then(|w| w.env.as_ref()) {
-            env.extend(ws_env.clone());
-        }
-        env.into_iter().collect()
+fn merge_config(
+    user: Option<RawConfig>,
+    project: Option<RawConfig>,
+    local: Option<RawConfig>,
+) -> Config {
+    let layers = Layers {
+        user,
+        project,
+        local,
     };
-    let agent_provider = workspace_agent
-        .and_then(|agent| agent.provider.clone())
-        .or_else(|| user_agent.and_then(|agent| agent.provider.clone()));
-    let agent_command = workspace_agent
-        .and_then(|agent| agent.command.clone())
-        .or_else(|| user_agent.and_then(|agent| agent.command.clone()));
-    let upstream_provider = workspace_upstream
-        .and_then(|upstream| upstream.provider.clone())
-        .or_else(|| user_upstream.and_then(|upstream| upstream.provider.clone()))
-        .unwrap_or_else(|| "github".to_string());
-    let git_remote = workspace_git
-        .and_then(|git| git.remote.clone())
-        .or_else(|| user_git.and_then(|git| git.remote.clone()))
-        .unwrap_or_else(|| DEFAULT_GIT_REMOTE.to_string());
-    let ui_background = parse_ui_color(
-        workspace_ui.and_then(|ui| ui.background.clone()),
-        user_ui.and_then(|ui| ui.background.clone()),
-        DEFAULT_UI_BG,
-    );
-    let ui_foreground = parse_ui_color(
-        workspace_ui.and_then(|ui| ui.foreground.clone()),
-        user_ui.and_then(|ui| ui.foreground.clone()),
-        DEFAULT_UI_FG,
-    );
 
     Config {
         keymap: KeymapConfig {
-            toggle_mode,
-            switch_workspace,
+            toggle_mode: layers.resolve_string(
+                |c| c.keymap.as_ref()?.toggle_mode.clone(),
+                DEFAULT_TOGGLE_MODE,
+            ),
+            switch_workspace: layers.resolve_string(
+                |c| c.keymap.as_ref()?.switch_workspace.clone(),
+                DEFAULT_SWITCH_WORKSPACE,
+            ),
         },
         tmux: TmuxConfig {
-            command,
-            args,
-            tabs,
+            command: layers
+                .resolve(|c| c.tmux.as_ref()?.command.clone())
+                .or_else(|| Some(DEFAULT_TMUX_COMMAND.to_string())),
+            args: layers.resolve_or(|c| c.tmux.as_ref()?.args.clone(), vec![]),
+            tabs: layers
+                .resolve(|c| c.tmux.as_ref()?.tabs.as_ref().map(collect_tmux_tabs))
+                .unwrap_or_default(),
         },
         workspace: WorkspaceConfig {
-            root: PathBuf::from(workspace_root),
-            setup_scripts: workspace_setup_scripts,
-            env: workspace_env,
+            root: PathBuf::from(layers.resolve_string(
+                |c| c.workspace.as_ref()?.root.clone(),
+                DEFAULT_WORKSPACE_ROOT,
+            )),
+            setup_scripts: layers.resolve_or(
+                |c| c.workspace.as_ref()?.setup.as_ref()?.scripts.clone(),
+                vec![],
+            ),
+            env: layers.merge_env(),
         },
-        git: GitConfig { remote: git_remote },
+        git: GitConfig {
+            remote: layers.resolve_string(|c| c.git.as_ref()?.remote.clone(), DEFAULT_GIT_REMOTE),
+        },
         agent: AgentConfig {
-            provider: agent_provider,
-            command: agent_command,
+            provider: layers.resolve(|c| c.agent.as_ref()?.provider.clone()),
+            command: layers.resolve(|c| c.agent.as_ref()?.command.clone()),
         },
         upstream: UpstreamConfig {
-            provider: upstream_provider,
+            provider: layers.resolve_string(|c| c.upstream.as_ref()?.provider.clone(), "github"),
         },
         ui: UiConfig {
-            background: ui_background,
-            foreground: ui_foreground,
+            background: layers
+                .resolve(|c| parse_hex_color(c.ui.as_ref()?.background.as_deref()?))
+                .unwrap_or(DEFAULT_UI_BG),
+            foreground: layers
+                .resolve(|c| parse_hex_color(c.ui.as_ref()?.foreground.as_deref()?))
+                .unwrap_or(DEFAULT_UI_FG),
         },
     }
 }
@@ -290,18 +305,6 @@ fn collect_tmux_tabs(tabs: &BTreeMap<String, RawTmuxTab>) -> Vec<TmuxTabConfig> 
         .collect()
 }
 
-fn parse_ui_color(
-    workspace_value: Option<String>,
-    user_value: Option<String>,
-    default_value: (u8, u8, u8),
-) -> (u8, u8, u8) {
-    workspace_value
-        .as_deref()
-        .and_then(parse_hex_color)
-        .or_else(|| user_value.as_deref().and_then(parse_hex_color))
-        .unwrap_or(default_value)
-}
-
 fn parse_hex_color(value: &str) -> Option<(u8, u8, u8)> {
     let trimmed = value.trim();
     let hex = trimmed.strip_prefix('#').unwrap_or(trimmed);
@@ -322,8 +325,18 @@ fn parse_hex_color(value: &str) -> Option<(u8, u8, u8)> {
     }
 }
 
+// ============================================================================
+// Public API
+// ============================================================================
+
 pub fn workspace_config_path(root: &Path) -> PathBuf {
     root.join(".config").join("blackpepper").join("config.toml")
+}
+
+pub fn workspace_local_config_path(root: &Path) -> PathBuf {
+    root.join(".config")
+        .join("blackpepper")
+        .join("config.local.toml")
 }
 
 pub fn user_config_path() -> Option<PathBuf> {
@@ -341,13 +354,15 @@ pub fn user_config_path() -> Option<PathBuf> {
 }
 
 pub fn load_config(root: &Path) -> Config {
-    let workspace_path = workspace_config_path(root);
+    let project_path = workspace_config_path(root);
+    let local_path = workspace_local_config_path(root);
     let user_path = user_config_path();
 
-    let workspace_config = read_toml(&workspace_path);
+    let project_config = read_toml(&project_path);
+    let local_config = read_toml(&local_path);
     let user_config = user_path.and_then(|path| read_toml(&path));
 
-    merge_config(user_config, workspace_config)
+    merge_config(user_config, project_config, local_config)
 }
 
 pub fn save_user_agent_provider(provider: &str) -> std::io::Result<()> {
