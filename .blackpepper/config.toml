@@ -1,0 +1,2 @@
+[workspace.setup]
+scripts = ["./scripts/setup.sh"]
