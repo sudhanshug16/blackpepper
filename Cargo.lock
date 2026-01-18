@@ -242,12 +242,13 @@ checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 
 [[package]]
 name = "blackpepper"
-version = "0.1.42"
+version = "0.1.43"
 dependencies = [
  "arboard",
  "base64",
  "crossterm",
  "dirs",
+ "indexmap",
  "libc",
  "notify",
  "notify-rust",
@@ -918,6 +919,8 @@ checksum = "7714e70437a7dc3ac8eb7e6f8df75fd8eb422675fc7678aff7364301092b1017"
 dependencies = [
  "equivalent",
  "hashbrown",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]

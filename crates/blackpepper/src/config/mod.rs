@@ -8,6 +8,7 @@
 //! Supports keymap customization, tmux command override, workspace root
 //! configuration, and workspace setup scripts. Uses TOML format with serde.
 
+use indexmap::IndexMap;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
@@ -111,7 +112,7 @@ struct RawKeymap {
 struct RawTmux {
     command: Option<String>,
     args: Option<Vec<String>>,
-    tabs: Option<BTreeMap<String, RawTmuxTab>>,
+    tabs: Option<IndexMap<String, RawTmuxTab>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -284,7 +285,7 @@ fn merge_config(
     }
 }
 
-fn collect_tmux_tabs(tabs: &BTreeMap<String, RawTmuxTab>) -> Vec<TmuxTabConfig> {
+fn collect_tmux_tabs(tabs: &IndexMap<String, RawTmuxTab>) -> Vec<TmuxTabConfig> {
     tabs.iter()
         .filter_map(|(name, tab)| {
             let trimmed = name.trim();

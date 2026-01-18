@@ -151,12 +151,12 @@ foreground = "#cccccc"
         config.tmux.tabs,
         vec![
             TmuxTabConfig {
-                name: "logs".to_string(),
-                command: None,
-            },
-            TmuxTabConfig {
                 name: "workspace".to_string(),
                 command: Some("make server".to_string()),
+            },
+            TmuxTabConfig {
+                name: "logs".to_string(),
+                command: None,
             },
         ]
     );
