@@ -203,9 +203,15 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
             for event in events {
                 handle_input_event(app, event);
             }
-            // Both toggle and switch chords return to work mode from manage mode
-            if matched != MatchedChord::None {
-                enter_work_mode(app);
+            match matched {
+                MatchedChord::Toggle => {
+                    enter_work_mode(app);
+                }
+                MatchedChord::Switch => {
+                    // Open workspace overlay - works even without active workspace
+                    open_workspace_overlay(app);
+                }
+                MatchedChord::None => {}
             }
         }
         Mode::Work => {
