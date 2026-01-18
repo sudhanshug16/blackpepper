@@ -148,7 +148,7 @@ pub fn resolve_tabs(config: &TmuxConfig) -> Vec<TmuxTabConfig> {
 /// Returns the default command for a built-in tab name.
 fn default_tab_command(name: &str) -> Option<String> {
     match name {
-        "git" => Some("command -v lazygit >/dev/null && lazygit || echo 'lazygit not found. Install: https://github.com/jesseduffield/lazygit or override git tab in config.'".to_string()),
+        "git" => Some("lazygit".to_string()),
         _ => None,
     }
 }
