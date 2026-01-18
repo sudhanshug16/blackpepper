@@ -33,9 +33,16 @@ pub(super) fn branch_exists(repo_root: &Path, name: &str) -> bool {
 
 /// Normalize a raw name to a valid workspace name with bp. prefix.
 pub(super) fn normalize_workspace_name(raw: &str) -> String {
+    // Check for existing bp. prefix before normalizing (to avoid double-prefix)
+    let to_normalize = if raw.to_ascii_lowercase().starts_with(WORKSPACE_PREFIX) {
+        &raw[WORKSPACE_PREFIX.len()..]
+    } else {
+        raw
+    };
+
     let mut out = String::new();
     let mut last_dash = false;
-    for ch in raw.chars() {
+    for ch in to_normalize.chars() {
         let ch = ch.to_ascii_lowercase();
         if ch.is_ascii_lowercase() || ch.is_ascii_digit() {
             out.push(ch);
@@ -54,12 +61,8 @@ pub(super) fn normalize_workspace_name(raw: &str) -> String {
     if normalized.is_empty() {
         return normalized;
     }
-    // Add bp. prefix if not already present
-    if normalized.starts_with(WORKSPACE_PREFIX) {
-        normalized
-    } else {
-        format!("{WORKSPACE_PREFIX}{normalized}")
-    }
+    // Add bp. prefix (already_prefixed means it was stripped earlier)
+    format!("{WORKSPACE_PREFIX}{normalized}")
 }
 
 pub(crate) fn unique_animal_names() -> Vec<String> {
@@ -96,4 +99,112 @@ pub(crate) fn pick_unused_animal_name(used: &HashSet<String>) -> Option<String> 
         .unwrap_or(0);
     let index = (nanos % unused.len() as u128) as usize;
     unused.get(index).cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_workspace_name, pick_unused_animal_name, unique_animal_names};
+    use crate::workspaces::WORKSPACE_PREFIX;
+    use std::collections::HashSet;
+
+    #[test]
+    fn normalize_simple_name() {
+        assert_eq!(normalize_workspace_name("feature"), "bp.feature");
+    }
+
+    #[test]
+    fn normalize_with_slashes() {
+        assert_eq!(normalize_workspace_name("feature/auth"), "bp.feature-auth");
+        assert_eq!(normalize_workspace_name("fix/bug/123"), "bp.fix-bug-123");
+    }
+
+    #[test]
+    fn normalize_with_underscores() {
+        assert_eq!(normalize_workspace_name("my_feature"), "bp.my-feature");
+    }
+
+    #[test]
+    fn normalize_uppercase() {
+        assert_eq!(normalize_workspace_name("FEATURE"), "bp.feature");
+        assert_eq!(normalize_workspace_name("MyFeature"), "bp.myfeature");
+    }
+
+    #[test]
+    fn normalize_mixed_special_chars() {
+        assert_eq!(
+            normalize_workspace_name("feature/auth_v2@test"),
+            "bp.feature-auth-v2-test"
+        );
+    }
+
+    #[test]
+    fn normalize_leading_trailing_special() {
+        assert_eq!(normalize_workspace_name("-feature-"), "bp.feature");
+        assert_eq!(normalize_workspace_name("/feature/"), "bp.feature");
+        assert_eq!(normalize_workspace_name("--feature--"), "bp.feature");
+    }
+
+    #[test]
+    fn normalize_consecutive_dashes() {
+        assert_eq!(normalize_workspace_name("a--b"), "bp.a-b");
+        assert_eq!(normalize_workspace_name("a///b"), "bp.a-b");
+    }
+
+    #[test]
+    fn normalize_already_prefixed() {
+        // If already has bp. prefix, don't double-prefix
+        assert_eq!(normalize_workspace_name("bp.feature"), "bp.feature");
+        assert_eq!(normalize_workspace_name("bp.my-feature"), "bp.my-feature");
+    }
+
+    #[test]
+    fn normalize_empty_string() {
+        assert_eq!(normalize_workspace_name(""), "");
+        assert_eq!(normalize_workspace_name("---"), "");
+        assert_eq!(normalize_workspace_name("///"), "");
+    }
+
+    #[test]
+    fn normalize_numbers() {
+        assert_eq!(normalize_workspace_name("123"), "bp.123");
+        assert_eq!(normalize_workspace_name("v2.0"), "bp.v2-0");
+    }
+
+    #[test]
+    fn pick_unused_returns_prefixed_name() {
+        let used = HashSet::new();
+        let name = pick_unused_animal_name(&used).expect("should pick a name");
+        assert!(
+            name.starts_with(WORKSPACE_PREFIX),
+            "name '{}' should start with '{}'",
+            name,
+            WORKSPACE_PREFIX
+        );
+    }
+
+    #[test]
+    fn unique_animal_names_are_valid() {
+        for name in unique_animal_names() {
+            assert!(
+                crate::workspaces::is_valid_workspace_name(&name),
+                "animal name '{}' should be valid",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn pick_unused_excludes_used() {
+        // Mark all but one as used
+        let all_names: Vec<String> = unique_animal_names()
+            .into_iter()
+            .map(|name| format!("{WORKSPACE_PREFIX}{name}"))
+            .collect();
+        let mut used: HashSet<String> = all_names.iter().cloned().collect();
+        let keep = used.iter().next().cloned().unwrap();
+        used.remove(&keep);
+
+        let picked = pick_unused_animal_name(&used).expect("should pick a name");
+        assert_eq!(picked, keep);
+    }
 }

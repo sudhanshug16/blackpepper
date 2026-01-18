@@ -195,7 +195,7 @@ fn first_non_empty_line(message: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_pr_ref;
+    use super::{parse_pr_info, parse_pr_ref};
 
     #[test]
     fn parse_pr_ref_number() {
@@ -217,6 +217,81 @@ mod tests {
         assert_eq!(
             parse_pr_ref("https://github.com/org/repo/pull/789#discussion"),
             "789"
+        );
+    }
+
+    #[test]
+    fn parse_pr_info_same_repo() {
+        let json = r#"{
+            "number": 42,
+            "headRefName": "feature-branch",
+            "headRepositoryOwner": {"login": "myorg"},
+            "baseRepository": {"owner": {"login": "myorg"}}
+        }"#;
+        let info = parse_pr_info(json).expect("should parse");
+        assert_eq!(info.number, 42);
+        assert_eq!(info.head_ref_name, "feature-branch");
+        assert_eq!(info.head_repository_owner, "myorg");
+        assert!(!info.is_fork, "same owner should not be a fork");
+    }
+
+    #[test]
+    fn parse_pr_info_fork_detected() {
+        let json = r#"{
+            "number": 99,
+            "headRefName": "contributor-fix",
+            "headRepositoryOwner": {"login": "contributor"},
+            "baseRepository": {"owner": {"login": "mainorg"}}
+        }"#;
+        let info = parse_pr_info(json).expect("should parse");
+        assert_eq!(info.number, 99);
+        assert_eq!(info.head_ref_name, "contributor-fix");
+        assert_eq!(info.head_repository_owner, "contributor");
+        assert!(info.is_fork, "different owner should be a fork");
+    }
+
+    #[test]
+    fn parse_pr_info_case_insensitive_owner() {
+        let json = r#"{
+            "number": 1,
+            "headRefName": "branch",
+            "headRepositoryOwner": {"login": "MyOrg"},
+            "baseRepository": {"owner": {"login": "myorg"}}
+        }"#;
+        let info = parse_pr_info(json).expect("should parse");
+        assert!(
+            !info.is_fork,
+            "case-insensitive owner match should not be a fork"
+        );
+    }
+
+    #[test]
+    fn parse_pr_info_missing_head_owner() {
+        let json = r#"{
+            "number": 1,
+            "headRefName": "branch",
+            "headRepositoryOwner": null,
+            "baseRepository": {"owner": {"login": "myorg"}}
+        }"#;
+        let info = parse_pr_info(json).expect("should parse");
+        assert!(
+            !info.is_fork,
+            "missing head owner should not be detected as fork"
+        );
+    }
+
+    #[test]
+    fn parse_pr_info_missing_base_owner() {
+        let json = r#"{
+            "number": 1,
+            "headRefName": "branch",
+            "headRepositoryOwner": {"login": "myorg"},
+            "baseRepository": null
+        }"#;
+        let info = parse_pr_info(json).expect("should parse");
+        assert!(
+            !info.is_fork,
+            "missing base owner should not be detected as fork"
         );
     }
 }

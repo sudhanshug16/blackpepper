@@ -203,3 +203,85 @@ pub fn active_terminal_mut(app: &mut App) -> Option<&mut TerminalSession> {
         .get_mut(workspace)
         .map(|session| &mut session.terminal)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::expand_env_vars;
+
+    #[test]
+    fn expand_env_vars_replaces_dollar_var() {
+        let env = vec![
+            ("PORT".to_string(), "3000".to_string()),
+            ("HOST".to_string(), "localhost".to_string()),
+        ];
+        assert_eq!(
+            expand_env_vars("http://$HOST:$PORT", &env),
+            "http://localhost:3000"
+        );
+    }
+
+    #[test]
+    fn expand_env_vars_replaces_brace_var() {
+        let env = vec![
+            ("PORT".to_string(), "8080".to_string()),
+            ("ROOT".to_string(), "/app".to_string()),
+        ];
+        assert_eq!(
+            expand_env_vars("${ROOT}/bin:${PORT}", &env),
+            "/app/bin:8080"
+        );
+    }
+
+    #[test]
+    fn expand_env_vars_mixed_syntax() {
+        let env = vec![
+            ("A".to_string(), "alpha".to_string()),
+            ("B".to_string(), "beta".to_string()),
+        ];
+        assert_eq!(expand_env_vars("$A and ${B}", &env), "alpha and beta");
+    }
+
+    #[test]
+    fn expand_env_vars_no_match_left_alone() {
+        let env = vec![("FOO".to_string(), "bar".to_string())];
+        assert_eq!(
+            expand_env_vars("$BAZ stays ${QUX}", &env),
+            "$BAZ stays ${QUX}"
+        );
+    }
+
+    #[test]
+    fn expand_env_vars_empty_env() {
+        let env: Vec<(String, String)> = vec![];
+        assert_eq!(expand_env_vars("$FOO ${BAR}", &env), "$FOO ${BAR}");
+    }
+
+    #[test]
+    fn expand_env_vars_no_recursive_expansion() {
+        // Expansion is not recursive - if a value contains $VAR, it won't be expanded
+        let env = vec![
+            ("PORT".to_string(), "3000".to_string()),
+            ("URL".to_string(), "http://localhost:$PORT".to_string()),
+        ];
+        // $URL expands to the literal value, $PORT within is NOT expanded
+        assert_eq!(expand_env_vars("$URL", &env), "http://localhost:$PORT");
+    }
+
+    #[test]
+    fn expand_env_vars_blackpepper_repo_root() {
+        let env = vec![
+            (
+                "BLACKPEPPER_REPO_ROOT".to_string(),
+                "/home/user/project".to_string(),
+            ),
+            ("BLACKPEPPER_PORT_0".to_string(), "4000".to_string()),
+        ];
+        assert_eq!(
+            expand_env_vars(
+                "cd $BLACKPEPPER_REPO_ROOT && npm start --port=$BLACKPEPPER_PORT_0",
+                &env
+            ),
+            "cd /home/user/project && npm start --port=4000"
+        );
+    }
+}

@@ -15,6 +15,7 @@ pub struct CommandSpec {
 pub const TOP_LEVEL_COMMANDS: &[&str] = &[
     "workspace",
     "pr",
+    "ports",
     "refresh",
     "init",
     "update",
@@ -67,8 +68,13 @@ pub const COMMANDS: &[CommandSpec] = &[
         cli_exposed: true,
     },
     CommandSpec {
+        name: "ports",
+        description: "Show allocated workspace ports and their status",
+        cli_exposed: true,
+    },
+    CommandSpec {
         name: "refresh",
-        description: "Redraw the UI",
+        description: "Refresh the repository status",
         cli_exposed: false,
     },
     CommandSpec {

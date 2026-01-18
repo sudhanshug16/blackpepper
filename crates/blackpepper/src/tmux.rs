@@ -2,7 +2,8 @@ use std::env;
 use std::path::Path;
 use std::process::{Command, Output};
 
-pub const DEFAULT_TMUX_TAB: &str = "work";
+/// Default tabs when none are configured: agent and server.
+pub const DEFAULT_TMUX_TABS: &[&str] = &["agent", "server"];
 pub const SETUP_TMUX_TAB: &str = "setup";
 
 use crate::config::{TmuxConfig, TmuxTabConfig};
@@ -132,10 +133,13 @@ pub fn resolve_tabs(config: &TmuxConfig) -> Vec<TmuxTabConfig> {
         })
         .collect();
     if tabs.is_empty() {
-        vec![TmuxTabConfig {
-            name: DEFAULT_TMUX_TAB.to_string(),
-            command: None,
-        }]
+        DEFAULT_TMUX_TABS
+            .iter()
+            .map(|name| TmuxTabConfig {
+                name: name.to_string(),
+                command: None,
+            })
+            .collect()
     } else {
         tabs
     }

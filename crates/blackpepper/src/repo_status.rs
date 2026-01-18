@@ -29,17 +29,12 @@ pub struct Divergence {
     pub behind: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum PrStatus {
+    #[default]
     None,
     Info(PrInfo),
     Error(PrError),
-}
-
-impl Default for PrStatus {
-    fn default() -> Self {
-        PrStatus::None
-    }
 }
 
 #[derive(Debug, Clone)]

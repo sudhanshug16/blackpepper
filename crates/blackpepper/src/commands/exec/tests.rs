@@ -170,10 +170,11 @@ fn workspace_create_and_destroy_workflow() {
         cwd: repo.path().to_path_buf(),
         repo_root: Some(repo.path().to_path_buf()),
         workspace_root: workspace_root.to_path_buf(),
+        workspace_path: None,
         source: CommandSource::Cli,
     };
 
-    let name = "otter";
+    let name = "bp.otter";
     let create = workspace_create(&[name.to_string()], &ctx);
     assert!(create.ok, "create failed: {}", create.message);
     assert_eq!(create.data.as_deref(), Some(name));
@@ -186,7 +187,7 @@ fn workspace_create_and_destroy_workflow() {
     assert!(!workspace_path.exists());
 
     let result = run_git(
-        ["show-ref", "--verify", "--quiet", "refs/heads/otter"].as_ref(),
+        ["show-ref", "--verify", "--quiet", "refs/heads/bp.otter"].as_ref(),
         repo.path(),
     );
     assert!(!result.ok);
@@ -224,6 +225,7 @@ fn pr_create_uses_agent_command_and_gh() {
         cwd: repo.path().to_path_buf(),
         repo_root: Some(repo.path().to_path_buf()),
         workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
+        workspace_path: None,
         source: CommandSource::Cli,
     };
     let result = run_command("pr", &[String::from("create")], &ctx);
@@ -255,6 +257,7 @@ fn pr_create_surfaces_agent_failure() {
         cwd: repo.path().to_path_buf(),
         repo_root: Some(repo.path().to_path_buf()),
         workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
+        workspace_path: None,
         source: CommandSource::Cli,
     };
     let result = run_command("pr", &[String::from("create")], &ctx);
@@ -291,6 +294,7 @@ fn pr_create_surfaces_gh_failure() {
         cwd: repo.path().to_path_buf(),
         repo_root: Some(repo.path().to_path_buf()),
         workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
+        workspace_path: None,
         source: CommandSource::Cli,
     };
     let result = run_command("pr", &[String::from("create")], &ctx);

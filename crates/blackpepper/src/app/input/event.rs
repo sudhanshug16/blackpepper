@@ -187,7 +187,6 @@ fn handle_key(app: &mut App, key: KeyEvent) {
     // Manage mode: escape returns to work mode
     if key.key == KeyCode::Escape {
         enter_work_mode(app);
-        return;
     }
 }
 

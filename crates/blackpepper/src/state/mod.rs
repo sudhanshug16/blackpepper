@@ -88,6 +88,14 @@ fn normalize_port_map(raw: &HashMap<String, u16>) -> HashMap<String, u16> {
     normalized
 }
 
+/// Get the base port for a workspace, if allocated.
+pub fn get_workspace_ports(workspace_path: &Path) -> Option<u16> {
+    let state = load_state()?;
+    let normalized = canonicalize_path(workspace_path);
+    let key = normalized.to_string_lossy().to_string();
+    state.workspace_ports.get(&key).copied()
+}
+
 pub fn load_state() -> Option<AppState> {
     let path = state_path()?;
     let contents = fs::read_to_string(path).ok()?;
@@ -259,7 +267,7 @@ fn valid_port_base(base: u16) -> bool {
     if max > PORT_RANGE_END {
         return false;
     }
-    (base - PORT_RANGE_START) % PORT_BLOCK_SIZE == 0
+    (base - PORT_RANGE_START).is_multiple_of(PORT_BLOCK_SIZE)
 }
 
 fn next_available_port_base(used: &HashSet<u16>) -> io::Result<u16> {
@@ -273,8 +281,7 @@ fn next_available_port_base(used: &HashSet<u16>) -> io::Result<u16> {
             None => break,
         }
     }
-    Err(io::Error::new(
-        io::ErrorKind::Other,
+    Err(io::Error::other(
         "No available workspace port blocks remaining.",
     ))
 }

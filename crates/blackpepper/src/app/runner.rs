@@ -305,7 +305,7 @@ fn read_raw_bytes(timeout: Duration) -> io::Result<Option<Vec<u8>>> {
         if size == 0 {
             return Ok(None);
         }
-        return Ok(Some(buffer[..size].to_vec()));
+        Ok(Some(buffer[..size].to_vec()))
     }
     #[cfg(not(unix))]
     {

@@ -67,6 +67,7 @@ impl TerminalSession {
     ///
     /// Starts a background thread that reads PTY output and sends it
     /// via the provided channel. Returns an error if PTY creation fails.
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn(
         id: u64,
         workspace_name: &str,

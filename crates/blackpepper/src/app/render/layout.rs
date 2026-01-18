@@ -162,10 +162,11 @@ fn fit_branch_segment(
     };
     if dirty {
         let dirty_style = Style::default().fg(Color::Rgb(255, 140, 0));
-        let mut spans = Vec::new();
-        spans.push(Span::styled("(".to_string(), style));
-        spans.push(Span::styled(branch.clone(), dirty_style));
-        spans.push(Span::styled(")".to_string(), style));
+        let spans = vec![
+            Span::styled("(".to_string(), style),
+            Span::styled(branch.clone(), dirty_style),
+            Span::styled(")".to_string(), style),
+        ];
         let text = format!("({branch})");
         Some(Segment { text, spans })
     } else {

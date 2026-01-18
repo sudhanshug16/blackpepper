@@ -398,8 +398,8 @@ pub fn save_user_agent_provider(provider: &str) -> std::io::Result<()> {
         "provider".to_string(),
         toml::Value::String(provider.to_string()),
     );
-    let output = toml::to_string_pretty(&value)
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
+    let output =
+        toml::to_string_pretty(&value).map_err(|err| std::io::Error::other(err.to_string()))?;
     fs::write(path, output)?;
     Ok(())
 }

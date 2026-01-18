@@ -69,6 +69,13 @@ pub(super) fn start_command(app: &mut App, name: &str, args: Vec<String>) {
         cwd: app.cwd.clone(),
         repo_root: app.repo_root.clone(),
         workspace_root: app.config.workspace.root.clone(),
+        workspace_path: app.active_workspace.as_ref().and_then(|name| {
+            app.repo_root.as_ref().map(|root| {
+                crate::workspaces::workspace_path(&app.config.workspace.root, name)
+                    .canonicalize()
+                    .unwrap_or_else(|_| root.join(&app.config.workspace.root).join(name))
+            })
+        }),
         source: CommandSource::Tui,
     };
     let tx = app.event_tx.clone();
@@ -127,6 +134,13 @@ fn execute_command(app: &mut App, raw: &str) {
             cwd: app.cwd.clone(),
             repo_root: app.repo_root.clone(),
             workspace_root: app.config.workspace.root.clone(),
+            workspace_path: app.active_workspace.as_ref().and_then(|name| {
+                app.repo_root.as_ref().map(|root| {
+                    crate::workspaces::workspace_path(&app.config.workspace.root, name)
+                        .canonicalize()
+                        .unwrap_or_else(|_| root.join(&app.config.workspace.root).join(name))
+                })
+            }),
             source: CommandSource::Tui,
         },
     );

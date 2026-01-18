@@ -43,6 +43,7 @@ fn main() -> std::io::Result<()> {
                     cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
                     repo_root: None,
                     workspace_root: std::path::PathBuf::from(".blackpepper/workspaces"),
+                    workspace_path: None,
                     source: commands::CommandSource::Cli,
                 },
             );
@@ -52,7 +53,7 @@ fn main() -> std::io::Result<()> {
 
         let command = rest.remove(0);
         let command = command.strip_prefix(':').unwrap_or(&command).to_string();
-        let tokens: Vec<String> = std::iter::once(command).chain(rest.into_iter()).collect();
+        let tokens: Vec<String> = std::iter::once(command).chain(rest).collect();
         let input = format!(":{}", tokens.join(" "));
         let parsed = match commands::parse_command(&input) {
             Ok(parsed) => parsed,
@@ -90,6 +91,7 @@ fn main() -> std::io::Result<()> {
                 cwd,
                 repo_root,
                 workspace_root: config.workspace.root,
+                workspace_path: None,
                 source: commands::CommandSource::Cli,
             },
         );

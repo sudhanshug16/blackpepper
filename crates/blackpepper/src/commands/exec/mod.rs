@@ -5,6 +5,7 @@
 //! return a result with success/failure and a message.
 
 mod init;
+mod ports;
 mod pr_command;
 mod update;
 mod workspace;
@@ -36,6 +37,8 @@ pub struct CommandContext {
     pub cwd: std::path::PathBuf,
     pub repo_root: Option<std::path::PathBuf>,
     pub workspace_root: std::path::PathBuf,
+    /// Path to the active workspace (if any).
+    pub workspace_path: Option<std::path::PathBuf>,
     pub source: CommandSource,
 }
 
@@ -148,6 +151,7 @@ where
                 },
             }
         }
+        "ports" => ports::ports_list(ctx),
         "quit" | "q" => CommandResult {
             ok: true,
             message: "Exiting.".to_string(),
