@@ -2,8 +2,8 @@ use std::env;
 use std::path::Path;
 use std::process::{Command, Output};
 
-/// Default tabs when none are configured: agent and server.
-pub const DEFAULT_TMUX_TABS: &[&str] = &["agent", "server"];
+/// Default tabs when none are configured: agent, server, and git.
+pub const DEFAULT_TMUX_TABS: &[&str] = &["agent", "server", "git"];
 pub const SETUP_TMUX_TAB: &str = "setup";
 
 use crate::config::{TmuxConfig, TmuxTabConfig};
@@ -137,11 +137,19 @@ pub fn resolve_tabs(config: &TmuxConfig) -> Vec<TmuxTabConfig> {
             .iter()
             .map(|name| TmuxTabConfig {
                 name: name.to_string(),
-                command: None,
+                command: default_tab_command(name),
             })
             .collect()
     } else {
         tabs
+    }
+}
+
+/// Returns the default command for a built-in tab name.
+fn default_tab_command(name: &str) -> Option<String> {
+    match name {
+        "git" => Some("command -v lazygit >/dev/null && lazygit || echo 'lazygit not found. Install: https://github.com/jesseduffield/lazygit or override git tab in config.'".to_string()),
+        _ => None,
     }
 }
 
@@ -421,5 +429,50 @@ fn format_output(output: &Output) -> String {
         "".to_string()
     } else {
         format!(" {}", parts.join("\n"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{default_tab_command, resolve_tabs, DEFAULT_TMUX_TABS};
+    use crate::config::TmuxConfig;
+
+    #[test]
+    fn default_tabs_includes_git() {
+        assert!(DEFAULT_TMUX_TABS.contains(&"git"));
+        assert!(DEFAULT_TMUX_TABS.contains(&"agent"));
+        assert!(DEFAULT_TMUX_TABS.contains(&"server"));
+    }
+
+    #[test]
+    fn resolve_tabs_uses_defaults_when_empty() {
+        let config = TmuxConfig {
+            command: None,
+            args: vec![],
+            tabs: vec![],
+        };
+        let tabs = resolve_tabs(&config);
+        assert_eq!(tabs.len(), 3);
+        assert_eq!(tabs[0].name, "agent");
+        assert_eq!(tabs[1].name, "server");
+        assert_eq!(tabs[2].name, "git");
+    }
+
+    #[test]
+    fn git_tab_has_lazygit_command() {
+        let command = default_tab_command("git");
+        assert!(command.is_some(), "git tab should have a default command");
+        let cmd = command.unwrap();
+        assert!(
+            cmd.contains("lazygit"),
+            "git tab command should run lazygit"
+        );
+    }
+
+    #[test]
+    fn non_git_tabs_have_no_default_command() {
+        assert!(default_tab_command("agent").is_none());
+        assert!(default_tab_command("server").is_none());
+        assert!(default_tab_command("work").is_none());
     }
 }
