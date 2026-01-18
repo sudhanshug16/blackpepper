@@ -269,7 +269,7 @@ fn handle_input_event(app: &mut App, event: InputEvent) {
 #[cfg(test)]
 mod tests {
     use super::handle_event;
-    use crate::app::state::{App, WorkspaceSession};
+    use crate::app::state::{App, Mode, WorkspaceSession};
     use crate::commands::CommandResult;
     use crate::events::AppEvent;
     use crate::terminal::TerminalSession;
@@ -407,6 +407,100 @@ mod tests {
             assert_eq!(app.active_workspace.as_deref(), Some("new"));
             assert!(app.sessions.contains_key("new"));
             assert!(!app.sessions.contains_key("old"));
+        });
+    }
+
+    #[test]
+    fn workspace_create_enters_work_mode() {
+        let repo = init_repo();
+        let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
+        let workspace_root = repo_root.join(".blackpepper/workspaces");
+        fs::create_dir_all(&workspace_root).expect("workspace root");
+        let ws_path = workspace_root.join("bp.otter");
+        add_worktree(&repo_root, &ws_path, "bp.otter");
+        let state_path = repo_root.join("state.toml");
+        let config_path = repo_root
+            .join(".config")
+            .join("blackpepper")
+            .join("config.toml");
+        fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
+        fs::write(
+            &config_path,
+            "[workspace]\nroot = \".blackpepper/workspaces\"\n",
+        )
+        .expect("write config");
+        let _guard = enter_dir(&repo_root);
+
+        with_state_path(&state_path, || {
+            let (tx, _rx) = mpsc::channel();
+            let mut app = App::new(tx.clone());
+            app.repo_root = Some(repo_root.clone());
+            app.cwd = repo_root.clone();
+            app.set_mode(Mode::Manage);
+
+            let result = CommandResult {
+                ok: true,
+                message: "Created workspace".to_string(),
+                data: Some("bp.otter".to_string()),
+            };
+            let event = AppEvent::CommandDone {
+                name: "workspace".to_string(),
+                args: vec!["create".to_string()],
+                result,
+            };
+            handle_event(&mut app, event);
+
+            assert_eq!(app.active_workspace.as_deref(), Some("bp.otter"));
+            assert_eq!(app.mode, Mode::Work, "should enter work mode after create");
+        });
+    }
+
+    #[test]
+    fn workspace_rename_enters_work_mode() {
+        let repo = init_repo();
+        let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
+        let workspace_root = repo_root.join(".blackpepper/workspaces");
+        fs::create_dir_all(&workspace_root).expect("workspace root");
+        let new_path = workspace_root.join("new");
+        add_worktree(&repo_root, &new_path, "new");
+        let state_path = repo_root.join("state.toml");
+        let config_path = repo_root
+            .join(".config")
+            .join("blackpepper")
+            .join("config.toml");
+        fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
+        fs::write(
+            &config_path,
+            "[workspace]\nroot = \".blackpepper/workspaces\"\n",
+        )
+        .expect("write config");
+        let _guard = enter_dir(&repo_root);
+
+        with_state_path(&state_path, || {
+            let (tx, _rx) = mpsc::channel();
+            let mut app = App::new(tx.clone());
+            app.repo_root = Some(repo_root.clone());
+            app.cwd = repo_root.clone();
+            app.active_workspace = Some("old".to_string());
+            app.set_mode(Mode::Manage);
+            let session = spawn_stub_session(tx, repo.path());
+            app.sessions
+                .insert("old".to_string(), WorkspaceSession { terminal: session });
+
+            let result = CommandResult {
+                ok: true,
+                message: "Renamed workspace".to_string(),
+                data: Some("new".to_string()),
+            };
+            let event = AppEvent::CommandDone {
+                name: "workspace".to_string(),
+                args: vec!["rename".to_string(), "new".to_string()],
+                result,
+            };
+            handle_event(&mut app, event);
+
+            assert_eq!(app.active_workspace.as_deref(), Some("new"));
+            assert_eq!(app.mode, Mode::Work, "should enter work mode after rename");
         });
     }
 }

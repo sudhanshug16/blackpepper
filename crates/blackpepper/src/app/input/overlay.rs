@@ -4,7 +4,7 @@ use crate::config::save_user_agent_provider;
 use crate::providers::agent;
 use crate::workspaces::list_workspace_names;
 
-use super::workspace::set_active_workspace;
+use super::workspace::{enter_work_mode, set_active_workspace};
 use crate::app::state::{App, PendingCommand};
 
 pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
@@ -16,7 +16,10 @@ pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
             if let Some(name) = app.overlay.items.get(app.overlay.selected) {
                 let name = name.clone();
                 match set_active_workspace(app, &name) {
-                    Ok(()) => app.set_output(format!("Active workspace: {name}")),
+                    Ok(()) => {
+                        app.set_output(format!("Active workspace: {name}"));
+                        enter_work_mode(app);
+                    }
                     Err(err) => app.set_output(err),
                 }
             }

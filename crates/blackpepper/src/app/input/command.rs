@@ -8,7 +8,9 @@ use crate::events::AppEvent;
 use crate::workspaces::list_workspace_names;
 
 use super::overlay::{open_agent_provider_overlay, open_workspace_overlay};
-use super::workspace::{prune_missing_active_workspace, request_refresh, set_active_workspace};
+use super::workspace::{
+    enter_work_mode, prune_missing_active_workspace, request_refresh, set_active_workspace,
+};
 use super::NO_ACTIVE_WORKSPACE_HINT;
 use crate::app::state::{App, PendingCommand};
 
@@ -170,7 +172,10 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
                 return;
             };
             match set_active_workspace(app, name) {
-                Ok(()) => app.set_output(format!("Active workspace: {name}")),
+                Ok(()) => {
+                    app.set_output(format!("Active workspace: {name}"));
+                    enter_work_mode(app);
+                }
                 Err(err) => app.set_output(err),
             }
         }
