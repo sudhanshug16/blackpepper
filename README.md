@@ -1,5 +1,11 @@
 # Blackpepper
 
+```
+                _     _  _
+|_  |  _  _  | |_) _ |_)|_) _  __
+|_) | (_|(_  |<|  (/_|  |  (/_ |
+```
+
 A TUI orchestrator for AI coding agents built around tmux. Each workspace is
 a git worktree with its own tmux session—you get full tmux capabilities
 (windows, panes, copy-mode, scrollback) while Blackpepper handles workspace
