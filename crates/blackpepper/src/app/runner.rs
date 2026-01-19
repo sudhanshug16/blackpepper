@@ -185,6 +185,7 @@ impl App {
             refresh_requested: false,
             input_modes_applied: InputModes::default(),
             pending_input_mode_bytes: Vec::new(),
+            pre_overlay_mode: None,
         };
 
         if let Err(err) = super::input::ensure_active_workspace_session(&mut app, 24, 80) {

@@ -93,6 +93,8 @@ pub struct App {
     pub refresh_requested: bool,
     pub input_modes_applied: InputModes,
     pub pending_input_mode_bytes: Vec<u8>,
+    /// Mode to restore when closing an overlay without selection.
+    pub pre_overlay_mode: Option<Mode>,
 }
 
 pub const OUTPUT_MAX_LINES: usize = 6;

@@ -5,14 +5,17 @@ use crate::providers::agent;
 use crate::workspaces::list_workspace_names;
 
 use super::workspace::{enter_work_mode, set_active_workspace};
-use crate::app::state::{App, PendingCommand};
+use crate::app::state::{App, Mode, PendingCommand};
 
 pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
     match key.key {
         KeyCode::Escape => {
             app.overlay.visible = false;
+            restore_pre_overlay_mode(app);
         }
         KeyCode::Enter => {
+            // Clear saved mode since we're explicitly entering work mode.
+            app.pre_overlay_mode = None;
             if let Some(name) = app.overlay.items.get(app.overlay.selected) {
                 let name = name.clone();
                 match set_active_workspace(app, &name) {
@@ -105,7 +108,17 @@ pub(super) fn open_workspace_overlay(app: &mut App) {
         }
     }
 
+    // Save current mode and switch to manage so overlay captures keypresses.
+    app.pre_overlay_mode = Some(app.mode);
+    app.set_mode(Mode::Manage);
     app.overlay.visible = true;
+}
+
+/// Restore the mode that was active before the overlay was opened.
+fn restore_pre_overlay_mode(app: &mut App) {
+    if let Some(mode) = app.pre_overlay_mode.take() {
+        app.set_mode(mode);
+    }
 }
 
 pub(super) fn open_agent_provider_overlay(app: &mut App, pending: PendingCommand) {
