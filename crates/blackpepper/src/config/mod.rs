@@ -5,6 +5,9 @@
 //! 2. Project-level: `<repo>/.blackpepper/config.toml` (committed)
 //! 3. User-project-level: `<repo>/.blackpepper/config.local.toml` (gitignored)
 //!
+//! Note: `config.local.toml` is always loaded from the main repo root, not
+//! from worktrees, since it's gitignored and won't be present in worktrees.
+//!
 //! Supports keymap customization, tmux command override, workspace root
 //! configuration, and workspace setup scripts. Uses TOML format with serde.
 
@@ -13,6 +16,8 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::git::resolve_repo_root;
 
 const DEFAULT_TOGGLE_MODE: &str = "ctrl+]";
 const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+\\";
@@ -354,8 +359,11 @@ pub fn user_config_path() -> Option<PathBuf> {
 
 pub fn load_config(root: &Path) -> Config {
     let project_path = workspace_config_path(root);
-    let local_path = workspace_local_config_path(root);
     let user_path = user_config_path();
+
+    // Local config is gitignored, so load from main repo root (not worktree).
+    let main_root = resolve_repo_root(root).unwrap_or_else(|| root.to_path_buf());
+    let local_path = workspace_local_config_path(&main_root);
 
     let project_config = read_toml(&project_path);
     let local_config = read_toml(&local_path);
