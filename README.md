@@ -1,13 +1,30 @@
-# Parallel Workspace Manager for Coding Agents
+# Blackpepper
 
-Run multiple AI coding agents in parallel on a single Git project. Create
-isolated workspaces, see what each agent is doing, then review and merge the
-results on your terms.
+A TUI orchestrator for AI coding agents built around tmux. Each workspace is
+a git worktree with its own tmux session—you get full tmux capabilities
+(windows, panes, copy-mode, scrollback) while Blackpepper handles workspace
+isolation, port allocation, and agent lifecycle.
+
+**How it works:**
+
+- Each workspace runs in a dedicated tmux session with configurable tabs
+  (agent, server, git, or custom commands)
+- Blackpepper embeds tmux with raw input passthrough—it's a transparent layer,
+  not a terminal emulator replacement
+- Workspaces are isolated git worktrees so agents work on separate branches
+  without conflicts
+- Each workspace gets dedicated ports (`WORKSPACE_PORT_0`–`WORKSPACE_PORT_9`)
+  so dev servers don't collide
+- PR creation integrates with GitHub via `gh` CLI
+
+**Supported agents:** Codex, Claude Code, OpenCode (configurable via `[agent]`)
 
 ## Status
 
-We are migrating the stack. The current crate includes a basic TUI with
-command mode, worktree management, and a wired PTY/ANSI terminal renderer.
+Core features are stable and working: workspace lifecycle (create, destroy,
+rename, from-branch, from-pr), tmux session management, port allocation,
+config layering, and PR creation. The `:pr open` and `:pr merge` commands
+are not yet implemented.
 
 ## Quickstart
 
