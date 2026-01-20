@@ -5,10 +5,10 @@ use crate::events::AppEvent;
 use crate::keymap::matches_chord;
 
 use super::command::handle_command_input;
-use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspace_overlay};
+use super::overlay::{handle_overlay_key, handle_prompt_overlay_key};
 use super::terminal::process_terminal_output;
 use super::workspace::{
-    active_terminal_mut, close_session_by_id, ensure_manage_mode_without_workspace,
+    active_terminal_mut, close_session_by_id, cycle_workspace, ensure_manage_mode_without_workspace,
     enter_work_mode, set_active_workspace,
 };
 use crate::app::state::{App, Mode};
@@ -164,10 +164,10 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         }
     }
 
-    // Switch workspace chord
+    // Cycle workspace chord
     if let Some(chord) = &app.switch_chord {
         if matches_chord(&key, chord) {
-            open_workspace_overlay(app);
+            cycle_workspace(app);
             return;
         }
     }
@@ -208,8 +208,8 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
                     enter_work_mode(app);
                 }
                 MatchedChord::Switch => {
-                    // Open workspace overlay - works even without active workspace
-                    open_workspace_overlay(app);
+                    // Cycle workspace - works even without active workspace
+                    cycle_workspace(app);
                 }
                 MatchedChord::None => {}
             }
@@ -227,7 +227,7 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
                     app.set_mode(Mode::Manage);
                 }
                 MatchedChord::Switch => {
-                    open_workspace_overlay(app);
+                    cycle_workspace(app);
                 }
                 MatchedChord::None => {}
             }

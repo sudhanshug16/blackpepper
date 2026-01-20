@@ -49,7 +49,7 @@ Blackpepper has two modes:
 | Key | Action | Works in |
 |-----|--------|----------|
 | `Ctrl+]` | Toggle between Work ↔ Manage | Both |
-| `Ctrl+\` | Open workspace switcher | Both |
+| `Ctrl+|` | Cycle workspaces (Ctrl+Shift+\) | Both |
 | `:` | Open command line | Manage |
 | `q` | Quit | Manage |
 | `Esc` | Close overlay / return to Work | Manage |
@@ -71,8 +71,9 @@ Blackpepper has two modes:
 :workspace from-branch feature/auth
 :workspace from-pr 123
 
-# Switch workspaces
-Ctrl+\                    # opens switcher overlay
+# Cycle workspaces
+Ctrl+|                    # cycles to next workspace
+:workspace list           # open switcher overlay
 :workspace switch otter   # switch directly
 
 # Rename workspace and branch
@@ -126,7 +127,7 @@ Config resolution order (later overrides earlier):
 ```toml
 [keymap]
 toggle_mode = "ctrl+]"
-switch_workspace = "ctrl+\\"
+switch_workspace = "ctrl+|"
 
 [agent]
 provider = "claude"  # or "codex", "opencode"
@@ -140,7 +141,7 @@ provider = "claude"  # or "codex", "opencode"
 ```toml
 [keymap]
 toggle_mode = "ctrl+]"
-switch_workspace = "ctrl+\\"
+switch_workspace = "ctrl+|"
 
 [tmux]
 command = "tmux"

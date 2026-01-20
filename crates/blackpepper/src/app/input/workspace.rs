@@ -72,6 +72,38 @@ pub(super) fn set_active_workspace(app: &mut App, name: &str) -> Result<(), Stri
     ensure_active_workspace_session(app, 24, 80)
 }
 
+pub(super) fn cycle_workspace(app: &mut App) {
+    let root = match &app.repo_root {
+        Some(root) => root.clone(),
+        None => {
+            app.set_output("Not inside a git repository.".to_string());
+            return;
+        }
+    };
+    let names = list_workspace_names(&root, &app.config.workspace.root);
+    prune_missing_active_workspace(app, &names);
+    if names.is_empty() {
+        app.set_output("No workspaces yet.".to_string());
+        return;
+    }
+
+    let next = match app.active_workspace.as_deref() {
+        Some(active) => match names.iter().position(|name| name == active) {
+            Some(index) => names[(index + 1) % names.len()].clone(),
+            None => names[0].clone(),
+        },
+        None => names[0].clone(),
+    };
+
+    match set_active_workspace(app, &next) {
+        Ok(()) => {
+            app.set_output(format!("Active workspace: {next}"));
+            enter_work_mode(app);
+        }
+        Err(err) => app.set_output(err),
+    }
+}
+
 pub(super) fn ensure_manage_mode_without_workspace(app: &mut App) {
     if app.active_workspace.is_none() {
         app.set_mode(Mode::Manage);

@@ -63,7 +63,7 @@ fn body_lines(app: &App) -> Vec<Line<'_>> {
         lines.push(Line::raw("- Work mode requires an active workspace."));
         lines.push(Line::raw("- Open command bar (Manage): :"));
         lines.push(Line::raw(format!(
-            "- Switch workspace: {switch_workspace} or :workspace list"
+            "- Cycle workspace: {switch_workspace} or :workspace list"
         )));
         lines.push(Line::raw("- Create workspace: :workspace create [name]"));
         lines.push(Line::raw("- Quit: q (Manage) or :quit"));

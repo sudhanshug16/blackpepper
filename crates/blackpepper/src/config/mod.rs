@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use crate::git::resolve_repo_root;
 
 const DEFAULT_TOGGLE_MODE: &str = "ctrl+]";
-const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+\\";
+const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+|";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
 const DEFAULT_TMUX_COMMAND: &str = "tmux";
 const DEFAULT_GIT_REMOTE: &str = "origin";
