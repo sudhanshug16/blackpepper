@@ -109,18 +109,13 @@ struct GhPrView {
     head_ref_name: String,
     #[serde(rename = "headRepositoryOwner")]
     head_repository_owner: Option<GhOwner>,
-    #[serde(rename = "baseRepository")]
-    base_repository: Option<GhRepository>,
+    #[serde(rename = "isCrossRepository")]
+    is_cross_repository: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 struct GhOwner {
     login: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GhRepository {
-    owner: GhOwner,
 }
 
 fn fetch_pr_info(cwd: &std::path::Path, pr_ref: &str) -> Result<PrInfo, String> {
@@ -130,7 +125,7 @@ fn fetch_pr_info(cwd: &std::path::Path, pr_ref: &str) -> Result<PrInfo, String> 
             "view",
             pr_ref,
             "--json",
-            "number,headRefName,headRepositoryOwner,baseRepository",
+            "number,headRefName,headRepositoryOwner,isCrossRepository",
         ])
         .current_dir(cwd)
         .output();
@@ -167,15 +162,7 @@ fn parse_pr_info(raw: &str) -> Result<PrInfo, String> {
         .head_repository_owner
         .map(|o| o.login)
         .unwrap_or_default();
-    let base_owner = parsed
-        .base_repository
-        .map(|r| r.owner.login)
-        .unwrap_or_default();
-
-    // It's a fork if the head owner differs from the base owner
-    let is_fork = !head_owner.is_empty()
-        && !base_owner.is_empty()
-        && head_owner.to_lowercase() != base_owner.to_lowercase();
+    let is_fork = parsed.is_cross_repository.unwrap_or(false);
 
     Ok(PrInfo {
         number: parsed.number,
@@ -226,7 +213,7 @@ mod tests {
             "number": 42,
             "headRefName": "feature-branch",
             "headRepositoryOwner": {"login": "myorg"},
-            "baseRepository": {"owner": {"login": "myorg"}}
+            "isCrossRepository": false
         }"#;
         let info = parse_pr_info(json).expect("should parse");
         assert_eq!(info.number, 42);
@@ -241,7 +228,7 @@ mod tests {
             "number": 99,
             "headRefName": "contributor-fix",
             "headRepositoryOwner": {"login": "contributor"},
-            "baseRepository": {"owner": {"login": "mainorg"}}
+            "isCrossRepository": true
         }"#;
         let info = parse_pr_info(json).expect("should parse");
         assert_eq!(info.number, 99);
@@ -256,7 +243,7 @@ mod tests {
             "number": 1,
             "headRefName": "branch",
             "headRepositoryOwner": {"login": "MyOrg"},
-            "baseRepository": {"owner": {"login": "myorg"}}
+            "isCrossRepository": false
         }"#;
         let info = parse_pr_info(json).expect("should parse");
         assert!(
@@ -271,7 +258,7 @@ mod tests {
             "number": 1,
             "headRefName": "branch",
             "headRepositoryOwner": null,
-            "baseRepository": {"owner": {"login": "myorg"}}
+            "isCrossRepository": false
         }"#;
         let info = parse_pr_info(json).expect("should parse");
         assert!(
@@ -286,12 +273,23 @@ mod tests {
             "number": 1,
             "headRefName": "branch",
             "headRepositoryOwner": {"login": "myorg"},
-            "baseRepository": null
+            "isCrossRepository": false
         }"#;
         let info = parse_pr_info(json).expect("should parse");
         assert!(
             !info.is_fork,
             "missing base owner should not be detected as fork"
         );
+    }
+
+    #[test]
+    fn parse_pr_info_missing_cross_repo() {
+        let json = r#"{
+            "number": 1,
+            "headRefName": "branch",
+            "headRepositoryOwner": {"login": "myorg"}
+        }"#;
+        let info = parse_pr_info(json).expect("should parse");
+        assert!(!info.is_fork, "missing cross repo should default to false");
     }
 }
