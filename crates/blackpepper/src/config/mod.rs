@@ -21,6 +21,7 @@ use crate::git::resolve_repo_root;
 
 const DEFAULT_TOGGLE_MODE: &str = "ctrl+]";
 const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+|";
+const DEFAULT_WORKSPACE_OVERLAY: &str = "ctrl+\\";
 const DEFAULT_WORKSPACE_ROOT: &str = ".blackpepper/workspaces";
 const DEFAULT_TMUX_COMMAND: &str = "tmux";
 const DEFAULT_GIT_REMOTE: &str = "origin";
@@ -46,6 +47,7 @@ pub struct Config {
 pub struct KeymapConfig {
     pub toggle_mode: String,
     pub switch_workspace: String,
+    pub workspace_overlay: String,
 }
 
 #[derive(Debug, Clone)]
@@ -111,6 +113,8 @@ struct RawKeymap {
     toggle_mode: Option<String>,
     #[serde(alias = "switchWorkspace")]
     switch_workspace: Option<String>,
+    #[serde(alias = "workspaceOverlay")]
+    workspace_overlay: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -247,6 +251,10 @@ fn merge_config(
             switch_workspace: layers.resolve_string(
                 |c| c.keymap.as_ref()?.switch_workspace.clone(),
                 DEFAULT_SWITCH_WORKSPACE,
+            ),
+            workspace_overlay: layers.resolve_string(
+                |c| c.keymap.as_ref()?.workspace_overlay.clone(),
+                DEFAULT_WORKSPACE_OVERLAY,
             ),
         },
         tmux: TmuxConfig {

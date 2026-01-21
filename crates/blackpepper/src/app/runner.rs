@@ -115,8 +115,13 @@ impl App {
         let config_root = repo_root.as_deref().unwrap_or(&cwd);
         let config = load_config(config_root);
         let toggle_chord = parse_key_chord(&config.keymap.toggle_mode);
+        let workspace_overlay_chord = parse_key_chord(&config.keymap.workspace_overlay);
         let switch_chord = parse_key_chord(&config.keymap.switch_workspace);
-        let input_decoder = InputDecoder::new(toggle_chord.clone(), switch_chord.clone());
+        let input_decoder = InputDecoder::new(
+            toggle_chord.clone(),
+            workspace_overlay_chord.clone(),
+            switch_chord.clone(),
+        );
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
 
         // Prune stale bp.* worktrees on startup
@@ -167,6 +172,7 @@ impl App {
             repo_root,
             active_workspace,
             toggle_chord,
+            workspace_overlay_chord,
             switch_chord,
             input_decoder,
             should_quit: false,

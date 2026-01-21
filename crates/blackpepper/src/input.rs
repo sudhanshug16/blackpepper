@@ -14,21 +14,28 @@ use crate::keymap::KeyChord;
 pub enum MatchedChord {
     None,
     Toggle,
+    WorkspaceOverlay,
     Switch,
 }
 
 pub struct InputDecoder {
     parser: InputParser,
     toggle_matcher: ToggleMatcher,
+    overlay_matcher: ToggleMatcher,
     switch_matcher: ToggleMatcher,
     logger: InputLogger,
 }
 
 impl InputDecoder {
-    pub fn new(toggle_chord: Option<KeyChord>, switch_chord: Option<KeyChord>) -> Self {
+    pub fn new(
+        toggle_chord: Option<KeyChord>,
+        overlay_chord: Option<KeyChord>,
+        switch_chord: Option<KeyChord>,
+    ) -> Self {
         Self {
             parser: InputParser::new(),
             toggle_matcher: ToggleMatcher::new(toggle_sequences(toggle_chord.as_ref())),
+            overlay_matcher: ToggleMatcher::new(toggle_sequences(overlay_chord.as_ref())),
             switch_matcher: ToggleMatcher::new(toggle_sequences(switch_chord.as_ref())),
             logger: InputLogger::new(),
         }
@@ -37,10 +44,13 @@ impl InputDecoder {
     pub fn update_chords(
         &mut self,
         toggle_chord: Option<KeyChord>,
+        overlay_chord: Option<KeyChord>,
         switch_chord: Option<KeyChord>,
     ) {
         self.toggle_matcher
             .update_sequences(toggle_sequences(toggle_chord.as_ref()));
+        self.overlay_matcher
+            .update_sequences(toggle_sequences(overlay_chord.as_ref()));
         self.switch_matcher
             .update_sequences(toggle_sequences(switch_chord.as_ref()));
     }
@@ -65,16 +75,25 @@ impl InputDecoder {
         let (out, toggled, matched) = self.toggle_matcher.feed(bytes);
         if toggled {
             self.logger.log_toggle(&matched);
-            // Also feed to switch_matcher to keep it in sync (discard result)
+            // Also feed to other matchers to keep them in sync (discard result)
+            let _ = self.overlay_matcher.feed(bytes);
             let _ = self.switch_matcher.feed(bytes);
             return (out, MatchedChord::Toggle);
         }
 
-        // Check switch chord
-        let (out2, switched, matched2) = self.switch_matcher.feed(bytes);
-        if switched {
+        // Check workspace overlay chord
+        let (out2, opened, matched2) = self.overlay_matcher.feed(bytes);
+        if opened {
             self.logger.log_toggle(&matched2);
-            return (out2, MatchedChord::Switch);
+            let _ = self.switch_matcher.feed(bytes);
+            return (out2, MatchedChord::WorkspaceOverlay);
+        }
+
+        // Check switch chord
+        let (out3, switched, matched3) = self.switch_matcher.feed(bytes);
+        if switched {
+            self.logger.log_toggle(&matched3);
+            return (out3, MatchedChord::Switch);
         }
 
         // Neither matched - return the output from toggle_matcher
@@ -84,6 +103,7 @@ impl InputDecoder {
 
     pub fn flush_work(&mut self) -> Vec<u8> {
         let t = self.toggle_matcher.flush();
+        let _ = self.overlay_matcher.flush();
         let _ = self.switch_matcher.flush();
         t
     }

@@ -65,9 +65,13 @@ pub(super) fn set_active_workspace(app: &mut App, name: &str) -> Result<(), Stri
     let _ = record_active_workspace(&root, &workspace_path);
     app.config = load_config(&root);
     app.toggle_chord = parse_key_chord(&app.config.keymap.toggle_mode);
+    app.workspace_overlay_chord = parse_key_chord(&app.config.keymap.workspace_overlay);
     app.switch_chord = parse_key_chord(&app.config.keymap.switch_workspace);
-    app.input_decoder
-        .update_chords(app.toggle_chord.clone(), app.switch_chord.clone());
+    app.input_decoder.update_chords(
+        app.toggle_chord.clone(),
+        app.workspace_overlay_chord.clone(),
+        app.switch_chord.clone(),
+    );
     request_repo_status(app);
     ensure_active_workspace_session(app, 24, 80)
 }

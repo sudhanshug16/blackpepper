@@ -49,6 +49,7 @@ Blackpepper has two modes:
 | Key | Action | Works in |
 |-----|--------|----------|
 | `Ctrl+]` | Toggle between Work ↔ Manage | Both |
+| `Ctrl+\\` | Open workspace switcher | Both |
 | `Ctrl+|` | Cycle workspaces (Ctrl+Shift+\) | Both |
 | `:` | Open command line | Manage |
 | `q` | Quit | Manage |
@@ -71,8 +72,9 @@ Blackpepper has two modes:
 :workspace from-branch feature/auth
 :workspace from-pr 123
 
-# Cycle workspaces
-Ctrl+|                    # cycles to next workspace
+# Switch workspaces
+Ctrl+\\                    # open switcher overlay
+Ctrl+|                    # cycle to next workspace
 :workspace list           # open switcher overlay
 :workspace switch otter   # switch directly
 
@@ -128,6 +130,7 @@ Config resolution order (later overrides earlier):
 [keymap]
 toggle_mode = "ctrl+]"
 switch_workspace = "ctrl+|"
+workspace_overlay = "ctrl+\\"
 
 [agent]
 provider = "claude"  # or "codex", "opencode"
@@ -142,6 +145,7 @@ provider = "claude"  # or "codex", "opencode"
 [keymap]
 toggle_mode = "ctrl+]"
 switch_workspace = "ctrl+|"
+workspace_overlay = "ctrl+\\"
 
 [tmux]
 command = "tmux"
@@ -183,7 +187,7 @@ foreground = "#ffffff"
 
 | Section | Description |
 |---------|-------------|
-| `[keymap]` | Key bindings (`toggle_mode`, `switch_workspace`) |
+| `[keymap]` | Key bindings (`toggle_mode`, `switch_workspace`, `workspace_overlay`) |
 | `[tmux]` | Tmux command and args |
 | `[tmux.tabs.<name>]` | Tabs with optional startup commands |
 | `[workspace]` | Workspace root directory |

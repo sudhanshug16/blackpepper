@@ -36,6 +36,7 @@ fn load_config_uses_defaults_when_empty() {
 
     assert_eq!(config.keymap.toggle_mode, "ctrl+]");
     assert_eq!(config.keymap.switch_workspace, "ctrl+|");
+    assert_eq!(config.keymap.workspace_overlay, "ctrl+\\");
     assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
     assert!(config.tmux.args.is_empty());
     assert!(config.tmux.tabs.is_empty());
@@ -77,6 +78,7 @@ fn load_config_merges_user_and_workspace() {
 [keymap]
 toggle_mode = "ctrl+x"
 switch_workspace = "ctrl+u"
+workspace_overlay = "ctrl+o"
 
 [tmux]
 command = "tmux"
@@ -141,6 +143,7 @@ foreground = "#cccccc"
 
     assert_eq!(config.keymap.toggle_mode, "ctrl+y");
     assert_eq!(config.keymap.switch_workspace, "ctrl+u");
+    assert_eq!(config.keymap.workspace_overlay, "ctrl+o");
     assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
     assert_eq!(config.tmux.args, vec!["-L".to_string(), "alt".to_string()]);
     assert_eq!(
@@ -278,6 +281,7 @@ fn load_config_three_layer_precedence() {
 [keymap]
 toggle_mode = "ctrl+u"
 switch_workspace = "ctrl+u"
+workspace_overlay = "ctrl+o"
 
 [agent]
 provider = "user-provider"
@@ -328,6 +332,8 @@ provider = "local-provider"
     assert_eq!(config.git.remote, "project-remote");
     // User wins for switch_workspace (neither project nor local specify)
     assert_eq!(config.keymap.switch_workspace, "ctrl+u");
+    // User wins for workspace_overlay (neither project nor local specify)
+    assert_eq!(config.keymap.workspace_overlay, "ctrl+o");
     // User wins for agent.command (neither project nor local specify)
     assert_eq!(config.agent.command.as_deref(), Some("user-command"));
 

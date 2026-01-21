@@ -75,6 +75,7 @@ pub struct App {
     pub repo_root: Option<PathBuf>,
     pub active_workspace: Option<String>,
     pub toggle_chord: Option<KeyChord>,
+    pub workspace_overlay_chord: Option<KeyChord>,
     pub switch_chord: Option<KeyChord>,
     pub input_decoder: InputDecoder,
     pub should_quit: bool,
