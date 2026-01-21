@@ -5,9 +5,9 @@ use crate::tmux;
 use crate::workspaces::{is_valid_workspace_name, workspace_absolute_path, workspace_path};
 
 use super::super::{CommandContext, CommandResult};
-use super::helpers::{branch_exists, format_exec_output};
+use super::helpers::format_exec_output;
 
-/// Destroy a workspace worktree and its branch.
+/// Destroy a workspace worktree.
 pub(crate) fn workspace_destroy(args: &[String], ctx: &CommandContext) -> CommandResult {
     let Some(name) = args.first() else {
         return CommandResult {
@@ -67,28 +67,6 @@ pub(crate) fn workspace_destroy(args: &[String], ctx: &CommandContext) -> Comman
         };
     }
 
-    let mut deleted_branch = false;
-    if branch_exists(&repo_root, name) {
-        let git_args = ["branch", "-D", name.as_str()];
-        let branch_result = run_git(git_args.as_ref(), &repo_root);
-        if !branch_result.ok {
-            let output = format_exec_output(&branch_result);
-            let details = if output.is_empty() {
-                "".to_string()
-            } else {
-                format!("\n{output}")
-            };
-            return CommandResult {
-                ok: false,
-                message: format!(
-                    "Removed workspace '{name}', but failed to delete branch '{name}'.{details}"
-                ),
-                data: None,
-            };
-        }
-        deleted_branch = true;
-    }
-
     let output = format_exec_output(&result);
     let details = if output.is_empty() {
         "".to_string()
@@ -101,17 +79,10 @@ pub(crate) fn workspace_destroy(args: &[String], ctx: &CommandContext) -> Comman
     };
     CommandResult {
         ok: true,
-        message: if deleted_branch {
-            format!(
-                "Removed workspace '{name}' from {} and deleted its branch.{details}{port_warning}",
-                workspace_path(&ctx.workspace_root, name).to_string_lossy()
-            )
-        } else {
-            format!(
-                "Removed workspace '{name}' from {}.{details}{port_warning}",
-                workspace_path(&ctx.workspace_root, name).to_string_lossy()
-            )
-        },
+        message: format!(
+            "Removed workspace '{name}' from {}.{details}{port_warning}",
+            workspace_path(&ctx.workspace_root, name).to_string_lossy()
+        ),
         data: None,
     }
 }

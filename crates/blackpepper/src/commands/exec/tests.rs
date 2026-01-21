@@ -113,12 +113,9 @@ fn unique_animal_names_are_valid_and_unique() {
 
 #[test]
 fn pick_unused_returns_none_when_exhausted() {
-    use crate::workspaces::WORKSPACE_PREFIX;
-    // Build set of prefixed names (bp.otter, bp.lynx, etc.)
     let names = unique_animal_names();
     let used: HashSet<String> = names
         .into_iter()
-        .map(|name| format!("{WORKSPACE_PREFIX}{name}"))
         .collect();
     let picked = pick_unused_animal_name(&used);
     assert!(picked.is_none());
@@ -159,7 +156,7 @@ fn workspace_create_and_destroy_workflow() {
         source: CommandSource::Cli,
     };
 
-    let name = "bp.otter";
+    let name = "otter";
     let create = workspace_create(&[name.to_string()], &ctx);
     assert!(create.ok, "create failed: {}", create.message);
     assert_eq!(create.data.as_deref(), Some(name));
@@ -172,10 +169,10 @@ fn workspace_create_and_destroy_workflow() {
     assert!(!workspace_path.exists());
 
     let result = run_git(
-        ["show-ref", "--verify", "--quiet", "refs/heads/bp.otter"].as_ref(),
+        ["show-ref", "--verify", "--quiet", "refs/heads/otter"].as_ref(),
         repo.path(),
     );
-    assert!(!result.ok);
+    assert!(result.ok);
 }
 
 #[test]

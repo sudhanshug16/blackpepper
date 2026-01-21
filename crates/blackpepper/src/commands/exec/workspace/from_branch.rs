@@ -78,18 +78,6 @@ pub(crate) fn workspace_from_branch(args: &[String], ctx: &CommandContext) -> Co
         };
     }
 
-    // Check if local branch already exists
-    if branch_exists(&repo_root, &workspace_name) {
-        return CommandResult {
-            ok: false,
-            message: format!(
-                "Local branch '{workspace_name}' already exists. \
-                 Remove it first or use a different branch."
-            ),
-            data: None,
-        };
-    }
-
     let use_local_branch = branch_exists(&repo_root, branch_name);
     if !use_local_branch {
         // Fetch the remote branch
@@ -115,20 +103,26 @@ pub(crate) fn workspace_from_branch(args: &[String], ctx: &CommandContext) -> Co
     // Create worktree tracking the branch
     let worktree_path = workspace_path(&ctx.workspace_root, &workspace_name);
     let worktree_path_str = worktree_path.to_string_lossy().to_string();
-    let branch_ref = if use_local_branch {
-        branch_name.to_string()
+    let git_args = if use_local_branch {
+        vec![
+            "worktree".to_string(),
+            "add".to_string(),
+            worktree_path_str.clone(),
+            branch_name.to_string(),
+        ]
     } else {
-        format!("{remote}/{branch_name}")
+        let branch_ref = format!("{remote}/{branch_name}");
+        vec![
+            "worktree".to_string(),
+            "add".to_string(),
+            worktree_path_str.clone(),
+            "-b".to_string(),
+            branch_name.to_string(),
+            branch_ref,
+        ]
     };
-    let git_args = [
-        "worktree",
-        "add",
-        worktree_path_str.as_str(),
-        "-b",
-        workspace_name.as_str(),
-        branch_ref.as_str(),
-    ];
-    let result = run_git(git_args.as_ref(), &repo_root);
+    let git_args_refs: Vec<&str> = git_args.iter().map(String::as_str).collect();
+    let result = run_git(git_args_refs.as_ref(), &repo_root);
     if !result.ok {
         let output = format_exec_output(&result);
         let details = if output.is_empty() {
@@ -221,12 +215,13 @@ mod tests {
         let repo_root = repo.path();
         write_config(repo_root);
         run_git_cmd(&["checkout", "-b", "feature"], repo_root);
+        run_git_cmd(&["checkout", "main"], repo_root);
 
         let ctx = make_context(repo_root);
         let result = workspace_from_branch(&["feature".to_string()], &ctx);
 
         assert!(result.ok, "{}", result.message);
-        let worktree_path = repo_root.join(".blackpepper/workspaces/bp.feature");
+        let worktree_path = repo_root.join(".blackpepper/workspaces/feature");
         assert!(worktree_path.exists());
     }
 
@@ -256,7 +251,7 @@ mod tests {
         let result = workspace_from_branch(&["feature".to_string()], &ctx);
 
         assert!(result.ok, "{}", result.message);
-        let worktree_path = repo_root.join(".blackpepper/workspaces/bp.feature");
+        let worktree_path = repo_root.join(".blackpepper/workspaces/feature");
         assert!(worktree_path.exists());
     }
 }

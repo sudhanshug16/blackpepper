@@ -6,7 +6,7 @@
 use std::io;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
 #[cfg(not(unix))]
@@ -38,6 +38,7 @@ pub fn run() -> io::Result<()> {
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    terminal.hide_cursor()?;
 
     let result = run_loop(&mut terminal);
 
@@ -50,31 +51,49 @@ pub fn run() -> io::Result<()> {
 
 /// Main event loop: process events until quit.
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
+    const FRAME_INTERVAL: Duration = Duration::from_millis(16);
     let (event_tx, event_rx) = mpsc::channel::<AppEvent>();
     let mut app = App::new(event_tx.clone());
     spawn_input_thread(event_tx.clone());
     terminal.clear()?;
     terminal.draw(|frame| super::render::render(&mut app, frame))?;
     flush_pending_input_modes(terminal, &mut app)?;
+    let mut last_draw_at = Instant::now();
+    let mut pending_draw = false;
 
     while !app.should_quit {
-        let event = match event_rx.recv() {
-            Ok(event) => event,
-            Err(_) => break,
-        };
-        super::input::handle_event(&mut app, event);
-        // Drain any pending events before redraw
-        while let Ok(event) = event_rx.try_recv() {
-            super::input::handle_event(&mut app, event);
+        let timeout = FRAME_INTERVAL
+            .checked_sub(last_draw_at.elapsed())
+            .unwrap_or(Duration::from_millis(0));
+        let mut received_event = false;
+        match event_rx.recv_timeout(timeout) {
+            Ok(event) => {
+                super::input::handle_event(&mut app, event);
+                received_event = true;
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
         }
 
-        if app.refresh_requested {
-            terminal.clear()?;
-            app.refresh_requested = false;
+        if received_event {
+            // Drain any pending events before redraw
+            while let Ok(event) = event_rx.try_recv() {
+                super::input::handle_event(&mut app, event);
+            }
+            pending_draw = true;
         }
 
-        flush_pending_input_modes(terminal, &mut app)?;
-        terminal.draw(|frame| super::render::render(&mut app, frame))?;
+        if pending_draw && last_draw_at.elapsed() >= FRAME_INTERVAL {
+            if app.refresh_requested {
+                terminal.clear()?;
+                app.refresh_requested = false;
+            }
+
+            flush_pending_input_modes(terminal, &mut app)?;
+            terminal.draw(|frame| super::render::render(&mut app, frame))?;
+            last_draw_at = Instant::now();
+            pending_draw = false;
+        }
     }
     Ok(())
 }
@@ -124,7 +143,7 @@ impl App {
         );
         let repo_status_tx = spawn_repo_status_worker(event_tx.clone());
 
-        // Prune stale bp.* worktrees on startup
+        // Prune stale worktrees under the workspace root on startup
         if let Some(root) = repo_root.as_ref() {
             let _ = prune_stale_workspaces(root, &config.workspace.root);
         }

@@ -454,8 +454,8 @@ mod tests {
         let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
         let workspace_root = repo_root.join(".blackpepper/workspaces");
         fs::create_dir_all(&workspace_root).expect("workspace root");
-        let ws_path = workspace_root.join("bp.otter");
-        add_worktree(&repo_root, &ws_path, "bp.otter");
+        let ws_path = workspace_root.join("otter");
+        add_worktree(&repo_root, &ws_path, "otter");
         let state_path = repo_root.join("state.toml");
         let config_path = repo_root
             .join(".config")
@@ -479,7 +479,7 @@ mod tests {
             let result = CommandResult {
                 ok: true,
                 message: "Created workspace".to_string(),
-                data: Some("bp.otter".to_string()),
+                data: Some("otter".to_string()),
             };
             let event = AppEvent::CommandDone {
                 name: "workspace".to_string(),
@@ -488,7 +488,7 @@ mod tests {
             };
             handle_event(&mut app, event);
 
-            assert_eq!(app.active_workspace.as_deref(), Some("bp.otter"));
+            assert_eq!(app.active_workspace.as_deref(), Some("otter"));
             assert_eq!(app.mode, Mode::Work, "should enter work mode after create");
         });
     }

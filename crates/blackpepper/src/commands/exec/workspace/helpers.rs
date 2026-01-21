@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::animals::ANIMAL_NAMES;
 use crate::git::{run_git, ExecResult};
-use crate::workspaces::{is_valid_workspace_name, WORKSPACE_PREFIX};
+use crate::workspaces::is_valid_workspace_name;
 
 pub(super) fn format_exec_output(result: &ExecResult) -> String {
     let stdout = result.stdout.trim();
@@ -31,18 +31,11 @@ pub(super) fn branch_exists(repo_root: &Path, name: &str) -> bool {
     result.ok
 }
 
-/// Normalize a raw name to a valid workspace name with bp. prefix.
+/// Normalize a raw name to a valid workspace name.
 pub(super) fn normalize_workspace_name(raw: &str) -> String {
-    // Check for existing bp. prefix before normalizing (to avoid double-prefix)
-    let to_normalize = if raw.to_ascii_lowercase().starts_with(WORKSPACE_PREFIX) {
-        &raw[WORKSPACE_PREFIX.len()..]
-    } else {
-        raw
-    };
-
     let mut out = String::new();
     let mut last_dash = false;
-    for ch in to_normalize.chars() {
+    for ch in raw.chars() {
         let ch = ch.to_ascii_lowercase();
         if ch.is_ascii_lowercase() || ch.is_ascii_digit() {
             out.push(ch);
@@ -57,12 +50,7 @@ pub(super) fn normalize_workspace_name(raw: &str) -> String {
             last_dash = true;
         }
     }
-    let normalized = out.trim_matches('-').to_string();
-    if normalized.is_empty() {
-        return normalized;
-    }
-    // Add bp. prefix (already_prefixed means it was stripped earlier)
-    format!("{WORKSPACE_PREFIX}{normalized}")
+    out.trim_matches('-').to_string()
 }
 
 pub(crate) fn unique_animal_names() -> Vec<String> {
@@ -80,12 +68,7 @@ pub(crate) fn unique_animal_names() -> Vec<String> {
 }
 
 pub(crate) fn pick_unused_animal_name(used: &HashSet<String>) -> Option<String> {
-    // Generate prefixed names (bp.otter, bp.lynx, etc.)
-    let prefixed_names: Vec<String> = unique_animal_names()
-        .into_iter()
-        .map(|name| format!("{WORKSPACE_PREFIX}{name}"))
-        .collect();
-    let unused: Vec<String> = prefixed_names
+    let unused: Vec<String> = unique_animal_names()
         .into_iter()
         .filter(|name| !used.contains(name))
         .collect();
@@ -104,57 +87,49 @@ pub(crate) fn pick_unused_animal_name(used: &HashSet<String>) -> Option<String> 
 #[cfg(test)]
 mod tests {
     use super::{normalize_workspace_name, pick_unused_animal_name, unique_animal_names};
-    use crate::workspaces::WORKSPACE_PREFIX;
     use std::collections::HashSet;
 
     #[test]
     fn normalize_simple_name() {
-        assert_eq!(normalize_workspace_name("feature"), "bp.feature");
+        assert_eq!(normalize_workspace_name("feature"), "feature");
     }
 
     #[test]
     fn normalize_with_slashes() {
-        assert_eq!(normalize_workspace_name("feature/auth"), "bp.feature-auth");
-        assert_eq!(normalize_workspace_name("fix/bug/123"), "bp.fix-bug-123");
+        assert_eq!(normalize_workspace_name("feature/auth"), "feature-auth");
+        assert_eq!(normalize_workspace_name("fix/bug/123"), "fix-bug-123");
     }
 
     #[test]
     fn normalize_with_underscores() {
-        assert_eq!(normalize_workspace_name("my_feature"), "bp.my-feature");
+        assert_eq!(normalize_workspace_name("my_feature"), "my-feature");
     }
 
     #[test]
     fn normalize_uppercase() {
-        assert_eq!(normalize_workspace_name("FEATURE"), "bp.feature");
-        assert_eq!(normalize_workspace_name("MyFeature"), "bp.myfeature");
+        assert_eq!(normalize_workspace_name("FEATURE"), "feature");
+        assert_eq!(normalize_workspace_name("MyFeature"), "myfeature");
     }
 
     #[test]
     fn normalize_mixed_special_chars() {
         assert_eq!(
             normalize_workspace_name("feature/auth_v2@test"),
-            "bp.feature-auth-v2-test"
+            "feature-auth-v2-test"
         );
     }
 
     #[test]
     fn normalize_leading_trailing_special() {
-        assert_eq!(normalize_workspace_name("-feature-"), "bp.feature");
-        assert_eq!(normalize_workspace_name("/feature/"), "bp.feature");
-        assert_eq!(normalize_workspace_name("--feature--"), "bp.feature");
+        assert_eq!(normalize_workspace_name("-feature-"), "feature");
+        assert_eq!(normalize_workspace_name("/feature/"), "feature");
+        assert_eq!(normalize_workspace_name("--feature--"), "feature");
     }
 
     #[test]
     fn normalize_consecutive_dashes() {
-        assert_eq!(normalize_workspace_name("a--b"), "bp.a-b");
-        assert_eq!(normalize_workspace_name("a///b"), "bp.a-b");
-    }
-
-    #[test]
-    fn normalize_already_prefixed() {
-        // If already has bp. prefix, don't double-prefix
-        assert_eq!(normalize_workspace_name("bp.feature"), "bp.feature");
-        assert_eq!(normalize_workspace_name("bp.my-feature"), "bp.my-feature");
+        assert_eq!(normalize_workspace_name("a--b"), "a-b");
+        assert_eq!(normalize_workspace_name("a///b"), "a-b");
     }
 
     #[test]
@@ -166,20 +141,15 @@ mod tests {
 
     #[test]
     fn normalize_numbers() {
-        assert_eq!(normalize_workspace_name("123"), "bp.123");
-        assert_eq!(normalize_workspace_name("v2.0"), "bp.v2-0");
+        assert_eq!(normalize_workspace_name("123"), "123");
+        assert_eq!(normalize_workspace_name("v2.0"), "v2-0");
     }
 
     #[test]
-    fn pick_unused_returns_prefixed_name() {
+    fn pick_unused_returns_name() {
         let used = HashSet::new();
         let name = pick_unused_animal_name(&used).expect("should pick a name");
-        assert!(
-            name.starts_with(WORKSPACE_PREFIX),
-            "name '{}' should start with '{}'",
-            name,
-            WORKSPACE_PREFIX
-        );
+        assert!(!name.is_empty());
     }
 
     #[test]
@@ -198,7 +168,6 @@ mod tests {
         // Mark all but one as used
         let all_names: Vec<String> = unique_animal_names()
             .into_iter()
-            .map(|name| format!("{WORKSPACE_PREFIX}{name}"))
             .collect();
         let mut used: HashSet<String> = all_names.iter().cloned().collect();
         let keep = used.iter().next().cloned().unwrap();

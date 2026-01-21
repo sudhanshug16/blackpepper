@@ -5,7 +5,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
-use termwiz::input::{InputEvent, InputParser, KeyCodeEncodeModes, KeyboardEncoding};
+use termwiz::input::{InputEvent, InputParser, KeyCode, KeyCodeEncodeModes, KeyboardEncoding};
 
 use crate::keymap::KeyChord;
 
@@ -205,6 +205,12 @@ fn toggle_sequences(chord: Option<&KeyChord>) -> Vec<Vec<u8>> {
     };
     let mut sequences = HashSet::new();
     let mods = chord.modifiers.remove_positional_mods();
+    let mut keys = vec![chord.key];
+    match chord.key {
+        KeyCode::Char('|') => keys.push(KeyCode::Char('\\')),
+        KeyCode::Char('\\') => keys.push(KeyCode::Char('|')),
+        _ => {}
+    }
 
     let encodings = [KeyboardEncoding::Xterm, KeyboardEncoding::CsiU];
     let modify_other_keys = [None, Some(1), Some(2)];
@@ -223,9 +229,11 @@ fn toggle_sequences(chord: Option<&KeyChord>) -> Vec<Vec<u8>> {
                         newline_mode,
                         modify_other_keys: modify,
                     };
-                    if let Ok(seq) = chord.key.encode(mods, modes, true) {
-                        if !seq.is_empty() {
-                            sequences.insert(seq.into_bytes());
+                    for key in &keys {
+                        if let Ok(seq) = key.encode(mods, modes, true) {
+                            if !seq.is_empty() {
+                                sequences.insert(seq.into_bytes());
+                            }
                         }
                     }
                 }
@@ -324,6 +332,25 @@ mod tests {
         };
         let sequences = toggle_sequences(Some(&chord));
         assert!(sequences.iter().any(|seq| seq == b"\x1d"));
+    }
+
+    #[test]
+    fn toggle_sequences_match_pipe_and_backslash() {
+        let pipe = KeyChord {
+            key: KeyCode::Char('|'),
+            modifiers: Modifiers::CTRL,
+        };
+        let backslash = KeyChord {
+            key: KeyCode::Char('\\'),
+            modifiers: Modifiers::CTRL,
+        };
+        let pipe_sequences = toggle_sequences(Some(&pipe));
+        let backslash_sequences = toggle_sequences(Some(&backslash));
+        assert!(
+            backslash_sequences
+                .iter()
+                .any(|seq| pipe_sequences.contains(seq))
+        );
     }
 
     #[test]

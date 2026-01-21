@@ -8,9 +8,6 @@
 //! - Extracting workspace names from paths
 //! - Pruning stale worktrees
 //!
-//! Workspace names are prefixed with `bp.` so blackpepper can identify
-//! and safely prune its own stale worktrees on startup.
-//!
 //! The actual worktree creation/deletion is in commands/exec.rs.
 
 use std::fs;
@@ -18,12 +15,7 @@ use std::path::{Path, PathBuf};
 
 use crate::git::run_git;
 
-/// Prefix for all blackpepper workspace names.
-pub const WORKSPACE_PREFIX: &str = "bp.";
-
 pub fn is_valid_workspace_name(name: &str) -> bool {
-    // Allow bp.* prefix
-    let name = name.strip_prefix(WORKSPACE_PREFIX).unwrap_or(name);
     let mut chars = name.chars();
     let Some(first) = chars.next() else {
         return false;
@@ -109,11 +101,8 @@ pub fn workspace_name_from_path(
     }
 }
 
-/// Prune stale blackpepper worktrees (those with `bp.` prefix whose directories no longer exist).
-///
-/// This is safe because we only prune worktrees that:
-/// 1. Have the `bp.` prefix (created by blackpepper)
-/// 2. Have directories that no longer exist on disk
+/// Prune stale blackpepper worktrees (those under the workspace root whose
+/// directories no longer exist).
 ///
 /// Returns the names of pruned worktrees.
 pub fn prune_stale_workspaces(repo_root: &Path, workspace_root: &Path) -> Vec<String> {
@@ -135,10 +124,6 @@ pub fn prune_stale_workspaces(repo_root: &Path, workspace_root: &Path) -> Vec<St
             }
             // Extract workspace name
             if let Some(name) = workspace_name_from_path(repo_root, workspace_root, path) {
-                // Only prune bp.* workspaces
-                if !name.starts_with(WORKSPACE_PREFIX) {
-                    continue;
-                }
                 // Check if directory exists
                 if !path.exists() {
                     // Prune this stale worktree
@@ -161,7 +146,7 @@ pub fn prune_stale_workspaces(repo_root: &Path, workspace_root: &Path) -> Vec<St
 mod tests {
     use super::{
         is_valid_workspace_name, list_workspace_names, prune_stale_workspaces,
-        workspace_name_from_path, workspace_path, workspace_root_path, WORKSPACE_PREFIX,
+        workspace_name_from_path, workspace_path, workspace_root_path,
     };
     use std::fs;
     use std::path::Path;
@@ -266,29 +251,22 @@ mod tests {
     }
 
     #[test]
-    fn bp_prefix_is_valid() {
-        assert!(is_valid_workspace_name("bp.otter"));
-        assert!(is_valid_workspace_name("bp.feature-123"));
-        assert!(is_valid_workspace_name("bp.2026-plan"));
-    }
-
-    #[test]
-    fn prune_stale_workspaces_prunes_bp_prefix_with_missing_dir() {
+    fn prune_stale_workspaces_prunes_missing_dir() {
         let repo = init_repo();
         let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
         let workspace_root = Path::new(".blackpepper/workspaces");
         let root_path = repo_root.join(workspace_root);
         fs::create_dir_all(&root_path).expect("create workspace root");
 
-        // Create bp.otter worktree
-        let otter_path = root_path.join("bp.otter");
+        // Create otter worktree
+        let otter_path = root_path.join("otter");
         run_git_cmd(
             &[
                 "worktree",
                 "add",
                 otter_path.to_str().unwrap(),
                 "-b",
-                "bp.otter",
+                "otter",
                 "HEAD",
             ],
             &repo_root,
@@ -296,7 +274,7 @@ mod tests {
 
         // Verify it was created
         let names = list_workspace_names(&repo_root, workspace_root);
-        assert!(names.contains(&"bp.otter".to_string()));
+        assert!(names.contains(&"otter".to_string()));
 
         // Delete the directory (simulating a stale worktree)
         fs::remove_dir_all(&otter_path).expect("delete otter dir");
@@ -304,69 +282,30 @@ mod tests {
 
         // Prune should remove the stale worktree
         let pruned = prune_stale_workspaces(&repo_root, workspace_root);
-        assert_eq!(pruned, vec!["bp.otter".to_string()]);
+        assert_eq!(pruned, vec!["otter".to_string()]);
 
         // Verify it's gone from the list
         let names = list_workspace_names(&repo_root, workspace_root);
-        assert!(!names.contains(&"bp.otter".to_string()));
+        assert!(!names.contains(&"otter".to_string()));
     }
 
     #[test]
-    fn prune_stale_workspaces_skips_non_bp_prefix() {
+    fn prune_stale_workspaces_keeps_existing_dirs() {
         let repo = init_repo();
         let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
         let workspace_root = Path::new(".blackpepper/workspaces");
         let root_path = repo_root.join(workspace_root);
         fs::create_dir_all(&root_path).expect("create workspace root");
 
-        // Create a non-bp.* worktree (legacy or user-created)
-        let legacy_path = root_path.join("legacy");
-        run_git_cmd(
-            &[
-                "worktree",
-                "add",
-                legacy_path.to_str().unwrap(),
-                "-b",
-                "legacy",
-                "HEAD",
-            ],
-            &repo_root,
-        );
-
-        // Verify it was created
-        let names = list_workspace_names(&repo_root, workspace_root);
-        assert!(names.contains(&"legacy".to_string()));
-
-        // Delete the directory (simulating a stale worktree)
-        fs::remove_dir_all(&legacy_path).expect("delete legacy dir");
-        assert!(!legacy_path.exists());
-
-        // Prune should NOT remove non-bp.* worktrees (even if stale)
-        let pruned = prune_stale_workspaces(&repo_root, workspace_root);
-        assert!(pruned.is_empty());
-
-        // The worktree entry still exists (stale but not pruned)
-        let names = list_workspace_names(&repo_root, workspace_root);
-        assert!(names.contains(&"legacy".to_string()));
-    }
-
-    #[test]
-    fn prune_stale_workspaces_keeps_existing_bp_dirs() {
-        let repo = init_repo();
-        let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
-        let workspace_root = Path::new(".blackpepper/workspaces");
-        let root_path = repo_root.join(workspace_root);
-        fs::create_dir_all(&root_path).expect("create workspace root");
-
-        // Create bp.lynx worktree
-        let lynx_path = root_path.join("bp.lynx");
+        // Create lynx worktree
+        let lynx_path = root_path.join("lynx");
         run_git_cmd(
             &[
                 "worktree",
                 "add",
                 lynx_path.to_str().unwrap(),
                 "-b",
-                "bp.lynx",
+                "lynx",
                 "HEAD",
             ],
             &repo_root,
@@ -375,7 +314,7 @@ mod tests {
         // Verify it exists
         assert!(lynx_path.exists());
         let names = list_workspace_names(&repo_root, workspace_root);
-        assert!(names.contains(&"bp.lynx".to_string()));
+        assert!(names.contains(&"lynx".to_string()));
 
         // Prune should NOT touch existing worktrees
         let pruned = prune_stale_workspaces(&repo_root, workspace_root);
@@ -383,11 +322,6 @@ mod tests {
 
         // Still exists
         let names = list_workspace_names(&repo_root, workspace_root);
-        assert!(names.contains(&"bp.lynx".to_string()));
-    }
-
-    #[test]
-    fn workspace_prefix_constant() {
-        assert_eq!(WORKSPACE_PREFIX, "bp.");
+        assert!(names.contains(&"lynx".to_string()));
     }
 }
