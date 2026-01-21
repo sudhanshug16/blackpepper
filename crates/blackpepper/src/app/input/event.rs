@@ -168,18 +168,18 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         }
     }
 
-    // Workspace switcher overlay chord
-    if let Some(chord) = &app.workspace_overlay_chord {
-        if matches_chord(&key, chord) {
-            open_workspace_overlay(app);
-            return;
-        }
-    }
-
     // Cycle workspace chord
     if let Some(chord) = &app.switch_chord {
         if matches_chord(&key, chord) {
             cycle_workspace(app);
+            return;
+        }
+    }
+
+    // Workspace switcher overlay chord
+    if let Some(chord) = &app.workspace_overlay_chord {
+        if matches_chord(&key, chord) {
+            open_workspace_overlay(app);
             return;
         }
     }
