@@ -1,4 +1,8 @@
-use super::{parse_branch_head, parse_dirty, parse_divergence, parse_pr_view, Divergence, PrState};
+use super::{
+    parse_branch_head, parse_dirty, parse_divergence, parse_pr_view, should_fetch_pr_status,
+    Divergence, PrState,
+};
+use std::time::{Duration, Instant};
 
 #[test]
 fn parse_divergence_extracts_counts() {
@@ -77,4 +81,30 @@ fn divergence_struct_stays_simple() {
     };
     assert_eq!(divergence.ahead, 1);
     assert_eq!(divergence.behind, 0);
+}
+
+#[test]
+fn should_fetch_pr_status_first_time() {
+    assert!(should_fetch_pr_status(None, Instant::now(), false));
+}
+
+#[test]
+fn should_fetch_pr_status_respects_rate_limit() {
+    let now = Instant::now();
+    let recent = now - Duration::from_secs(60);
+    assert!(!should_fetch_pr_status(Some(recent), now, false));
+}
+
+#[test]
+fn should_fetch_pr_status_after_interval() {
+    let now = Instant::now();
+    let old = now - Duration::from_secs(301);
+    assert!(should_fetch_pr_status(Some(old), now, false));
+}
+
+#[test]
+fn should_fetch_pr_status_when_forced() {
+    let now = Instant::now();
+    let recent = now - Duration::from_secs(60);
+    assert!(should_fetch_pr_status(Some(recent), now, true));
 }

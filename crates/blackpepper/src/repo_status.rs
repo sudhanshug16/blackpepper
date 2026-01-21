@@ -13,7 +13,7 @@ use crate::git::{git_common_dir, run_git};
 // Notify events are debounced; explicit requests should compute immediately.
 const NOTIFY_DEBOUNCE: Duration = Duration::from_secs(5);
 // Rate-limit gh PR lookups globally; reuse the last known status when limited.
-const PR_STATUS_RATE_LIMIT: Duration = Duration::from_secs(5);
+const PR_STATUS_RATE_LIMIT: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Default)]
 pub struct RepoStatus {
@@ -66,7 +66,10 @@ pub enum PrErrorKind {
 
 #[derive(Debug)]
 pub(crate) enum RepoStatusSignal {
-    Request(PathBuf),
+    Request {
+        cwd: PathBuf,
+        force_pr_fetch: bool,
+    },
     Notify,
 }
 
@@ -106,13 +109,18 @@ fn run_repo_status_worker(
         };
 
         let mut compute_now = false;
+        let mut force_pr_fetch = false;
         let mut deadline_reached = false;
 
         match signal {
-            Some(RepoStatusSignal::Request(cwd)) => {
+            Some(RepoStatusSignal::Request {
+                cwd,
+                force_pr_fetch: force,
+            }) => {
                 current_cwd = Some(cwd);
                 notify_deadline = None;
                 compute_now = true;
+                force_pr_fetch = force;
             }
             Some(RepoStatusSignal::Notify) => {
                 notify_deadline = Some(Instant::now() + NOTIFY_DEBOUNCE);
@@ -146,7 +154,12 @@ fn run_repo_status_worker(
         let _ = watcher.as_ref();
         if compute_now || deadline_reached {
             if let Some(cwd) = current_cwd.as_ref() {
-                let status = compute_repo_status(cwd, &mut last_pr_fetch, &mut last_pr_status);
+                let status = compute_repo_status(
+                    cwd,
+                    &mut last_pr_fetch,
+                    &mut last_pr_status,
+                    force_pr_fetch,
+                );
                 let _ = event_tx.send(AppEvent::RepoStatusUpdated {
                     cwd: cwd.clone(),
                     status,
@@ -168,6 +181,7 @@ fn compute_repo_status(
     cwd: &Path,
     last_pr_fetch: &mut Option<Instant>,
     last_pr_status: &mut Option<PrStatus>,
+    force_pr_fetch: bool,
 ) -> RepoStatus {
     let status = run_git(["status", "--porcelain=2", "-b"].as_ref(), cwd);
     if !status.ok {
@@ -178,10 +192,7 @@ fn compute_repo_status(
     let dirty = parse_dirty(&status.stdout);
     let divergence = parse_divergence(&status.stdout);
     let now = Instant::now();
-    let pr = if last_pr_fetch
-        .map(|last| now.duration_since(last) >= PR_STATUS_RATE_LIMIT)
-        .unwrap_or(true)
-    {
+    let pr = if should_fetch_pr_status(*last_pr_fetch, now, force_pr_fetch) {
         let pr = fetch_pr_status(cwd);
         *last_pr_fetch = Some(now);
         *last_pr_status = Some(pr.clone());
@@ -195,6 +206,19 @@ fn compute_repo_status(
         divergence,
         pr,
     }
+}
+
+fn should_fetch_pr_status(
+    last_pr_fetch: Option<Instant>,
+    now: Instant,
+    force_pr_fetch: bool,
+) -> bool {
+    if force_pr_fetch {
+        return true;
+    }
+    last_pr_fetch
+        .map(|last| now.duration_since(last) >= PR_STATUS_RATE_LIMIT)
+        .unwrap_or(true)
 }
 
 fn parse_branch_head(output: &str) -> Option<String> {

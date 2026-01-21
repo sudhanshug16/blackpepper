@@ -3,6 +3,8 @@ use termwiz::input::{InputEvent, KeyCode, KeyEvent, Modifiers};
 use crate::commands::CommandPhase;
 use crate::events::AppEvent;
 use crate::keymap::matches_chord;
+use crate::repo_status::RepoStatusSignal;
+use std::time::{Duration, Instant};
 
 use super::command::handle_command_input;
 use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspace_overlay};
@@ -12,6 +14,8 @@ use super::workspace::{
     enter_work_mode, set_active_workspace,
 };
 use crate::app::state::{App, Mode};
+
+const INPUT_IDLE_REFRESH: Duration = Duration::from_secs(30);
 
 /// Main event dispatcher.
 pub fn handle_event(app: &mut App, event: AppEvent) {
@@ -203,6 +207,8 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
         return;
     }
 
+    record_input_activity(app);
+
     match app.mode {
         Mode::Manage => {
             use crate::input::MatchedChord;
@@ -247,6 +253,19 @@ fn handle_raw_input(app: &mut App, bytes: Vec<u8>) {
             }
         }
     }
+}
+
+fn record_input_activity(app: &mut App) {
+    let now = Instant::now();
+    if now.duration_since(app.last_input_at) >= INPUT_IDLE_REFRESH {
+        if let Some(tx) = app.repo_status_tx.as_ref() {
+            let _ = tx.send(RepoStatusSignal::Request {
+                cwd: app.cwd.clone(),
+                force_pr_fetch: true,
+            });
+        }
+    }
+    app.last_input_at = now;
 }
 
 fn flush_input(app: &mut App) {

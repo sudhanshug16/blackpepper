@@ -7,7 +7,7 @@ use std::io;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(not(unix))]
 use crossterm::event;
@@ -192,6 +192,7 @@ impl App {
             input_modes_applied: InputModes::default(),
             pending_input_mode_bytes: Vec::new(),
             pre_overlay_mode: None,
+            last_input_at: Instant::now(),
         };
 
         if let Err(err) = super::input::ensure_active_workspace_session(&mut app, 24, 80) {
@@ -199,7 +200,10 @@ impl App {
         }
 
         if let Some(tx) = app.repo_status_tx.as_ref() {
-            let _ = tx.send(RepoStatusSignal::Request(app.cwd.clone()));
+            let _ = tx.send(RepoStatusSignal::Request {
+                cwd: app.cwd.clone(),
+                force_pr_fetch: false,
+            });
         }
 
         app.sync_input_modes_for_mode();

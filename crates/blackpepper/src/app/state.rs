@@ -7,6 +7,7 @@ use ratatui::layout::Rect;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
+use std::time::Instant;
 
 use crate::config::Config;
 use crate::events::AppEvent;
@@ -94,6 +95,8 @@ pub struct App {
     pub refresh_requested: bool,
     pub input_modes_applied: InputModes,
     pub pending_input_mode_bytes: Vec<u8>,
+    /// Timestamp of the last raw input, used to detect idle resumes.
+    pub last_input_at: Instant,
     /// Mode to restore when closing an overlay without selection.
     pub pre_overlay_mode: Option<Mode>,
 }

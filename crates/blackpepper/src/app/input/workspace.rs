@@ -143,7 +143,10 @@ pub(super) fn request_refresh(app: &mut App, message: Option<&str>) {
 
 pub(super) fn request_repo_status(app: &App) {
     if let Some(tx) = app.repo_status_tx.as_ref() {
-        let _ = tx.send(RepoStatusSignal::Request(app.cwd.clone()));
+        let _ = tx.send(RepoStatusSignal::Request {
+            cwd: app.cwd.clone(),
+            force_pr_fetch: false,
+        });
     }
 }
 
