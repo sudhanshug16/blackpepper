@@ -362,4 +362,35 @@ mod tests {
         assert!(toggled);
         assert!(out.is_empty());
     }
+
+    #[test]
+    fn input_decoder_matches_overlay_and_switch_chords() {
+        let toggle = KeyChord {
+            key: KeyCode::Char(']'),
+            modifiers: Modifiers::CTRL,
+        };
+        let overlay = KeyChord {
+            key: KeyCode::Char('o'),
+            modifiers: Modifiers::CTRL,
+        };
+        let switch = KeyChord {
+            key: KeyCode::Char('u'),
+            modifiers: Modifiers::CTRL,
+        };
+        let overlay_sequence = toggle_sequences(Some(&overlay))
+            .into_iter()
+            .next()
+            .expect("overlay sequence");
+        let switch_sequence = toggle_sequences(Some(&switch))
+            .into_iter()
+            .next()
+            .expect("switch sequence");
+        let mut decoder = InputDecoder::new(Some(toggle), Some(overlay), Some(switch));
+        let (out, matched) = decoder.consume_work_bytes(&overlay_sequence);
+        assert!(out.is_empty());
+        assert_eq!(matched, MatchedChord::WorkspaceOverlay);
+        let (out, matched) = decoder.consume_work_bytes(&switch_sequence);
+        assert!(out.is_empty());
+        assert_eq!(matched, MatchedChord::Switch);
+    }
 }

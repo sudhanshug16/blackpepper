@@ -68,7 +68,7 @@ Blackpepper has two modes:
 :workspace create
 :workspace create my-feature
 
-# Create from existing branch or PR
+# Create from existing local/remote branch or PR
 :workspace from-branch feature/auth
 :workspace from-pr 123
 
@@ -106,7 +106,7 @@ All commands work in the TUI (`:command`) and CLI (`bp command`).
 | `workspace destroy [name]` | Destroy workspace and delete branch |
 | `workspace rename <name>` | Rename workspace and branch |
 | `workspace switch <name>` | Switch to workspace |
-| `workspace from-branch <branch>` | Create workspace from remote branch |
+| `workspace from-branch <branch>` | Create workspace from local or remote branch |
 | `workspace from-pr <number>` | Create workspace from PR |
 | `workspace setup` | Re-run setup scripts |
 | `workspace list` | List workspaces |

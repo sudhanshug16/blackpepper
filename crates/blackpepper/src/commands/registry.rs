@@ -59,7 +59,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "workspace from-branch",
-        description: "Create workspace from an existing remote branch",
+        description: "Create workspace from an existing local or remote branch",
         cli_exposed: true,
     },
     CommandSpec {
