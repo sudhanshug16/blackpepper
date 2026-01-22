@@ -1,6 +1,5 @@
 use termwiz::input::{InputEvent, KeyCode, KeyEvent, Modifiers};
 
-use crate::commands::CommandPhase;
 use crate::events::AppEvent;
 use crate::keymap::matches_chord;
 use crate::repo_status::RepoStatusSignal;
@@ -37,11 +36,6 @@ pub fn handle_event(app: &mut App, event: AppEvent) {
                 };
             }
             app.command_overlay.output.push_str(&chunk);
-        }
-        AppEvent::CommandPhaseComplete { phase } => {
-            if matches!(phase, CommandPhase::Agent) {
-                // Keep the overlay open; command completion will finalize output.
-            }
         }
         AppEvent::CommandDone { name, args, result } => {
             let stream_output = app.command_overlay.output.trim().to_string();

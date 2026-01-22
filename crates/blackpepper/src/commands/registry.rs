@@ -90,12 +90,12 @@ pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "pr create",
         description: "Create a pull request",
-        cli_exposed: false,
+        cli_exposed: true,
     },
     CommandSpec {
         name: "pr sync",
         description: "Pull/rebase and commit current changes",
-        cli_exposed: false,
+        cli_exposed: true,
     },
     CommandSpec {
         name: "pr open",

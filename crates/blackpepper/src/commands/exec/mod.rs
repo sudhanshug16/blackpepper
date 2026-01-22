@@ -48,15 +48,9 @@ pub enum CommandSource {
     Cli,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommandPhase {
-    Agent,
-}
-
 #[derive(Debug, Clone)]
 pub enum CommandOutput {
     Chunk(String),
-    PhaseComplete(CommandPhase),
 }
 
 /// Dispatch and execute a command by name.

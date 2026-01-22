@@ -15,8 +15,8 @@ mod registry;
 pub mod rename;
 
 pub use exec::{
-    run_command, run_command_with_output, CommandContext, CommandOutput, CommandPhase,
-    CommandResult, CommandSource,
+    run_command, run_command_with_output, CommandContext, CommandOutput, CommandResult,
+    CommandSource,
 };
 pub use parse::{complete_command_input, parse_command};
 pub use registry::{command_help_lines_cli, command_hint_lines};

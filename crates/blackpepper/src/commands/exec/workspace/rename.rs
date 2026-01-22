@@ -10,14 +10,16 @@ use crate::workspaces::{
     workspace_name_from_path,
 };
 
-use super::super::pr_command::{format_command_failure, run_agent_prompt};
+use super::super::pr_command::{
+    format_command_failure, run_agent_prompt, spawn_cli_command_in_tmux,
+};
 use super::super::{CommandContext, CommandOutput, CommandResult, CommandSource};
 use super::helpers::{branch_exists, format_exec_output, normalize_workspace_name};
 
 pub(crate) fn workspace_rename<F>(
     args: &[String],
     ctx: &CommandContext,
-    on_output: &mut F,
+    _on_output: &mut F,
 ) -> CommandResult
 where
     F: FnMut(CommandOutput),
@@ -45,18 +47,18 @@ where
         };
     };
 
+    let config = load_config(&repo_root);
+    if ctx.source == CommandSource::Tui {
+        let mut command_args = vec!["workspace".to_string(), "rename".to_string()];
+        command_args.extend(args.iter().cloned());
+        return spawn_cli_command_in_tmux(ctx, &repo_root, &config.tmux, &command_args);
+    }
+
     let used_names: HashSet<String> = list_workspace_names(&repo_root, &ctx.workspace_root)
         .into_iter()
         .collect();
     let raw_name = if args.is_empty() {
-        let config = load_config(&repo_root);
-        let provider_result = match run_agent_prompt(
-            ctx,
-            &repo_root,
-            &config,
-            rename::WORKSPACE_RENAME,
-            on_output,
-        ) {
+        let provider_result = match run_agent_prompt(ctx, &config, rename::WORKSPACE_RENAME) {
             Ok(result) => result,
             Err(result) => return result,
         };

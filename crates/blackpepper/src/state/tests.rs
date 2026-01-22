@@ -5,13 +5,12 @@ use super::{
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::sync::Mutex;
 use tempfile::TempDir;
 
-static STATE_ENV_LOCK: Mutex<()> = Mutex::new(());
+use crate::test_utils::env_lock;
 
 fn with_state_path<T>(path: &Path, action: impl FnOnce() -> T) -> T {
-    let _guard = STATE_ENV_LOCK.lock().expect("lock state env");
+    let _guard = env_lock();
     let key = "BLACKPEPPER_STATE_PATH";
     let previous = env::var(key).ok();
     env::set_var(key, path);

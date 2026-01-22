@@ -66,7 +66,14 @@ pub(super) fn start_command(app: &mut App, name: &str, args: Vec<String>) {
     } else {
         format!(":{name} {}", args.join(" "))
     };
-    app.loading = Some(label);
+    if should_show_loader(name, &args) {
+        app.loading = Some(label);
+    } else {
+        app.loading = None;
+        app.command_overlay.visible = false;
+        app.command_overlay.output.clear();
+        app.command_overlay.title.clear();
+    }
     let ctx = CommandContext {
         cwd: app.cwd.clone(),
         repo_root: app.repo_root.clone(),
@@ -90,9 +97,6 @@ pub(super) fn start_command(app: &mut App, name: &str, args: Vec<String>) {
                     name: name_for_output.clone(),
                     chunk,
                 });
-            }
-            CommandOutput::PhaseComplete(phase) => {
-                let _ = tx.send(AppEvent::CommandPhaseComplete { phase });
             }
         };
         let result = run_command_with_output(&name, &args, &ctx, &mut on_output);
@@ -210,6 +214,16 @@ fn handle_pr_command(app: &mut App, name: &str, args: &[String]) {
         return;
     }
     start_command(app, name, args.to_vec());
+}
+
+fn should_show_loader(name: &str, args: &[String]) -> bool {
+    if name == "pr" {
+        return !matches!(args.first().map(String::as_str), Some("create" | "sync"));
+    }
+    if name == "workspace" {
+        return !matches!(args.first().map(String::as_str), Some("rename"));
+    }
+    true
 }
 
 fn handle_refresh_command(app: &mut App, args: &[String]) {

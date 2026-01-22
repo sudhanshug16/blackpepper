@@ -21,9 +21,6 @@ pub enum AppEvent {
         name: String,
         chunk: String,
     },
-    CommandPhaseComplete {
-        phase: crate::commands::CommandPhase,
-    },
     CommandDone {
         name: String,
         args: Vec<String>,
