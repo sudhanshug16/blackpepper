@@ -24,6 +24,6 @@ libc = "0.2.180"
 arboard = "3"
 base64 = "0.22"
 notify-rust = "4"
+tempfile = "3.24.0"
 
 [dev-dependencies]
-tempfile = "3.24.0"
