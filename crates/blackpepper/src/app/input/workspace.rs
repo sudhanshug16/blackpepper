@@ -150,6 +150,16 @@ pub(super) fn request_repo_status(app: &App) {
     }
 }
 
+pub(super) fn detach_workspace_sessions(app: &App) {
+    let Some(repo_root) = app.repo_root.as_ref() else {
+        return;
+    };
+    for workspace in app.sessions.keys() {
+        let session_name = tmux::session_name(repo_root, workspace);
+        let _ = tmux::detach_session(&app.config.tmux, &session_name);
+    }
+}
+
 pub fn ensure_active_workspace_session(app: &mut App, rows: u16, cols: u16) -> Result<(), String> {
     let Some(workspace) = app.active_workspace.clone() else {
         return Ok(());

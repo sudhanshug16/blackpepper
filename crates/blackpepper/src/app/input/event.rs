@@ -10,8 +10,8 @@ use super::command::handle_command_input;
 use super::overlay::{handle_overlay_key, handle_prompt_overlay_key, open_workspace_overlay};
 use super::terminal::process_terminal_output;
 use super::workspace::{
-    active_terminal_mut, close_session_by_id, cycle_workspace, ensure_manage_mode_without_workspace,
-    enter_work_mode, set_active_workspace,
+    active_terminal_mut, close_session_by_id, cycle_workspace, detach_workspace_sessions,
+    ensure_manage_mode_without_workspace, enter_work_mode, set_active_workspace,
 };
 use crate::app::state::{App, Mode};
 
@@ -192,6 +192,7 @@ fn handle_key(app: &mut App, key: KeyEvent) {
 
     // Manage mode: quit with 'q'
     if key.key == KeyCode::Char('q') && mods == Modifiers::NONE {
+        detach_workspace_sessions(app);
         app.should_quit = true;
         return;
     }

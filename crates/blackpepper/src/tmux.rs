@@ -170,6 +170,21 @@ pub fn kill_session(config: &TmuxConfig, session: &str) -> Result<bool, String> 
     }
 }
 
+pub fn detach_session(config: &TmuxConfig, session: &str) -> Result<bool, String> {
+    if !has_session(config, session)? {
+        return Ok(false);
+    }
+    let output = run_tmux(config, &["detach-client", "-s", session])?;
+    if output.status.success() {
+        Ok(true)
+    } else {
+        Err(format!(
+            "Failed to detach tmux session '{session}'.{}",
+            format_output(&output)
+        ))
+    }
+}
+
 pub fn rename_session(config: &TmuxConfig, current: &str, next: &str) -> Result<bool, String> {
     if !has_session(config, current)? {
         return Ok(false);

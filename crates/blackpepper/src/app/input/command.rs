@@ -110,6 +110,7 @@ fn execute_command(app: &mut App, raw: &str) {
     };
 
     if parsed.name == "quit" || parsed.name == "q" {
+        crate::app::input::workspace::detach_workspace_sessions(app);
         app.should_quit = true;
         return;
     }
