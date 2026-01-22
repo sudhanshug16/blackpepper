@@ -103,7 +103,7 @@ All commands work in the TUI (`:command`) and CLI (`bp command`).
 |---------|-------------|
 | `init` | Initialize project config and gitignore |
 | `workspace create [name]` | Create workspace (auto-generates name if omitted) |
-| `workspace destroy [name]` | Destroy workspace and delete branch |
+| `workspace destroy [name]` | Destroy workspace worktree |
 | `workspace rename <name>` | Rename workspace and branch |
 | `workspace switch <name>` | Switch to workspace |
 | `workspace from-branch <branch>` | Create workspace from local or remote branch |
@@ -114,7 +114,7 @@ All commands work in the TUI (`:command`) and CLI (`bp command`).
 | `pr create` | Create PR from current workspace |
 | `update` | Update to latest release |
 | `refresh` | Refresh repo status |
-| `quit` / `q` | Exit |
+| `quit` / `q` | Exit (detaches tmux sessions) |
 
 ## Configuration
 
