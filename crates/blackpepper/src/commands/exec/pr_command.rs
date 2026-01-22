@@ -181,10 +181,6 @@ where
 {
     let command_template = resolve_agent_command(config)?;
     let script = pr::build_prompt_script(command_template, prompt);
-    on_output(CommandOutput::Chunk(format!(
-        "Running agent in tmux tab '{}'.",
-        tmux::PR_AGENT_TMUX_TAB
-    )));
     let provider_result = match run_agent_in_tmux(ctx, repo_root, &config.tmux, &script) {
         Ok(result) => result,
         Err(err) => {
@@ -233,6 +229,7 @@ status_path="$3"
 bash "$script_path" 2>&1 | tee "$output_path"
 status=$?
 printf "%s\n" "$status" > "$status_path"
+exec "${SHELL:-/bin/bash}"
 "#;
     fs::write(&runner_path, runner_script)
         .map_err(|err| format!("Failed to write agent runner script: {err}"))?;
