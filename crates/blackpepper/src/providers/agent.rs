@@ -48,13 +48,6 @@ const PROVIDERS: &[AgentProvider] = &[
     },
 ];
 
-pub fn provider_names() -> Vec<String> {
-    PROVIDERS
-        .iter()
-        .map(|provider| provider.name.to_string())
-        .collect()
-}
-
 pub fn provider_command(provider: &str) -> Option<&'static str> {
     PROVIDERS
         .iter()

@@ -66,10 +66,7 @@ pub enum PrErrorKind {
 
 #[derive(Debug)]
 pub(crate) enum RepoStatusSignal {
-    Request {
-        cwd: PathBuf,
-        force_pr_fetch: bool,
-    },
+    Request { cwd: PathBuf, force_pr_fetch: bool },
     Notify,
 }
 

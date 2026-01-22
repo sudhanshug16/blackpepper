@@ -7,12 +7,12 @@ use crate::commands::{
 use crate::events::AppEvent;
 use crate::workspaces::list_workspace_names;
 
-use super::overlay::{open_agent_provider_overlay, open_workspace_overlay};
+use super::overlay::open_workspace_overlay;
 use super::workspace::{
     enter_work_mode, prune_missing_active_workspace, request_refresh, set_active_workspace,
 };
 use super::NO_ACTIVE_WORKSPACE_HINT;
-use crate::app::state::{App, PendingCommand};
+use crate::app::state::App;
 
 const REFRESH_USAGE: &str = "Usage: :refresh";
 
@@ -193,16 +193,6 @@ fn handle_workspace_command(app: &mut App, args: &[String]) {
                     return;
                 }
             }
-            if subcommand == "rename" && needs_agent_provider_selection_for_rename(app, args) {
-                open_agent_provider_overlay(
-                    app,
-                    PendingCommand {
-                        name: "workspace".to_string(),
-                        args: args.to_vec(),
-                    },
-                );
-                return;
-            }
             start_command(app, "workspace", args.to_vec());
         }
         _ => {
@@ -219,34 +209,7 @@ fn handle_pr_command(app: &mut App, name: &str, args: &[String]) {
         app.set_output(NO_ACTIVE_WORKSPACE_HINT.to_string());
         return;
     }
-    if needs_agent_provider_selection(app, args) {
-        open_agent_provider_overlay(
-            app,
-            PendingCommand {
-                name: name.to_string(),
-                args: args.to_vec(),
-            },
-        );
-        return;
-    }
     start_command(app, name, args.to_vec());
-}
-
-fn needs_agent_provider_selection(app: &App, args: &[String]) -> bool {
-    let Some(subcommand) = args.first() else {
-        return false;
-    };
-    if subcommand != "create" && subcommand != "sync" {
-        return false;
-    }
-    app.config.agent.provider.is_none() && app.config.agent.command.is_none()
-}
-
-fn needs_agent_provider_selection_for_rename(app: &App, args: &[String]) -> bool {
-    if args.len() > 1 {
-        return false;
-    }
-    app.config.agent.provider.is_none() && app.config.agent.command.is_none()
 }
 
 fn handle_refresh_command(app: &mut App, args: &[String]) {

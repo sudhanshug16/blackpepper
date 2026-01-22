@@ -10,6 +10,8 @@ mod providers;
 mod repo_status;
 mod state;
 mod terminal;
+#[cfg(test)]
+mod test_utils;
 mod tmux;
 mod updater;
 mod workspaces;

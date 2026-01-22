@@ -1,8 +1,5 @@
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::mpsc::{self, Sender};
 use std::time::{Duration, Instant};
 
 use tempfile::TempDir;
@@ -167,12 +164,12 @@ fn resolve_agent_command<'a>(config: &'a Config) -> Result<&'a str, CommandResul
 
     Err(CommandResult {
         ok: false,
-        message: "Agent provider not configured. Run :pr create in the TUI to select one, set agent.provider, or set agent.command in ~/.config/blackpepper/config.toml or .blackpepper/config.toml.".to_string(),
+        message: "Agent provider not configured. Set agent.provider or agent.command in ~/.config/blackpepper/config.toml or .blackpepper/config.toml.".to_string(),
         data: None,
     })
 }
 
-fn run_agent_prompt<F>(
+pub(crate) fn run_agent_prompt<F>(
     ctx: &CommandContext,
     repo_root: &Path,
     config: &Config,
@@ -281,92 +278,6 @@ fn wait_for_status(path: &Path, timeout: Duration) -> Result<i32, String> {
         }
         std::thread::sleep(Duration::from_millis(200));
     }
-}
-
-pub(super) fn run_shell_with_output<F>(script: &str, cwd: &Path, on_output: &mut F) -> ExecResult
-where
-    F: FnMut(&str),
-{
-    let mut child = match Command::new("sh")
-        .arg("-c")
-        .arg(script)
-        .current_dir(cwd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
-        Ok(child) => child,
-        Err(err) => {
-            return ExecResult {
-                ok: false,
-                exit_code: -1,
-                stdout: String::new(),
-                stderr: err.to_string(),
-            }
-        }
-    };
-
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let (tx, rx) = mpsc::channel();
-
-    let stdout_handle = stdout.map(|stream| spawn_reader(stream, tx.clone()));
-    let stderr_handle = stderr.map(|stream| spawn_reader(stream, tx.clone()));
-    drop(tx);
-
-    for chunk in rx {
-        on_output(&chunk);
-    }
-
-    let stdout_output = stdout_handle
-        .and_then(|handle| handle.join().ok())
-        .unwrap_or_default();
-    let stderr_output = stderr_handle
-        .and_then(|handle| handle.join().ok())
-        .unwrap_or_default();
-
-    let status = match child.wait() {
-        Ok(status) => status,
-        Err(err) => {
-            return ExecResult {
-                ok: false,
-                exit_code: -1,
-                stdout: stdout_output,
-                stderr: err.to_string(),
-            }
-        }
-    };
-
-    ExecResult {
-        ok: status.success(),
-        exit_code: status.code().unwrap_or(-1),
-        stdout: stdout_output,
-        stderr: stderr_output,
-    }
-}
-
-fn spawn_reader<R: std::io::Read + Send + 'static>(
-    reader: R,
-    tx: Sender<String>,
-) -> std::thread::JoinHandle<String> {
-    std::thread::spawn(move || {
-        let mut output = String::new();
-        let mut reader = BufReader::new(reader);
-        let mut line = String::new();
-        loop {
-            line.clear();
-            let bytes = match reader.read_line(&mut line) {
-                Ok(bytes) => bytes,
-                Err(_) => break,
-            };
-            if bytes == 0 {
-                break;
-            }
-            output.push_str(&line);
-            let _ = tx.send(line.clone());
-        }
-        output
-    })
 }
 
 fn append_upstream_output<F>(on_output: &mut F, result: &ExecResult)

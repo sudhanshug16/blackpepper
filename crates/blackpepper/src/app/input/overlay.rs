@@ -1,11 +1,10 @@
 use termwiz::input::{KeyCode, KeyEvent};
 
 use crate::config::save_user_agent_provider;
-use crate::providers::agent;
 use crate::workspaces::list_workspace_names;
 
 use super::workspace::{enter_work_mode, set_active_workspace};
-use crate::app::state::{App, Mode, PendingCommand};
+use crate::app::state::{App, Mode};
 
 pub(super) fn handle_overlay_key(app: &mut App, key: KeyEvent) {
     match key.key {
@@ -119,22 +118,6 @@ fn restore_pre_overlay_mode(app: &mut App) {
     if let Some(mode) = app.pre_overlay_mode.take() {
         app.set_mode(mode);
     }
-}
-
-pub(super) fn open_agent_provider_overlay(app: &mut App, pending: PendingCommand) {
-    let providers = agent::provider_names();
-    app.prompt_overlay.title = "Agent Provider".to_string();
-    if providers.is_empty() {
-        app.prompt_overlay.message = Some("No agent providers available.".to_string());
-        app.prompt_overlay.items.clear();
-        app.prompt_overlay.selected = 0;
-    } else {
-        app.prompt_overlay.message = None;
-        app.prompt_overlay.items = providers;
-        app.prompt_overlay.selected = 0;
-    }
-    app.prompt_overlay.visible = true;
-    app.pending_command = Some(pending);
 }
 
 fn move_overlay_selection(app: &mut App, delta: isize) {

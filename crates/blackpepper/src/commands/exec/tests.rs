@@ -5,6 +5,7 @@ use super::workspace::{
 use super::{run_command, CommandContext, CommandSource};
 use crate::config::workspace_config_path;
 use crate::git::run_git;
+use crate::test_utils::{env_lock, EnvVarGuard};
 use std::collections::HashSet;
 use std::env;
 use std::fs;
@@ -12,40 +13,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Mutex, OnceLock};
 use tempfile::TempDir;
-
-static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-    ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
-}
-
-struct EnvVarGuard {
-    key: &'static str,
-    value: Option<String>,
-}
-
-impl EnvVarGuard {
-    fn set(key: &'static str, value: String) -> Self {
-        let previous = env::var(key).ok();
-        env::set_var(key, value);
-        Self {
-            key,
-            value: previous,
-        }
-    }
-}
-
-impl Drop for EnvVarGuard {
-    fn drop(&mut self) {
-        if let Some(value) = &self.value {
-            env::set_var(self.key, value);
-        } else {
-            env::remove_var(self.key);
-        }
-    }
-}
 
 fn run_git_cmd(args: &[&str], cwd: &Path) {
     let status = Command::new("git")
@@ -373,11 +341,11 @@ fn pr_sync_runs_git_pull_and_agent() {
     fs::write(&config_path, config).expect("write config");
 
     let bin_dir = TempDir::new().expect("temp bin");
-    let git_args_path = repo.path().join("git_args.txt");
+    let git_marker_path = repo.path().join("git_marker.txt");
     let git_path = bin_dir.path().join("git");
     let git_script = format!(
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\necho 'pull ok'\nexit 0\n",
-        git_args_path.display()
+        "#!/bin/sh\nif [ \"$1\" != \"pull\" ] || [ \"$2\" != \"--rebase\" ] || [ \"$3\" != \"--autostash\" ]; then\n  echo \"unexpected args: $*\" 1>&2\n  exit 1\nfi\nprintf 'ok\\n' > '{}'\nexit 0\n",
+        git_marker_path.display()
     );
     fs::write(&git_path, git_script).expect("write git stub");
     let mut perms = fs::metadata(&git_path).expect("stat git").permissions();
@@ -399,10 +367,8 @@ fn pr_sync_runs_git_pull_and_agent() {
     assert!(result.ok, "pr sync failed: {}", result.message);
     assert!(result.message.contains("PR sync complete"));
 
-    let args = fs::read_to_string(&git_args_path).expect("read git args");
-    assert!(args.contains("pull"));
-    assert!(args.contains("--rebase"));
-    assert!(args.contains("--autostash"));
+    let marker = fs::read_to_string(&git_marker_path).expect("read git marker");
+    assert!(marker.contains("ok"));
 }
 
 #[test]

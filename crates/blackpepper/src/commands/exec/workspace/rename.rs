@@ -1,9 +1,8 @@
 use std::collections::HashSet;
 
-use crate::commands::{pr, rename};
+use crate::commands::rename;
 use crate::config::load_config;
 use crate::git::{resolve_repo_root, run_git};
-use crate::providers::agent;
 use crate::state::rename_workspace_ports;
 use crate::tmux;
 use crate::workspaces::{
@@ -11,8 +10,8 @@ use crate::workspaces::{
     workspace_name_from_path,
 };
 
-use super::super::pr_command::{format_command_failure, run_shell_with_output};
-use super::super::{CommandContext, CommandOutput, CommandPhase, CommandResult, CommandSource};
+use super::super::pr_command::{format_command_failure, run_agent_prompt};
+use super::super::{CommandContext, CommandOutput, CommandResult, CommandSource};
 use super::helpers::{branch_exists, format_exec_output, normalize_workspace_name};
 
 pub(crate) fn workspace_rename<F>(
@@ -51,33 +50,16 @@ where
         .collect();
     let raw_name = if args.is_empty() {
         let config = load_config(&repo_root);
-        let command_template = if let Some(command) = config.agent.command.as_deref() {
-            command
-        } else if let Some(provider) = config.agent.provider.as_deref() {
-            match agent::provider_command(provider) {
-                Some(command) => command,
-                None => {
-                    return CommandResult {
-                        ok: false,
-                        message: format!("Unknown agent provider: {provider}."),
-                        data: None,
-                    }
-                }
-            }
-        } else {
-            return CommandResult {
-                ok: false,
-                message: "Agent provider not configured. Run :rename in the TUI to select one, set agent.provider, or set agent.command in ~/.config/blackpepper/config.toml or .blackpepper/config.toml.".to_string(),
-                data: None,
-            };
+        let provider_result = match run_agent_prompt(
+            ctx,
+            &repo_root,
+            &config,
+            rename::WORKSPACE_RENAME,
+            on_output,
+        ) {
+            Ok(result) => result,
+            Err(result) => return result,
         };
-
-        let script = pr::build_prompt_script(command_template, rename::WORKSPACE_RENAME);
-        let mut on_chunk = |chunk: &str| {
-            on_output(CommandOutput::Chunk(chunk.to_string()));
-        };
-        let provider_result = run_shell_with_output(&script, &ctx.cwd, &mut on_chunk);
-        on_output(CommandOutput::PhaseComplete(CommandPhase::Agent));
         if !provider_result.ok {
             return CommandResult {
                 ok: false,

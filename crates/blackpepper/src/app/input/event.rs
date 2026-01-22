@@ -312,6 +312,7 @@ mod tests {
     use crate::commands::CommandResult;
     use crate::events::AppEvent;
     use crate::terminal::TerminalSession;
+    use crate::test_utils::env_lock;
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -402,6 +403,7 @@ mod tests {
 
     #[test]
     fn workspace_rename_switches_active_workspace() {
+        let _env_guard = env_lock();
         let repo = init_repo();
         let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
         let workspace_root = repo_root.join(".blackpepper/workspaces");
@@ -451,6 +453,7 @@ mod tests {
 
     #[test]
     fn workspace_create_enters_work_mode() {
+        let _env_guard = env_lock();
         let repo = init_repo();
         let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
         let workspace_root = repo_root.join(".blackpepper/workspaces");
@@ -496,6 +499,7 @@ mod tests {
 
     #[test]
     fn workspace_rename_enters_work_mode() {
+        let _env_guard = env_lock();
         let repo = init_repo();
         let repo_root = fs::canonicalize(repo.path()).unwrap_or_else(|_| repo.path().to_path_buf());
         let workspace_root = repo_root.join(".blackpepper/workspaces");
