@@ -48,25 +48,7 @@ pub fn parse_key_chord(input: &str) -> Option<KeyChord> {
 pub fn matches_chord(event: &KeyEvent, chord: &KeyChord) -> bool {
     let mods = event.modifiers.remove_positional_mods();
     let chord_mods = chord.modifiers.remove_positional_mods();
-    if event.key == chord.key {
-        if mods == chord_mods {
-            return true;
-        }
-        if chord.key == KeyCode::Char('|')
-            && mods.contains(Modifiers::SHIFT)
-            && (mods & !Modifiers::SHIFT) == chord_mods
-        {
-            return true;
-        }
-    }
-    if chord.key == KeyCode::Char('|') && event.key == KeyCode::Char('\\') {
-        if !mods.contains(Modifiers::SHIFT) {
-            return false;
-        }
-        let mods_no_shift = mods & !Modifiers::SHIFT;
-        return mods_no_shift == chord_mods;
-    }
-    false
+    event.key == chord.key && mods == chord_mods
 }
 
 fn parse_key(key: &str) -> Option<KeyCode> {
@@ -119,28 +101,5 @@ mod tests {
             modifiers: Modifiers::CTRL | Modifiers::LEFT_CTRL,
         };
         assert!(matches_chord(&event, &chord));
-    }
-
-    #[test]
-    fn matches_chord_pipe_accepts_backslash_variants() {
-        let chord = KeyChord {
-            key: KeyCode::Char('|'),
-            modifiers: Modifiers::CTRL,
-        };
-        let event = KeyEvent {
-            key: KeyCode::Char('\\'),
-            modifiers: Modifiers::CTRL,
-        };
-        let event_shift = KeyEvent {
-            key: KeyCode::Char('\\'),
-            modifiers: Modifiers::CTRL | Modifiers::SHIFT,
-        };
-        let pipe_shift = KeyEvent {
-            key: KeyCode::Char('|'),
-            modifiers: Modifiers::CTRL | Modifiers::SHIFT,
-        };
-        assert!(!matches_chord(&event, &chord));
-        assert!(matches_chord(&event_shift, &chord));
-        assert!(matches_chord(&pipe_shift, &chord));
     }
 }

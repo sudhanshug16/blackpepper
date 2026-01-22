@@ -5,9 +5,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
-use termwiz::input::{
-    InputEvent, InputParser, KeyCode, KeyCodeEncodeModes, KeyboardEncoding, Modifiers,
-};
+use termwiz::input::{InputEvent, InputParser, KeyCodeEncodeModes, KeyboardEncoding};
 
 use crate::keymap::KeyChord;
 
@@ -207,14 +205,6 @@ fn toggle_sequences(chord: Option<&KeyChord>) -> Vec<Vec<u8>> {
     };
     let mut sequences = HashSet::new();
     let mods = chord.modifiers.remove_positional_mods();
-    let mut entries = vec![(chord.key, mods)];
-    if chord.key == KeyCode::Char('|') {
-        let with_shift = mods | Modifiers::SHIFT;
-        if with_shift != mods {
-            entries.push((KeyCode::Char('|'), with_shift));
-        }
-        entries.push((KeyCode::Char('\\'), with_shift));
-    }
 
     let encodings = [KeyboardEncoding::Xterm, KeyboardEncoding::CsiU];
     let modify_other_keys = [None, Some(1), Some(2)];
@@ -233,11 +223,9 @@ fn toggle_sequences(chord: Option<&KeyChord>) -> Vec<Vec<u8>> {
                         newline_mode,
                         modify_other_keys: modify,
                     };
-                    for (key, mods) in &entries {
-                        if let Ok(seq) = key.encode(*mods, modes, true) {
-                            if !seq.is_empty() {
-                                sequences.insert(seq.into_bytes());
-                            }
+                    if let Ok(seq) = chord.key.encode(mods, modes, true) {
+                        if !seq.is_empty() {
+                            sequences.insert(seq.into_bytes());
                         }
                     }
                 }
@@ -339,44 +327,6 @@ mod tests {
     }
 
     #[test]
-    fn toggle_sequences_match_pipe_and_backslash() {
-        let pipe = KeyChord {
-            key: KeyCode::Char('|'),
-            modifiers: Modifiers::CTRL,
-        };
-        let backslash = KeyChord {
-            key: KeyCode::Char('\\'),
-            modifiers: Modifiers::CTRL | Modifiers::SHIFT,
-        };
-        let pipe_sequences = toggle_sequences(Some(&pipe));
-        let backslash_sequences = toggle_sequences(Some(&backslash));
-        assert!(
-            backslash_sequences
-                .iter()
-                .any(|seq| pipe_sequences.contains(seq))
-        );
-    }
-
-    #[test]
-    fn toggle_sequences_match_shift_variants() {
-        let ctrl = KeyChord {
-            key: KeyCode::Char('|'),
-            modifiers: Modifiers::CTRL,
-        };
-        let ctrl_shift = KeyChord {
-            key: KeyCode::Char('|'),
-            modifiers: Modifiers::CTRL | Modifiers::SHIFT,
-        };
-        let ctrl_sequences = toggle_sequences(Some(&ctrl));
-        let ctrl_shift_sequences = toggle_sequences(Some(&ctrl_shift));
-        assert!(
-            ctrl_sequences
-                .iter()
-                .any(|seq| ctrl_shift_sequences.contains(seq))
-        );
-    }
-
-    #[test]
     fn matcher_strips_toggle_sequence() {
         let chord = KeyChord {
             key: KeyCode::Char(']'),
@@ -442,29 +392,5 @@ mod tests {
         let (out, matched) = decoder.consume_work_bytes(&switch_sequence);
         assert!(out.is_empty());
         assert_eq!(matched, MatchedChord::Switch);
-    }
-
-    #[test]
-    fn input_decoder_prefers_overlay_when_overlap() {
-        let overlay = KeyChord {
-            key: KeyCode::Char('\\'),
-            modifiers: Modifiers::CTRL,
-        };
-        let switch = KeyChord {
-            key: KeyCode::Char('|'),
-            modifiers: Modifiers::CTRL,
-        };
-        let overlay_sequences = toggle_sequences(Some(&overlay));
-        let switch_sequences = toggle_sequences(Some(&switch));
-        let Some(shared) = switch_sequences
-            .iter()
-            .find(|seq| overlay_sequences.contains(*seq))
-        else {
-            return;
-        };
-        let mut decoder = InputDecoder::new(None, Some(overlay), Some(switch));
-        let (out, matched) = decoder.consume_work_bytes(shared);
-        assert!(out.is_empty());
-        assert_eq!(matched, MatchedChord::WorkspaceOverlay);
     }
 }

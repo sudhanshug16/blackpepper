@@ -35,7 +35,7 @@ fn load_config_uses_defaults_when_empty() {
     let config = load_config(repo.path());
 
     assert_eq!(config.keymap.toggle_mode, "ctrl+]");
-    assert_eq!(config.keymap.switch_workspace, "ctrl+|");
+    assert_eq!(config.keymap.switch_workspace, "ctrl+n");
     assert_eq!(config.keymap.workspace_overlay, "ctrl+\\");
     assert_eq!(config.tmux.command.as_deref(), Some("tmux"));
     assert!(config.tmux.args.is_empty());
