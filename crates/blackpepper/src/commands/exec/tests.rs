@@ -10,7 +10,7 @@ use std::env;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 use tempfile::TempDir;
@@ -69,6 +69,64 @@ fn init_repo() -> TempDir {
     repo
 }
 
+#[cfg(unix)]
+fn prepare_workspace(repo: &TempDir, name: &str) -> PathBuf {
+    let workspace_root = repo.path().join(".blackpepper/workspaces");
+    let workspace_path = workspace_root.join(name);
+    fs::create_dir_all(&workspace_path).expect("create workspace");
+    workspace_path
+}
+
+#[cfg(unix)]
+fn write_tmux_stub(dir: &Path) -> PathBuf {
+    let tmux_path = dir.join("tmux_stub.sh");
+    let script = r#"#!/bin/sh
+cmd="$1"
+shift
+
+case "$cmd" in
+  has-session)
+    exit 0
+    ;;
+  list-windows)
+    echo "bp-pr-agent:1"
+    exit 0
+    ;;
+  new-window)
+    exit 0
+    ;;
+  respawn-pane)
+    cwd=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "-c" ]; then
+        shift
+        cwd="$1"
+        shift
+        break
+      fi
+      shift
+    done
+    if [ -n "$cwd" ]; then
+      (cd "$cwd" && "$@")
+    else
+      "$@"
+    fi
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"#;
+    fs::write(&tmux_path, script).expect("write tmux stub");
+    let mut perms = fs::metadata(&tmux_path)
+        .expect("stat tmux stub")
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&tmux_path, perms).expect("chmod tmux stub");
+    tmux_path
+}
+
 #[test]
 fn gitignore_entries_are_appended_once() {
     let dir = TempDir::new().expect("temp dir");
@@ -114,9 +172,7 @@ fn unique_animal_names_are_valid_and_unique() {
 #[test]
 fn pick_unused_returns_none_when_exhausted() {
     let names = unique_animal_names();
-    let used: HashSet<String> = names
-        .into_iter()
-        .collect();
+    let used: HashSet<String> = names.into_iter().collect();
     let picked = pick_unused_animal_name(&used);
     assert!(picked.is_none());
 }
@@ -180,11 +236,16 @@ fn workspace_create_and_destroy_workflow() {
 fn pr_create_uses_agent_command_and_gh() {
     let _guard = env_lock();
     let repo = init_repo();
+    let workspace_path = prepare_workspace(&repo, "otter");
+    let tmux_stub = write_tmux_stub(repo.path());
     let config_path = workspace_config_path(repo.path());
     fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
 
     let command = r#"printf '%b' '<pr>\n  <title>feat(pr): stub create</title>\n  <description>\n## Summary\nStubbed PR description\n  </description>\n</pr>\n' # {{PROMPT}}"#;
-    let config = format!("[agent]\nprovider = \"unknown\"\ncommand = \"\"\"{command}\"\"\"\n");
+    let config = format!(
+        "[agent]\nprovider = \"unknown\"\ncommand = \"\"\"{command}\"\"\"\n[tmux]\ncommand = \"{}\"\n",
+        tmux_stub.display()
+    );
     fs::write(&config_path, config).expect("write config");
 
     let bin_dir = TempDir::new().expect("temp bin");
@@ -204,10 +265,10 @@ fn pr_create_uses_agent_command_and_gh() {
     let _path_guard = EnvVarGuard::set("PATH", new_path);
 
     let ctx = CommandContext {
-        cwd: repo.path().to_path_buf(),
+        cwd: workspace_path.clone(),
         repo_root: Some(repo.path().to_path_buf()),
         workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
-        workspace_path: None,
+        workspace_path: Some(workspace_path),
         source: CommandSource::Cli,
     };
     let result = run_command("pr", &[String::from("create")], &ctx);
@@ -228,18 +289,23 @@ fn pr_create_uses_agent_command_and_gh() {
 fn pr_create_surfaces_agent_failure() {
     let _guard = env_lock();
     let repo = init_repo();
+    let workspace_path = prepare_workspace(&repo, "otter");
+    let tmux_stub = write_tmux_stub(repo.path());
     let config_path = workspace_config_path(repo.path());
     fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
 
     let command = "echo agent_boom 1>&2; exit 42";
-    let config = format!("[agent]\nprovider = \"unknown\"\ncommand = \"{command}\"\n");
+    let config = format!(
+        "[agent]\nprovider = \"unknown\"\ncommand = \"{command}\"\n[tmux]\ncommand = \"{}\"\n",
+        tmux_stub.display()
+    );
     fs::write(&config_path, config).expect("write config");
 
     let ctx = CommandContext {
-        cwd: repo.path().to_path_buf(),
+        cwd: workspace_path.clone(),
         repo_root: Some(repo.path().to_path_buf()),
         workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
-        workspace_path: None,
+        workspace_path: Some(workspace_path),
         source: CommandSource::Cli,
     };
     let result = run_command("pr", &[String::from("create")], &ctx);
@@ -253,11 +319,16 @@ fn pr_create_surfaces_agent_failure() {
 fn pr_create_surfaces_gh_failure() {
     let _guard = env_lock();
     let repo = init_repo();
+    let workspace_path = prepare_workspace(&repo, "otter");
+    let tmux_stub = write_tmux_stub(repo.path());
     let config_path = workspace_config_path(repo.path());
     fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
 
     let command = r#"printf '%b' '<pr>\n  <title>feat(pr): stub create</title>\n  <description>\n## Summary\nStubbed PR description\n  </description>\n</pr>\n' # {{PROMPT}}"#;
-    let config = format!("[agent]\ncommand = \"\"\"{command}\"\"\"\n");
+    let config = format!(
+        "[agent]\ncommand = \"\"\"{command}\"\"\"\n[tmux]\ncommand = \"{}\"\n",
+        tmux_stub.display()
+    );
     fs::write(&config_path, config).expect("write config");
 
     let bin_dir = TempDir::new().expect("temp bin");
@@ -273,14 +344,104 @@ fn pr_create_surfaces_gh_failure() {
     let _path_guard = EnvVarGuard::set("PATH", new_path);
 
     let ctx = CommandContext {
-        cwd: repo.path().to_path_buf(),
+        cwd: workspace_path.clone(),
         repo_root: Some(repo.path().to_path_buf()),
         workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
-        workspace_path: None,
+        workspace_path: Some(workspace_path),
         source: CommandSource::Cli,
     };
     let result = run_command("pr", &[String::from("create")], &ctx);
     assert!(!result.ok);
     assert!(result.message.contains("github pr create failed"));
     assert!(result.message.contains("gh failed"));
+}
+
+#[test]
+#[cfg(unix)]
+fn pr_sync_runs_git_pull_and_agent() {
+    let _guard = env_lock();
+    let repo = init_repo();
+    let workspace_path = prepare_workspace(&repo, "otter");
+    let tmux_stub = write_tmux_stub(repo.path());
+    let config_path = workspace_config_path(repo.path());
+    fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
+
+    let config = format!(
+        "[agent]\ncommand = \"printf '<success/>'\"\n[tmux]\ncommand = \"{}\"\n",
+        tmux_stub.display()
+    );
+    fs::write(&config_path, config).expect("write config");
+
+    let bin_dir = TempDir::new().expect("temp bin");
+    let git_args_path = repo.path().join("git_args.txt");
+    let git_path = bin_dir.path().join("git");
+    let git_script = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\necho 'pull ok'\nexit 0\n",
+        git_args_path.display()
+    );
+    fs::write(&git_path, git_script).expect("write git stub");
+    let mut perms = fs::metadata(&git_path).expect("stat git").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&git_path, perms).expect("chmod git");
+
+    let original_path = env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", bin_dir.path().display(), original_path);
+    let _path_guard = EnvVarGuard::set("PATH", new_path);
+
+    let ctx = CommandContext {
+        cwd: workspace_path.clone(),
+        repo_root: Some(repo.path().to_path_buf()),
+        workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
+        workspace_path: Some(workspace_path),
+        source: CommandSource::Cli,
+    };
+    let result = run_command("pr", &[String::from("sync")], &ctx);
+    assert!(result.ok, "pr sync failed: {}", result.message);
+    assert!(result.message.contains("PR sync complete"));
+
+    let args = fs::read_to_string(&git_args_path).expect("read git args");
+    assert!(args.contains("pull"));
+    assert!(args.contains("--rebase"));
+    assert!(args.contains("--autostash"));
+}
+
+#[test]
+#[cfg(unix)]
+fn pr_sync_surfaces_git_failure() {
+    let _guard = env_lock();
+    let repo = init_repo();
+    let workspace_path = prepare_workspace(&repo, "otter");
+    let tmux_stub = write_tmux_stub(repo.path());
+    let config_path = workspace_config_path(repo.path());
+    fs::create_dir_all(config_path.parent().expect("config dir")).expect("config dir");
+
+    let config = format!(
+        "[agent]\ncommand = \"printf '<success/>'\"\n[tmux]\ncommand = \"{}\"\n",
+        tmux_stub.display()
+    );
+    fs::write(&config_path, config).expect("write config");
+
+    let bin_dir = TempDir::new().expect("temp bin");
+    let git_path = bin_dir.path().join("git");
+    let git_script = "#!/bin/sh\necho 'pull failed' 1>&2\nexit 1\n";
+    fs::write(&git_path, git_script).expect("write git stub");
+    let mut perms = fs::metadata(&git_path).expect("stat git").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&git_path, perms).expect("chmod git");
+
+    let original_path = env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", bin_dir.path().display(), original_path);
+    let _path_guard = EnvVarGuard::set("PATH", new_path);
+
+    let ctx = CommandContext {
+        cwd: workspace_path.clone(),
+        repo_root: Some(repo.path().to_path_buf()),
+        workspace_root: Path::new(".blackpepper/workspaces").to_path_buf(),
+        workspace_path: Some(workspace_path),
+        source: CommandSource::Cli,
+    };
+    let result = run_command("pr", &[String::from("sync")], &ctx);
+    assert!(!result.ok);
+    assert!(result.message.contains("git pull --rebase failed"));
+    assert!(result.message.contains("pull failed"));
 }

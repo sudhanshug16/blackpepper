@@ -93,6 +93,11 @@ pub const COMMANDS: &[CommandSpec] = &[
         cli_exposed: false,
     },
     CommandSpec {
+        name: "pr sync",
+        description: "Pull/rebase and commit current changes",
+        cli_exposed: false,
+    },
+    CommandSpec {
         name: "pr open",
         description: "Open the current pull request",
         cli_exposed: false,

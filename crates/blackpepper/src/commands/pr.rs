@@ -70,6 +70,28 @@ pub fn parse_pr_output(output: &str) -> Result<PrMessage, String> {
     Ok(PrMessage { title, description })
 }
 
+pub fn parse_commit_output(output: &str) -> Result<(), String> {
+    let trimmed = output.trim();
+    if trimmed.is_empty() {
+        return Err("Commit generator returned empty output.".to_string());
+    }
+
+    if let Some(error_block) = extract_block(trimmed, "error") {
+        let reason = extract_tag(&error_block, "reason").unwrap_or_else(|| "Unknown error".into());
+        let action = extract_tag(&error_block, "action").unwrap_or_default();
+        if action.trim().is_empty() {
+            return Err(format!("Commit generator error: {reason}"));
+        }
+        return Err(format!("Commit generator error: {reason} ({action})"));
+    }
+
+    if trimmed.contains("<success/>") {
+        return Ok(());
+    }
+
+    Err("Commit generator output missing <success/>.".to_string())
+}
+
 fn prompt_heredoc_delimiter(prompt: &str) -> String {
     let base = "BLACKPEPPER_PROMPT";
     let mut suffix = 0usize;
@@ -100,7 +122,7 @@ fn extract_tag(content: &str, tag: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_prompt_script, parse_pr_output};
+    use super::{build_prompt_script, parse_commit_output, parse_pr_output};
 
     #[test]
     fn build_prompt_script_avoids_prompt_delimiter_collisions() {
@@ -136,5 +158,23 @@ Added a PR flow.
         let err = parse_pr_output(output).expect_err("parse err");
         assert!(err.contains("No changes"));
         assert!(err.contains("Commit first"));
+    }
+
+    #[test]
+    fn parse_commit_output_success() {
+        parse_commit_output("<success/>").expect("parse ok");
+    }
+
+    #[test]
+    fn parse_commit_output_error() {
+        let output = r#"
+<error>
+  <reason>No changes</reason>
+  <action>Make a commit</action>
+</error>
+"#;
+        let err = parse_commit_output(output).expect_err("parse err");
+        assert!(err.contains("No changes"));
+        assert!(err.contains("Make a commit"));
     }
 }

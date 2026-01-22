@@ -166,9 +166,7 @@ mod tests {
     #[test]
     fn pick_unused_excludes_used() {
         // Mark all but one as used
-        let all_names: Vec<String> = unique_animal_names()
-            .into_iter()
-            .collect();
+        let all_names: Vec<String> = unique_animal_names().into_iter().collect();
         let mut used: HashSet<String> = all_names.iter().cloned().collect();
         let keep = used.iter().next().cloned().unwrap();
         used.remove(&keep);

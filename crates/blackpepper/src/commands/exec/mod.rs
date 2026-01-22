@@ -15,7 +15,7 @@ mod tests;
 
 use super::registry::{command_help_lines, command_help_lines_cli};
 use init::init_project;
-use pr_command::pr_create;
+use pr_command::{pr_create, pr_sync};
 use update::update_command;
 use workspace::{
     workspace_create, workspace_destroy, workspace_from_branch, workspace_from_pr, workspace_list,
@@ -128,12 +128,13 @@ where
             let Some(subcommand) = args.first() else {
                 return CommandResult {
                     ok: false,
-                    message: "Usage: :pr <create|open|merge>".to_string(),
+                    message: "Usage: :pr <create|sync|open|merge>".to_string(),
                     data: None,
                 };
             };
             match subcommand.as_str() {
                 "create" => pr_create(ctx, on_output),
+                "sync" => pr_sync(ctx, on_output),
                 "open" => CommandResult {
                     ok: true,
                     message: "PR opening is not implemented yet.".to_string(),
@@ -146,7 +147,7 @@ where
                 },
                 _ => CommandResult {
                     ok: false,
-                    message: "Usage: :pr <create|open|merge>".to_string(),
+                    message: "Usage: :pr <create|sync|open|merge>".to_string(),
                     data: None,
                 },
             }

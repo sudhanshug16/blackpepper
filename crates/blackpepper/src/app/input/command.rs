@@ -236,7 +236,7 @@ fn needs_agent_provider_selection(app: &App, args: &[String]) -> bool {
     let Some(subcommand) = args.first() else {
         return false;
     };
-    if subcommand != "create" {
+    if subcommand != "create" && subcommand != "sync" {
         return false;
     }
     app.config.agent.provider.is_none() && app.config.agent.command.is_none()

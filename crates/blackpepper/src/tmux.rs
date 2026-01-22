@@ -5,6 +5,7 @@ use std::process::{Command, Output};
 /// Default tabs when none are configured: agent, server, and git.
 pub const DEFAULT_TMUX_TABS: &[&str] = &["agent", "server", "git"];
 pub const SETUP_TMUX_TAB: &str = "setup";
+pub const PR_AGENT_TMUX_TAB: &str = "bp-pr-agent";
 
 use crate::config::{TmuxConfig, TmuxTabConfig};
 
@@ -275,6 +276,35 @@ pub fn send_keys(config: &TmuxConfig, target: &str, command: &str) -> Result<(),
     }
 }
 
+pub fn respawn_pane(
+    config: &TmuxConfig,
+    target: &str,
+    cwd: &Path,
+    command: &[String],
+) -> Result<(), String> {
+    if command.is_empty() {
+        return Err("No command provided to respawn tmux pane.".to_string());
+    }
+    let mut args = vec![
+        "respawn-pane".to_string(),
+        "-k".to_string(),
+        "-t".to_string(),
+        target.to_string(),
+        "-c".to_string(),
+        cwd.to_string_lossy().to_string(),
+    ];
+    args.extend(command.iter().cloned());
+    let output = run_tmux_with_args(config, &args)?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Failed to respawn tmux pane '{target}'.{}",
+            format_output(&output)
+        ))
+    }
+}
+
 pub fn set_environment(
     config: &TmuxConfig,
     session: &str,
@@ -295,6 +325,59 @@ pub fn set_environment(
 pub fn has_session(config: &TmuxConfig, session: &str) -> Result<bool, String> {
     let output = run_tmux(config, &["has-session", "-t", session])?;
     Ok(output.status.success())
+}
+
+pub fn ensure_window(
+    config: &TmuxConfig,
+    session: &str,
+    name: &str,
+    cwd: &Path,
+) -> Result<String, String> {
+    if !has_session(config, session)? {
+        return Err(format!("Tmux session '{session}' not found."));
+    }
+    if let Some(target) = window_target_by_name(config, session, name)? {
+        return Ok(target);
+    }
+    new_window(config, session, name, cwd, None, &[])?;
+    window_target_by_name(config, session, name)?
+        .ok_or_else(|| format!("Failed to create tmux window '{name}' in session '{session}'."))
+}
+
+fn window_target_by_name(
+    config: &TmuxConfig,
+    session: &str,
+    name: &str,
+) -> Result<Option<String>, String> {
+    let output = run_tmux(
+        config,
+        &[
+            "list-windows",
+            "-t",
+            session,
+            "-F",
+            "#{window_name}:#{window_index}",
+        ],
+    )?;
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to list tmux windows for '{session}'.{}",
+            format_output(&output)
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some((window, index)) = trimmed.split_once(':') {
+            if window == name {
+                return Ok(Some(format!("{session}:{index}")));
+            }
+        }
+    }
+    Ok(None)
 }
 
 fn new_session(
