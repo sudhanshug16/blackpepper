@@ -573,12 +573,11 @@ mod tests {
     }
 
     #[test]
-    fn git_tab_has_no_default_command() {
+    fn git_tab_has_gitui_command() {
         let command = default_tab_command("git");
-        assert!(
-            command.is_none(),
-            "git tab should not have a default command"
-        );
+        assert!(command.is_some(), "git tab should have a default command");
+        let cmd = command.unwrap();
+        assert!(cmd.contains("gitui"), "git tab command should run gitui");
     }
 
     #[test]
