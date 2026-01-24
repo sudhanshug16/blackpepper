@@ -39,24 +39,24 @@ Run `bp` to launch. Re-run the installer to update.
 
 Blackpepper has two modes:
 
-| Mode | What it does |
-|------|--------------|
-| **Work** | Raw input passthrough to tmux. All keys go to tmux except toggle chords. |
-| **Manage** | Global controls. Navigate workspaces, run commands, quit. |
+| Mode       | What it does                                                             |
+| ---------- | ------------------------------------------------------------------------ |
+| **Work**   | Raw input passthrough to tmux. All keys go to tmux except toggle chords. |
+| **Manage** | Global controls. Navigate workspaces, run commands, quit.                |
 
 ### Navigation
 
-| Key | Action | Works in |
-|-----|--------|----------|
-| `Ctrl+]` | Toggle between Work ↔ Manage | Both |
-| `Ctrl+\\` | Open workspace switcher | Both |
-| `Ctrl+n` | Cycle workspaces | Both |
-| `:` | Open command line | Manage |
-| `q` | Quit | Manage |
-| `Esc` | Close overlay / return to Work | Manage |
-| `j` / `k` | Navigate lists | Overlays |
-| `Enter` | Select / confirm | Overlays |
-| `Tab` | Autocomplete | Command line |
+| Key       | Action                         | Works in     |
+| --------- | ------------------------------ | ------------ |
+| `Ctrl+]`  | Toggle between Work ↔ Manage  | Both         |
+| `Ctrl+\\` | Open workspace switcher        | Both         |
+| `Ctrl+n`  | Cycle workspaces               | Both         |
+| `:`       | Open command line              | Manage       |
+| `q`       | Quit                           | Manage       |
+| `Esc`     | Close overlay / return to Work | Manage       |
+| `j` / `k` | Navigate lists                 | Overlays     |
+| `Enter`   | Select / confirm               | Overlays     |
+| `Tab`     | Autocomplete                   | Command line |
 
 ### Common Tasks
 
@@ -99,22 +99,22 @@ Ctrl+n                    # cycle to next workspace
 
 All commands work in the TUI (`:command`) and CLI (`bp command`).
 
-| Command | Description |
-|---------|-------------|
-| `init` | Initialize project config and gitignore |
-| `workspace create [name]` | Create workspace (auto-generates name if omitted) |
-| `workspace destroy [name]` | Destroy workspace worktree |
-| `workspace rename <name>` | Rename workspace and branch |
-| `workspace switch <name>` | Switch to workspace |
-| `workspace from-branch <branch>` | Create workspace from local or remote branch |
-| `workspace from-pr <number>` | Create workspace from PR |
-| `workspace setup` | Re-run setup scripts |
-| `workspace list` | List workspaces |
-| `ports` | Show allocated ports |
-| `pr create` | Create PR from current workspace |
-| `update` | Update to latest release |
-| `refresh` | Refresh repo status |
-| `quit` / `q` | Exit (detaches tmux sessions) |
+| Command                          | Description                                       |
+| -------------------------------- | ------------------------------------------------- |
+| `init`                           | Initialize project config and gitignore           |
+| `workspace create [name]`        | Create workspace (auto-generates name if omitted) |
+| `workspace destroy [name]`       | Destroy workspace worktree                        |
+| `workspace rename <name>`        | Rename workspace and branch                       |
+| `workspace switch <name>`        | Switch to workspace                               |
+| `workspace from-branch <branch>` | Create workspace from local or remote branch      |
+| `workspace from-pr <number>`     | Create workspace from PR                          |
+| `workspace setup`                | Re-run setup scripts                              |
+| `workspace list`                 | List workspaces                                   |
+| `ports`                          | Show allocated ports                              |
+| `pr create`                      | Create PR from current workspace                  |
+| `update`                         | Update to latest release                          |
+| `refresh`                        | Refresh repo status                               |
+| `quit` / `q`                     | Exit (detaches tmux sessions)                     |
 
 ## Configuration
 
@@ -185,18 +185,22 @@ foreground = "#ffffff"
 
 ### Config Reference
 
-| Section | Description |
-|---------|-------------|
-| `[keymap]` | Key bindings (`toggle_mode`, `switch_workspace`, `workspace_overlay`) |
-| `[tmux]` | Tmux command and args |
-| `[tmux.tabs.<name>]` | Tabs with optional startup commands |
-| `[workspace]` | Workspace root directory |
-| `[workspace.setup]` | Setup scripts run on workspace start |
-| `[workspace.env]` | Env vars injected into all tmux tabs |
-| `[git]` | Git remote (default: `origin`) |
-| `[agent]` | Provider and custom command template |
-| `[upstream]` | PR backend (default: `github`) |
-| `[ui]` | TUI colors |
+| Section              | Description                                                           |
+| -------------------- | --------------------------------------------------------------------- |
+| `[keymap]`           | Key bindings (`toggle_mode`, `switch_workspace`, `workspace_overlay`) |
+| `[tmux]`             | Tmux command and args                                                 |
+| `[tmux.tabs.<name>]` | Tabs with optional startup commands                                   |
+| `[workspace]`        | Workspace root directory                                              |
+| `[workspace.setup]`  | Setup scripts run on workspace start                                  |
+| `[workspace.env]`    | Env vars injected into all tmux tabs                                  |
+| `[git]`              | Git remote (default: `origin`)                                        |
+| `[agent]`            | Provider and custom command template                                  |
+| `[upstream]`         | PR backend (default: `github`)                                        |
+| `[ui]`               | TUI colors                                                            |
+
+Note: The built-in `git` tab defaults to `gitui` (install it first). Lazygit is
+not a good fit for Blackpepper worktrees, so configure a different git command if
+you prefer another UI.
 
 ## Workspaces
 
@@ -239,6 +243,7 @@ the git repository root.
 ## Tmux Integration
 
 Blackpepper is a transparent layer for tmux. Use tmux for:
+
 - Windows and panes (`Ctrl+b` commands)
 - Copy mode and scrollback
 - Session management

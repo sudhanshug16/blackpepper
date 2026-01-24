@@ -151,7 +151,7 @@ pub fn resolve_tabs(config: &TmuxConfig) -> Vec<TmuxTabConfig> {
 /// Returns the default command for a built-in tab name.
 fn default_tab_command(name: &str) -> Option<String> {
     match name {
-        "git" => Some("lazygit".to_string()),
+        "git" => Some("gitui".to_string()),
         _ => None,
     }
 }
@@ -573,13 +573,11 @@ mod tests {
     }
 
     #[test]
-    fn git_tab_has_lazygit_command() {
+    fn git_tab_has_no_default_command() {
         let command = default_tab_command("git");
-        assert!(command.is_some(), "git tab should have a default command");
-        let cmd = command.unwrap();
         assert!(
-            cmd.contains("lazygit"),
-            "git tab command should run lazygit"
+            command.is_none(),
+            "git tab should not have a default command"
         );
     }
 
