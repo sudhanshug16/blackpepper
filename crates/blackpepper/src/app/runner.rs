@@ -83,16 +83,19 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
             pending_draw = true;
         }
 
-        if pending_draw && last_draw_at.elapsed() >= FRAME_INTERVAL {
-            if app.refresh_requested {
-                terminal.clear()?;
-                app.refresh_requested = false;
-            }
+        if last_draw_at.elapsed() >= FRAME_INTERVAL {
+            if pending_draw {
+                if app.refresh_requested {
+                    terminal.clear()?;
+                    app.refresh_requested = false;
+                }
 
-            flush_pending_input_modes(terminal, &mut app)?;
-            terminal.draw(|frame| super::render::render(&mut app, frame))?;
+                flush_pending_input_modes(terminal, &mut app)?;
+                terminal.draw(|frame| super::render::render(&mut app, frame))?;
+                pending_draw = false;
+            }
+            // Always update last_draw_at to prevent busy-loop when idle
             last_draw_at = Instant::now();
-            pending_draw = false;
         }
     }
     Ok(())
@@ -350,5 +353,97 @@ fn read_raw_bytes(timeout: Duration) -> io::Result<Option<Vec<u8>>> {
             return Ok(None);
         }
         Ok(Some(buffer[..size].to_vec()))
+    }
+}
+
+/// Frame pacing helper to ensure consistent frame timing without busy-looping.
+///
+/// The key invariant is that `last_frame` must be updated every frame interval,
+/// regardless of whether a draw actually occurred. This prevents the timeout
+/// calculation from returning 0 indefinitely (which would cause a busy-loop).
+#[cfg(test)]
+struct FramePacer {
+    last_frame: Instant,
+    frame_interval: Duration,
+}
+
+#[cfg(test)]
+impl FramePacer {
+    fn new(frame_interval: Duration) -> Self {
+        Self {
+            last_frame: Instant::now(),
+            frame_interval,
+        }
+    }
+
+    /// Returns the timeout to use for the next recv_timeout call.
+    fn timeout(&self) -> Duration {
+        self.frame_interval
+            .checked_sub(self.last_frame.elapsed())
+            .unwrap_or(Duration::from_millis(0))
+    }
+
+    /// Called when frame interval has elapsed. Returns true if timer was reset.
+    /// IMPORTANT: This must be called unconditionally when elapsed >= frame_interval,
+    /// not just when a draw occurs. Otherwise timeout() will return 0 forever.
+    fn tick(&mut self) -> bool {
+        if self.last_frame.elapsed() >= self.frame_interval {
+            self.last_frame = Instant::now();
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_pacer_resets_timer_to_prevent_busy_loop() {
+        let mut pacer = FramePacer::new(Duration::from_millis(16));
+
+        // Initially, timeout should be close to frame_interval
+        let initial_timeout = pacer.timeout();
+        assert!(initial_timeout > Duration::from_millis(10));
+
+        // Simulate time passing beyond frame interval
+        std::thread::sleep(Duration::from_millis(20));
+
+        // Now timeout would be 0 (the bug condition)
+        let timeout_before_tick = pacer.timeout();
+        assert_eq!(timeout_before_tick, Duration::from_millis(0));
+
+        // The fix: tick() must be called unconditionally when interval elapsed
+        // This resets the timer regardless of whether we drew
+        let ticked = pacer.tick();
+        assert!(ticked, "tick() should return true when interval elapsed");
+
+        // After tick, timeout should be back to ~frame_interval (not 0!)
+        let timeout_after_tick = pacer.timeout();
+        assert!(
+            timeout_after_tick > Duration::from_millis(10),
+            "timeout after tick should be ~16ms, not 0 (was {:?})",
+            timeout_after_tick
+        );
+    }
+
+    #[test]
+    fn frame_pacer_timeout_zero_without_tick_causes_busy_loop() {
+        // This test documents the bug that was fixed.
+        // If tick() is not called, timeout stays at 0 forever.
+        let pacer = FramePacer::new(Duration::from_millis(16));
+
+        std::thread::sleep(Duration::from_millis(20));
+
+        // Without calling tick(), timeout is stuck at 0
+        assert_eq!(pacer.timeout(), Duration::from_millis(0));
+
+        // Sleeping more doesn't help - it's still 0
+        std::thread::sleep(Duration::from_millis(20));
+        assert_eq!(pacer.timeout(), Duration::from_millis(0));
+
+        // This is the busy-loop condition: recv_timeout(0) = non-blocking poll
     }
 }
