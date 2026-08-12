@@ -75,26 +75,30 @@ pub struct ControlSocket {
 
 impl ControlSocket {
     pub fn allocate(root: Option<&Path>) -> Result<Self, TransportError> {
+        let mut builder = TempBuilder::new();
+        builder.prefix("bp-ssh-");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            // Set the private mode in the atomic mkdir itself. The standard
+            // 0o022 umask would otherwise produce a searchable 0o755 directory.
+            builder.permissions(fs::Permissions::from_mode(0o700));
+        }
         let directory = match root {
             Some(root) => {
                 fs::create_dir_all(root).map_err(|source| {
                     TransportError::io("failed to create SSH runtime root", source)
                 })?;
-                TempBuilder::new()
-                    .prefix("bp-ssh-")
-                    .tempdir_in(root)
-                    .map_err(|source| {
-                        TransportError::io("failed to create SSH runtime directory", source)
-                    })?
+                builder.tempdir_in(root).map_err(|source| {
+                    TransportError::io("failed to create SSH runtime directory", source)
+                })?
             }
             None => {
                 let short_root = default_control_root();
-                TempBuilder::new()
-                    .prefix("bp-ssh-")
-                    .tempdir_in(&short_root)
-                    .map_err(|source| {
-                        TransportError::io("failed to create SSH runtime directory", source)
-                    })?
+                builder.tempdir_in(&short_root).map_err(|source| {
+                    TransportError::io("failed to create SSH runtime directory", source)
+                })?
             }
         };
         let path = directory.path().join("c");
