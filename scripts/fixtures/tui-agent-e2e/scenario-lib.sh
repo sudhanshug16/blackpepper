@@ -72,7 +72,9 @@ exercise_provider() {
   ensure_work
   send_hex 03
   wait_provider_state "$provider" unknown process_supervisor state_unknown true
-  wait_for_status '\?' "$provider-interrupted" 20
+  wait_for_screen 'agent status unknown' "$provider-interrupted" 20
+  ensure_manage
+  wait_for_status '\?' "$provider-interrupted-manage" 20
   assert_status_evidence "$provider" ProcessSupervisor StateUnknown "$capability" \
     "$provider-interrupted-evidence"
 
@@ -83,7 +85,9 @@ exercise_provider() {
 
   state_tool control "$provider" exit
   wait_provider_state "$provider" exited process_supervisor exited false
-  wait_for_status 'exited' "$provider-exited" 30
+  wait_for_screen 'agent exited' "$provider-exited" 30
+  ensure_manage
+  wait_for_status 'exited' "$provider-exited-manage" 20
   wait_for_asset_absent "$asset"
   state_tool assert-redacted "$E2E_SECRET" ||
     fail_agent_e2e "$provider cleanup left sensitive state"
