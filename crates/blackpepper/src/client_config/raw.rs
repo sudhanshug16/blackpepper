@@ -41,6 +41,9 @@ pub(super) struct RawUi {
     pub(super) foreground: Option<String>,
     /// The single flag that swaps every non-ASCII glyph for its fallback.
     pub(super) glyphs: Option<String>,
+    /// Overrides colour-capability detection when the environment lies or
+    /// arrives incomplete.
+    pub(super) colors: Option<String>,
 }
 
 pub(super) fn read_optional(path: Option<&Path>) -> Result<Option<RawConfig>, ConfigError> {
@@ -111,6 +114,18 @@ fn validate_raw(path: &Path, raw: &RawConfig) -> Result<(), ConfigError> {
         return Err(ConfigError::Invalid {
             path: path.to_path_buf(),
             message: "ui.glyphs must be \"unicode\" or \"ascii\"".to_string(),
+        });
+    }
+    if raw
+        .ui
+        .colors
+        .as_deref()
+        .is_some_and(|value| !matches!(value.trim(), "auto" | "truecolor" | "256" | "16" | "none"))
+    {
+        return Err(ConfigError::Invalid {
+            path: path.to_path_buf(),
+            message: "ui.colors must be \"auto\", \"truecolor\", \"256\", \"16\", or \"none\""
+                .to_string(),
         });
     }
     for (label, value) in [
