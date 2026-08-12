@@ -18,12 +18,29 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<Vec<ZellijTab>, ZellijError> {
+        self.list_tabs_if_ready(host, session)?.ok_or_else(|| {
+            ZellijError::InvalidOutput("list Zellij tabs returned no JSON".to_string())
+        })
+    }
+
+    /// Zellij 0.44.3 has been observed returning success with empty stdout
+    /// immediately after attach. Callers already in a bounded readiness loop
+    /// may retry only this result; malformed non-empty output still fails.
+    pub(super) fn list_tabs_if_ready(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+    ) -> Result<Option<Vec<ZellijTab>>, ZellijError> {
         let output = checked(
             host.exec_timeout(&self.list_tabs_command(session)?, METADATA_TIMEOUT)?,
             "list Zellij tabs",
         )?;
+        if output.stdout.iter().all(u8::is_ascii_whitespace) {
+            return Ok(None);
+        }
         serde_json::from_slice(&output.stdout)
             .map_err(|error| ZellijError::InvalidOutput(format!("invalid tab JSON: {error}")))
+            .map(Some)
     }
 
     /// Build the long-lived host-local viewport subscription used by the

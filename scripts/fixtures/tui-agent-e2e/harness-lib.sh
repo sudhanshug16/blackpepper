@@ -177,6 +177,11 @@ attach_workspace() {
     send_enter
     wait_for_terminal_mode attached 30
   fi
+  capture_screen attach-ready >/dev/null
+  if grep -Fq -- 'Selecting initial workspace shell failed' "$LAST_CAPTURE" ||
+    grep -Fq -- 'initial shell focus could not start' "$LAST_CAPTURE"; then
+    fail_agent_e2e 'initial workspace shell focus failed after attach'
+  fi
   dismiss_zellij_popups
 }
 

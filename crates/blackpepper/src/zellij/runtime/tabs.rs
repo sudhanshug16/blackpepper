@@ -176,11 +176,26 @@ impl ZellijRuntime {
                 _ => std::thread::sleep(FIRST_ATTACH_CLIENT_POLL),
             }
         };
-        if !self
-            .list_tabs(host, session)?
-            .iter()
-            .any(|tab| tab.tab_id == INITIAL_SHELL_TAB_ID)
-        {
+        let tab_wait_started = Instant::now();
+        let tabs = loop {
+            match self.list_tabs_if_ready(host, session)? {
+                Some(tabs) => break tabs,
+                None if tab_wait_started.elapsed() >= client_wait_timeout => {
+                    return Err(ZellijError::InvalidOutput(
+                        "initial shell focus timed out waiting for Zellij tab metadata; no focus change was sent"
+                            .to_string(),
+                    ));
+                }
+                None if crate::transport::CommandCancellation::scope_is_cancelled() => {
+                    return Err(ZellijError::InvalidOutput(
+                        "initial shell focus was cancelled while waiting for Zellij tab metadata; no focus change was sent"
+                            .to_string(),
+                    ));
+                }
+                None => std::thread::sleep(FIRST_ATTACH_CLIENT_POLL),
+            }
+        };
+        if !tabs.iter().any(|tab| tab.tab_id == INITIAL_SHELL_TAB_ID) {
             return Err(ZellijError::InvalidOutput(
                 "the workspace's initial shell tab (ID 0) is missing; no focus change was sent"
                     .to_string(),

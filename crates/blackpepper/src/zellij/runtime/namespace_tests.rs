@@ -252,6 +252,7 @@ fn absent_session_uses_canonical_namespace_and_forgets_cached_resurrection() {
         missing_socket(),
         missing_no_sessions(),
         success(""),
+        active_session(),
     ]);
     let (runtime, active) = runtime
         .resolve_session_namespace(&mut host, "repo-main")
@@ -270,7 +271,13 @@ fn absent_session_uses_canonical_namespace_and_forgets_cached_resurrection() {
         .ensure_session_with_env(&mut host, "repo-main", Path::new("/srv/repo"), &environment)
         .unwrap());
 
-    let create = host.commands.last().unwrap();
+    let create = host
+        .commands
+        .iter()
+        .find(|command| {
+            zellij_arguments(command) == ["attach", "--create-background", "--forget", "repo-main"]
+        })
+        .unwrap();
     assert_eq!(socket_directory(create), "/tmp/zellij-1003");
     assert_eq!(create.program, "/opt/zellij");
     assert_eq!(

@@ -287,6 +287,56 @@ fn initial_shell_focus_waits_for_the_reader_backed_client_to_appear() {
 }
 
 #[test]
+fn initial_shell_focus_retries_only_empty_successful_tab_metadata() {
+    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
+    let clients =
+        success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n9 terminal_2 zellij attach repo-main\n");
+    let tabs = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":true}]"#);
+    let mut host =
+        ScriptedTransport::new([clients.clone(), success(""), tabs, clients, success("")]);
+
+    runtime
+        .focus_initial_shell_for_single_client_with_timeout(
+            &mut host,
+            "repo-main",
+            Duration::from_millis(100),
+        )
+        .unwrap();
+
+    assert_eq!(host.commands.len(), 5);
+
+    let mut malformed = ScriptedTransport::new([
+        success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n9 terminal_2 zellij attach repo-main\n"),
+        success("not JSON"),
+    ]);
+    assert!(runtime
+        .focus_initial_shell_for_single_client_with_timeout(
+            &mut malformed,
+            "repo-main",
+            Duration::from_millis(100),
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("invalid tab JSON"));
+    assert_eq!(malformed.commands.len(), 2);
+
+    let mut never_ready = ScriptedTransport::new([
+        success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n9 terminal_2 zellij attach repo-main\n"),
+        success(""),
+    ]);
+    assert!(runtime
+        .focus_initial_shell_for_single_client_with_timeout(
+            &mut never_ready,
+            "repo-main",
+            Duration::ZERO,
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("timed out waiting for Zellij tab metadata"));
+    assert_eq!(never_ready.commands.len(), 2);
+}
+
+#[test]
 fn new_session_shell_receives_workspace_environment() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let environment = std::collections::BTreeMap::from([
@@ -314,16 +364,59 @@ fn missing_session_beside_an_attached_session_is_created() {
         stdout: Vec::new(),
         stderr: b"Session 'repo-main' not found. The following sessions are active:\n\x1b[32;1msome-other-session\x1b[m\n".to_vec(),
     };
-    let mut host = ScriptedTransport::new([missing, success("")]);
+    let ready = success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n");
+    let mut host = ScriptedTransport::new([missing, success(""), ready]);
 
     assert!(runtime
         .ensure_session(&mut host, "repo-main", Path::new("/srv/repo"))
         .unwrap());
-    assert_eq!(host.commands.len(), 2);
+    assert_eq!(host.commands.len(), 3);
     assert_eq!(
         wrapped_zellij_args(&host.commands[1], "/opt/zellij"),
         ["attach", "--create-background", "--forget", "repo-main"]
     );
+    assert_eq!(
+        wrapped_zellij_args(&host.commands[2], "/opt/zellij"),
+        ["--session", "repo-main", "action", "list-clients"]
+    );
+}
+
+#[test]
+fn new_session_waits_for_exact_server_readiness_and_stays_bounded() {
+    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
+    let missing = CommandOutput {
+        success: false,
+        status: Some(1),
+        stdout: Vec::new(),
+        stderr: b"There is no active session!\n".to_vec(),
+    };
+    let ready = success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n");
+    let mut delayed =
+        ScriptedTransport::new([missing.clone(), success(""), missing.clone(), ready]);
+    assert!(runtime
+        .ensure_session_with_env_and_timeout(
+            &mut delayed,
+            "repo-main",
+            Path::new("/srv/repo"),
+            &std::collections::BTreeMap::new(),
+            Duration::from_millis(100),
+        )
+        .unwrap());
+    assert_eq!(delayed.commands.len(), 4);
+
+    let mut never_ready = ScriptedTransport::new([missing.clone(), success(""), missing]);
+    assert!(runtime
+        .ensure_session_with_env_and_timeout(
+            &mut never_ready,
+            "repo-main",
+            Path::new("/srv/repo"),
+            &std::collections::BTreeMap::new(),
+            Duration::ZERO,
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("did not become ready"));
+    assert_eq!(never_ready.commands.len(), 3);
 }
 
 #[test]

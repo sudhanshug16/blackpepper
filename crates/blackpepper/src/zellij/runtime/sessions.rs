@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use crate::transport::{HostCommand, HostTransport};
 
 use super::super::model::{checked, parse_sessions, ClientOperation, ZellijError};
 use super::validation::validate_name;
 use super::{ZellijRuntime, DEVELOPMENT_SOCKET_OVERRIDE, METADATA_TIMEOUT};
+
+const SESSION_READY_TIMEOUT: Duration = Duration::from_secs(5);
+const SESSION_READY_POLL: Duration = Duration::from_millis(25);
 
 impl ZellijRuntime {
     pub fn list_sessions_command(&self) -> HostCommand {
@@ -69,6 +73,17 @@ impl ZellijRuntime {
         cwd: &Path,
         env: &BTreeMap<String, String>,
     ) -> Result<bool, ZellijError> {
+        self.ensure_session_with_env_and_timeout(host, session, cwd, env, SESSION_READY_TIMEOUT)
+    }
+
+    pub(crate) fn ensure_session_with_env_and_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        cwd: &Path,
+        env: &BTreeMap<String, String>,
+        readiness_timeout: Duration,
+    ) -> Result<bool, ZellijError> {
         validate_name("session", session)?;
         if self.session_is_active(host, session)? {
             return Ok(false);
@@ -77,7 +92,28 @@ impl ZellijRuntime {
             host.exec(&self.create_session_with_env_command(session, cwd, env)?)?,
             "create Zellij session",
         )?;
-        Ok(true)
+        // `attach --create-background` can return before the new server is
+        // ready for a client. Prove the exact session responds before handing
+        // it to the PTY attach path; retry only the pinned missing-session
+        // result and keep every other command failure fail-closed.
+        let started = Instant::now();
+        loop {
+            if self.session_is_active(host, session)? {
+                return Ok(true);
+            }
+            if started.elapsed() >= readiness_timeout {
+                return Err(ZellijError::InvalidOutput(
+                    "created Zellij session did not become ready before its bounded deadline"
+                        .to_string(),
+                ));
+            }
+            if crate::transport::CommandCancellation::scope_is_cancelled() {
+                return Err(ZellijError::InvalidOutput(
+                    "Zellij session creation was cancelled while waiting for readiness".to_string(),
+                ));
+            }
+            std::thread::sleep(SESSION_READY_POLL);
+        }
     }
 
     pub fn kill_session(
