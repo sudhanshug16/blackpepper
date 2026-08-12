@@ -1,6 +1,9 @@
+use super::chord::chord_label;
+use super::chrome;
 use super::glyph::Glyphs;
 use super::style::{
-    accent_badge_style, anchor_style, panel_style, status_span, status_text, warning_style,
+    accent_badge_style, anchor_style, panel_style, section_style, status_span, status_text,
+    warning_style,
 };
 use crate::client::{ClientMode, ClientState, DisplayStatus};
 use crate::ports::{ForwardStatus, ProbeCompleteness};
@@ -9,23 +12,28 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 pub(super) fn render_footer(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
+    let pad = chrome::pad(area.width);
     let line = if state.mode == ClientMode::Work {
         work_footer(state, area.width)
     } else if state.command_active {
-        command_footer(state)
+        command_footer(state, area.width)
     } else {
-        let mode = mode_badge(state);
+        let mut spans = vec![Span::raw(pad), mode_badge(state)];
         if let Some(output) = state.visible_output() {
-            Line::from(vec![mode, Span::raw("  "), Span::raw(output.to_owned())])
+            spans.push(Span::raw("  "));
+            spans.push(Span::raw(output.to_owned()));
         } else {
             // Anything wanting a person goes hard right, opposite the badge, so
             // the two ends of the row answer "where am I" and "what needs me".
-            let mut spans = vec![mode, Span::raw(default_footer_hint(state))];
+            spans.push(Span::styled(
+                default_footer_hint(state, area.width),
+                section_style(state),
+            ));
             if let Some(attention) = manage_attention(state) {
                 push_right_aligned(&mut spans, attention, warning_style(state), area.width);
             }
-            Line::from(spans)
         }
+        Line::from(spans)
     };
     frame.render_widget(Paragraph::new(line).style(panel_style(state)), area);
 }
@@ -49,7 +57,8 @@ fn manage_attention(state: &ClientState) -> Option<String> {
     }
 }
 
-/// Push `text` so its last column lands on the row's right edge. Dropped
+/// Push `text` so its last column lands on the row's inner right edge, keeping
+/// at least the two-column gap the design puts between segments. Dropped
 /// entirely when the row is already full, because a partially drawn warning is
 /// worse than none.
 fn push_right_aligned(
@@ -58,13 +67,18 @@ fn push_right_aligned(
     style: ratatui::style::Style,
     width: u16,
 ) {
+    let gutter = usize::from(chrome::gutter(width));
     let used = Line::from(spans.clone()).width();
     let needed = Line::raw(&text).width();
-    let Some(padding) = usize::from(width).checked_sub(used + needed + 1) else {
+    let Some(padding) = usize::from(width).checked_sub(used + needed + gutter) else {
         return;
     };
-    spans.push(Span::raw(" ".repeat(padding + 1)));
+    if padding < 2 {
+        return;
+    }
+    spans.push(Span::raw(" ".repeat(padding)));
     spans.push(Span::styled(text, style));
+    spans.push(Span::raw(" ".repeat(gutter)));
 }
 
 fn mode_badge(state: &ClientState) -> Span<'static> {
@@ -76,18 +90,24 @@ fn mode_badge(state: &ClientState) -> Span<'static> {
     Span::styled(label, accent_badge_style(state))
 }
 
-fn command_footer(state: &ClientState) -> Line<'static> {
-    let mut spans = vec![mode_badge(state), Span::raw("  ")];
-    spans.extend(super::command::command_line(state).spans);
+fn command_footer(state: &ClientState, width: u16) -> Line<'static> {
+    let mut spans = vec![
+        Span::raw(chrome::pad(width)),
+        mode_badge(state),
+        Span::raw("  "),
+    ];
+    spans.extend(super::command::command_line(state, width).spans);
     Line::from(spans)
 }
 
 fn work_footer(state: &ClientState, width: u16) -> Line<'static> {
     let glyphs = Glyphs::of(state);
     let separator = glyphs.separator();
+    // The anchor is `bp` plus the workspace you are in — naming the product
+    // twice on a one-row surface spends columns the workspace name needs.
     let mut spans = vec![
+        Span::raw(chrome::pad(width)),
         Span::styled("bp", anchor_style(state)),
-        Span::raw("  blackpepper"),
     ];
     if let Some(output) = state.visible_output() {
         spans.push(Span::raw(format!("  {separator}  ")));
@@ -115,10 +135,11 @@ fn work_footer(state: &ClientState, width: u16) -> Line<'static> {
             .unwrap_or(DisplayStatus::Idle);
         let detail = state.status_detail(workspace_id, status);
         let status_text = status_text(state, status, detail.as_deref());
-        // The workspace name is the only elastic segment. Reserve the shortest
-        // hint the row can end with, so a long name truncates instead of
-        // pushing the Manage chord off the edge.
-        let reserved = 2 + Line::raw(manage_hint(state)).width();
+        // The workspace name is the only elastic segment. Reserve the gap, the
+        // shortest hint the row can end with, and the right gutter, so a long
+        // name truncates instead of pushing the Manage chord off the edge.
+        let reserved =
+            2 + Line::raw(manage_hint(state)).width() + usize::from(chrome::gutter(width));
         let fixed_width =
             Line::from(spans.clone()).width() + 4 + Line::raw(&status_text).width() + reserved;
         let workspace = truncate_to_width(
@@ -131,6 +152,8 @@ fn work_footer(state: &ClientState, width: u16) -> Line<'static> {
     }
     let attention = work_attention(state);
     if !attention.is_empty() {
+        // The right-hand hints are reserved before anything optional is added,
+        // so an attention note can never push the Manage chord off the row.
         push_if_fits(
             &mut spans,
             Span::styled(
@@ -138,36 +161,51 @@ fn work_footer(state: &ClientState, width: u16) -> Line<'static> {
                 warning_style(state),
             ),
             width,
+            2 + Line::raw(manage_hint(state)).width() + usize::from(chrome::gutter(width)),
         );
     }
     // Key hints go hard right on both status rows, so the left anchor stays put
     // and the eye never re-hunts for the mode or the workspace. Longer hint
     // sets are dropped first; the Manage chord is the one that always fits.
+    let gutter = usize::from(chrome::gutter(width));
     let mut hints = vec![manage_hint(state)];
     if state.active_workspace.is_some() {
-        hints.push(format!("{} next", state.config.keymap.switch_workspace));
-        hints.push(format!("{} list", state.config.keymap.workspace_overlay));
+        hints.push(format!(
+            "{} next",
+            chord_label(&state.config.keymap.switch_workspace)
+        ));
+        hints.push(format!(
+            "{} list",
+            chord_label(&state.config.keymap.workspace_overlay)
+        ));
     }
     for count in (1..=hints.len()).rev() {
         let text = hints[..count].join(&format!(" {separator} "));
         let used = Line::from(spans.clone()).width();
-        if let Some(padding) = usize::from(width).checked_sub(used + Line::raw(&text).width() + 1) {
-            spans.push(Span::raw(" ".repeat(padding + 1)));
-            spans.push(Span::raw(text));
-            break;
+        let Some(padding) =
+            usize::from(width).checked_sub(used + Line::raw(&text).width() + gutter)
+        else {
+            continue;
+        };
+        if padding < 2 {
+            continue;
         }
+        spans.push(Span::raw(" ".repeat(padding)));
+        spans.push(Span::styled(text, section_style(state)));
+        spans.push(Span::raw(" ".repeat(gutter)));
+        break;
     }
     Line::from(spans)
 }
 
 /// The one hint that must survive at any width: how to get back to Manage.
 fn manage_hint(state: &ClientState) -> String {
-    format!("{} manage", state.config.keymap.toggle_mode)
+    format!("{} manage", chord_label(&state.config.keymap.toggle_mode))
 }
 
-fn push_if_fits(spans: &mut Vec<Span<'static>>, span: Span<'static>, width: u16) {
+fn push_if_fits(spans: &mut Vec<Span<'static>>, span: Span<'static>, width: u16, reserved: usize) {
     let current = Line::from(spans.clone()).width();
-    if current + span.width() <= usize::from(width) {
+    if current + span.width() + reserved <= usize::from(width) {
         spans.push(span);
     }
 }
@@ -224,23 +262,36 @@ pub(super) fn work_attention(state: &ClientState) -> Vec<String> {
     attention
 }
 
-pub(super) fn default_footer_hint(state: &ClientState) -> String {
+pub(super) fn default_footer_hint(state: &ClientState, width: u16) -> String {
     let glyphs = Glyphs::of(state);
     let separator = glyphs.separator();
+    let toggle = chord_label(&state.config.keymap.toggle_mode);
     match state.mode {
         ClientMode::Work => format!(
-            "  {} manage {separator} {} next {separator} {} list",
-            state.config.keymap.toggle_mode,
-            state.config.keymap.switch_workspace,
-            state.config.keymap.workspace_overlay,
+            "  {toggle} manage {separator} {} next {separator} {} list",
+            chord_label(&state.config.keymap.switch_workspace),
+            chord_label(&state.config.keymap.workspace_overlay),
         ),
         ClientMode::Manage if !state.host_operations.is_empty() => {
             format!("  esc cancel host work {separator} : command {separator} q quit")
         }
-        ClientMode::Manage => format!(
-            "  {} select {separator} enter attach {separator} : command {separator} q quit",
-            glyphs.updown()
-        ),
+        ClientMode::Manage => {
+            // The row is truncated, not wrapped, so the `work` affordance is
+            // dropped whole rather than clipping `q quit` off the end.
+            let full = format!(
+                "  {} select {separator} enter attach {separator} : command {separator} {toggle} work {separator} q quit",
+                glyphs.updown()
+            );
+            if Line::raw(&full).width() + 2 * usize::from(chrome::gutter(width))
+                <= usize::from(width)
+            {
+                return full;
+            }
+            format!(
+                "  {} select {separator} enter attach {separator} : command {separator} q quit",
+                glyphs.updown()
+            )
+        }
         ClientMode::Authenticate => format!("  OpenSSH prompt {separator} Ctrl+C cancel"),
     }
 }

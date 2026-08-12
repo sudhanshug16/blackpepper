@@ -41,6 +41,20 @@ pub fn ghost(input: &str) -> Option<&'static str> {
     })
 }
 
+/// The rule that governs the command being typed, shown beside the run/cancel
+/// hint. Only commands with a boundary worth restating carry one — a hint that
+/// says nothing costs a row.
+pub fn constraint(input: &str) -> Option<&'static str> {
+    let words = input.split_whitespace().collect::<Vec<_>>();
+    Some(match words.as_slice() {
+        ["forward", ..] => "binds to client loopback only",
+        ["worktree", "create" | "remove", ..] => "previews first, then :approve",
+        ["workspace", "terminate", ..] => "keeps the folder",
+        ["host", "add", ..] => "openssh alias, literal",
+        _ => return None,
+    })
+}
+
 /// Candidates for the current input. The command bar shows these in order; an
 /// empty result means there is nothing this client can offer, which is itself
 /// worth seeing.

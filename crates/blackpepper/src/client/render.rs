@@ -1,3 +1,5 @@
+mod chord;
+mod chrome;
 mod command;
 mod footer;
 mod glyph;

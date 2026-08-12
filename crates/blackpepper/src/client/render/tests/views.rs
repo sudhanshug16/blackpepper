@@ -9,7 +9,19 @@ fn first_run_uses_the_four_row_terminal_mark_when_space_permits() {
     for row in ["█", "█▀▄  █▀▄", "█▄▀  █▄▀", "     █"] {
         assert!(rendered.contains(row));
     }
-    assert!(rendered.contains(&format!("blackpepper v{}", env!("CARGO_PKG_VERSION"))));
+    // The version lives in the header's right slot, so the panel spends its
+    // rows on what you can do here instead of repeating it.
+    assert!(!rendered.contains(&format!("blackpepper v{}", env!("CARGO_PKG_VERSION"))));
+    assert!(rendered.contains("No workspace is registered here."));
+    for (key, description) in [
+        (":workspace add", "register a folder"),
+        (":host add", "work on a linux ssh host"),
+    ] {
+        assert!(
+            rendered.contains(key) && rendered.contains(description),
+            "missing {key} hint in:\n{rendered}"
+        );
+    }
 }
 
 #[test]
@@ -31,16 +43,16 @@ fn narrow_approval_shows_repository_exact_plan_hooks_and_approve() {
 
     let rendered = buffer_text(&draw(&mut state, 40, 24));
     for marker in [
-        "APPROVAL",
-        "worktrunk will mutate this repository",
+        "worktrunk will mutate this",
+        "repository",
         "repository",
         "github.com/example/blackpepper",
         "mutation",
         "wt create feature/auth --base main",
         "unapproved project hooks",
         "post-create: ./scripts/bootstrap.sh",
-        "approval binds to this exact Worktrunk",
-        "command and project hook plan.",
+        "approval binds to this exact",
+        "Worktrunk command and project hook",
         ":approve",
     ] {
         assert!(
@@ -48,7 +60,7 @@ fn narrow_approval_shows_repository_exact_plan_hooks_and_approve() {
             "missing {marker:?} in:\n{rendered}"
         );
     }
-    for old_heading in ["WORKTRUNK MUTATION", "PROJECT COMMANDS"] {
+    for old_heading in ["WORKTRUNK MUTATION", "PROJECT COMMANDS", "APPROVAL"] {
         assert!(!rendered.contains(old_heading));
     }
 }
@@ -62,8 +74,9 @@ fn narrow_authentication_names_openssh_ownership_and_storage_boundary() {
     let terminal = draw(&mut state, 40, 24);
     let rendered = buffer_text(&terminal);
     assert!(rendered.contains("SSH AUTHENTICATION"));
-    assert!(rendered.contains("OpenSSH owns authentication"));
-    assert!(rendered.contains("Blackpepper does not store"));
+    assert!(rendered.contains("OpenSSH owns authentication."));
+    assert!(rendered.contains("Blackpepper stores no credentials."));
+    assert!(rendered.contains("nothing is stored"));
     assert!(rendered.contains("password:"));
     assert!(rendered.contains(" AUTHENTICATE "));
 }
@@ -77,7 +90,7 @@ fn narrow_authentication_tails_the_openssh_transcript_to_the_current_prompt() {
 
     let rendered = buffer_text(&draw(&mut state, 40, 12));
     assert!(rendered.contains("OpenSSH owns authentication."));
-    assert!(rendered.contains("Blackpepper does not store credentials."));
+    assert!(rendered.contains("Blackpepper stores no credentials."));
     assert!(rendered.contains("dev@example.com's password:"));
     assert!(rendered.contains(" AUTHENTICATE "));
 }

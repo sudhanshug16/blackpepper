@@ -1,7 +1,9 @@
+mod focus;
+
+use super::chrome;
 use super::glyph::Glyphs;
-use super::style::{accent_style, section_style, ui_style, warning_style};
+use super::style::{accent_style, section_style, ui_style};
 use crate::client::{ClientMode, ClientState};
-use crate::core::RepositoryIdentity;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
@@ -9,20 +11,22 @@ use ratatui::widgets::{Paragraph, Wrap};
 
 pub(super) fn render_terminal(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     if state.mode == ClientMode::Authenticate {
-        render_authentication(state, frame, area);
+        focus::render_authentication(state, frame, area);
         return;
     }
     if state.mode == ClientMode::Manage {
         if state.pending_approval.is_some() {
-            render_approval(state, frame, area);
+            focus::render_approval(state, frame, area);
             return;
         }
         if state.detail.is_some() {
-            render_detail(state, frame, area);
+            focus::render_detail(state, frame, area);
             return;
         }
     }
 
+    // Work mode hands the whole canvas to Zellij, so the label row only exists
+    // in Manage, where it aligns with the HOSTS and PORTS labels beside it.
     let body = if state.mode == ClientMode::Work || area.height <= 1 {
         area
     } else {
@@ -57,18 +61,16 @@ fn render_session_label(state: &ClientState, frame: &mut ratatui::Frame, area: R
     {
         detail.push(format!("tab {active}/{total}"));
     }
+    let pad = chrome::pad(area.width);
     let detail = detail.join(&format!(" {separator} "));
-    let padding = usize::from(area.width)
-        .saturating_sub("SESSION".len() + detail.chars().count())
-        .max(2);
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("SESSION", section_style(state)),
-            Span::styled(
-                format!("{}{detail}", " ".repeat(padding)),
-                section_style(state),
+        Paragraph::new(Line::styled(
+            format!(
+                "{pad}{}",
+                chrome::right_aligned("SESSION", &detail, chrome::inner_width(area.width))
             ),
-        ]))
+            section_style(state),
+        ))
         .style(ui_style(state)),
         area,
     );
@@ -77,19 +79,22 @@ fn render_session_label(state: &ClientState, frame: &mut ratatui::Frame, area: R
 fn render_session_body(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     let Some(active) = state.active_workspace else {
         state.terminal_area = Some(area);
+        let body = chrome::inner(area);
         frame.render_widget(
-            Paragraph::new(first_run_lines(state, area))
+            Paragraph::new(first_run_lines(state, body))
                 .style(ui_style(state))
                 .wrap(Wrap { trim: false }),
-            area,
+            body,
         );
         return;
     };
     let Some(terminal) = state.terminals.get_mut(&active) else {
         state.terminal_area = Some(area);
         frame.render_widget(
-            Paragraph::new("Workspace is detached. Press Enter to attach.").style(ui_style(state)),
-            area,
+            Paragraph::new("Workspace is detached. Press Enter to attach.")
+                .style(ui_style(state))
+                .wrap(Wrap { trim: false }),
+            chrome::inner(area),
         );
         return;
     };
@@ -104,6 +109,9 @@ fn render_session_body(state: &mut ClientState, frame: &mut ratatui::Frame, area
     frame.render_widget(Paragraph::new(lines).style(ui_style(state)), area);
 }
 
+/// The mark, what this folder is, and what you can do about it. The version
+/// lives in the header's right slot, so repeating it here would spend two rows
+/// on something already on screen.
 fn first_run_lines(state: &ClientState, area: Rect) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     if area.width >= 12 && area.height >= 9 {
@@ -115,165 +123,48 @@ fn first_run_lines(state: &ClientState, area: Rect) -> Vec<Line<'static>> {
             Line::raw(""),
         ]);
     }
-    lines.push(Line::raw(format!(
-        "blackpepper v{}",
-        env!("CARGO_PKG_VERSION")
-    )));
-    lines.push(Line::raw(""));
-    if let Some(workspace) = state
+    let registered = state
         .selected_workspace
-        .and_then(|id| state.snapshot.workspaces.iter().find(|item| item.id == id))
-    {
-        lines.push(Line::raw(format!("{} is registered.", workspace.root_path)));
-        lines.push(Line::raw("enter  open this workspace"));
-    } else {
-        lines.push(Line::raw("No workspaces registered."));
-        lines.push(Line::raw(":workspace add <path>"));
-    }
-    lines.push(Line::raw(":host add <name> <alias>"));
-    lines
-}
-
-fn render_approval(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
-    state.terminal_area = None;
-    let pending = state
-        .pending_approval
-        .as_ref()
-        .expect("approval checked before render");
-    let repository = approval_repository(state, pending.workspace_id);
-    let text = format!(
-        "worktrunk will mutate this repository\n\nrepository\n{repository}\n\n{}",
-        pending.review
-    );
-    render_focus_view(
-        state,
-        frame,
-        area,
-        Line::from(vec![
-            Span::styled(
-                format!("{} ", Glyphs::of(state).warning()),
-                warning_style(state),
-            ),
-            Span::raw("APPROVAL"),
-        ]),
-        text,
-        state.approval_scroll,
-    );
-}
-
-fn approval_repository(state: &ClientState, workspace_id: crate::core::WorkspaceId) -> String {
-    let Some(workspace) = state
-        .snapshot
-        .workspaces
-        .iter()
-        .find(|workspace| workspace.id == workspace_id)
-    else {
-        return "unknown repository".to_owned();
+        .and_then(|id| state.snapshot.workspaces.iter().find(|item| item.id == id));
+    let hints: Vec<(&str, String)> = match registered {
+        Some(workspace) => {
+            lines.push(Line::raw(format!("{} is registered.", workspace.root_path)));
+            lines.push(Line::raw(""));
+            vec![
+                ("enter", "open this workspace".to_owned()),
+                (":host add", "work on a linux ssh host".to_owned()),
+                (
+                    ":agent spawn",
+                    format!(
+                        "codex {sep} claude {sep} opencode",
+                        sep = Glyphs::of(state).separator()
+                    ),
+                ),
+            ]
+        }
+        None => {
+            lines.push(Line::raw("No workspace is registered here."));
+            lines.push(Line::raw(""));
+            vec![
+                (":workspace add", "register a folder".to_owned()),
+                (":host add", "work on a linux ssh host".to_owned()),
+            ]
+        }
     };
-    match workspace.repository.as_ref() {
-        Some(RepositoryIdentity::Remote { canonical_url }) => canonical_url.clone(),
-        Some(RepositoryIdentity::Local { git_common_dir, .. }) => git_common_dir.clone(),
-        None => workspace.root_path.clone(),
-    }
-}
-
-fn render_detail(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
-    state.terminal_area = None;
-    let detail = state.detail.as_ref().expect("detail checked before render");
-    render_focus_view(
-        state,
-        frame,
-        area,
-        Line::from(format!(
-            "{}  Esc close {} {} scroll",
-            detail.title.to_uppercase(),
-            Glyphs::of(state).separator(),
-            Glyphs::of(state).updown()
-        )),
-        detail.body.clone(),
-        state.detail_scroll,
-    );
-}
-
-fn render_authentication(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
-    state.terminal_area = None;
-    let output = String::from_utf8_lossy(&state.authentication_output);
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(0)])
-        .split(area);
-    frame.render_widget(
-        Paragraph::new("SSH AUTHENTICATION").style(ui_style(state).add_modifier(Modifier::BOLD)),
-        rows[0],
-    );
-    let notice = "OpenSSH owns authentication.\nBlackpepper does not store credentials.";
-    let mut notice_lines = wrap_terminal_text(notice, rows[1].width);
-    let mut transcript = wrap_terminal_text(&output, rows[1].width);
-    let reserve_for_prompt = usize::from(rows[1].height > 0 && !output.is_empty());
-    notice_lines.truncate(usize::from(rows[1].height).saturating_sub(reserve_for_prompt));
-    let spacer = usize::from(
-        !notice_lines.is_empty()
-            && !transcript.is_empty()
-            && notice_lines.len() + reserve_for_prompt < usize::from(rows[1].height),
-    );
-    let transcript_rows = usize::from(rows[1].height)
-        .saturating_sub(notice_lines.len())
-        .saturating_sub(spacer);
-    if transcript.len() > transcript_rows {
-        transcript.drain(..transcript.len() - transcript_rows);
-    }
-    notice_lines.extend((0..spacer).map(|_| Line::raw("")));
-    notice_lines.extend(transcript);
-    frame.render_widget(Paragraph::new(notice_lines).style(ui_style(state)), rows[1]);
-}
-
-fn wrap_terminal_text(value: &str, width: u16) -> Vec<Line<'static>> {
-    if width == 0 || value.is_empty() {
-        return Vec::new();
-    }
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    for character in value.chars() {
-        if character == '\r' {
+    // One key column, so the descriptions form a single readable edge. It
+    // collapses to the natural key width when the pane cannot afford 16.
+    let widest = hints.iter().map(|(key, _)| key.len()).max().unwrap_or(0);
+    let column = (widest + 2).min(16);
+    for (key, description) in hints {
+        let padding = column.saturating_sub(key.len()).max(1);
+        if column + description.chars().count() > usize::from(area.width) {
+            lines.push(Line::raw(key.to_owned()));
             continue;
         }
-        if character == '\n' {
-            lines.push(Line::raw(std::mem::take(&mut current)));
-            continue;
-        }
-        let candidate = format!("{current}{character}");
-        if !current.is_empty() && Line::raw(&candidate).width() > usize::from(width) {
-            lines.push(Line::raw(std::mem::take(&mut current)));
-        }
-        current.push(character);
-    }
-    if !current.is_empty() || value.ends_with('\n') {
-        lines.push(Line::raw(current));
+        lines.push(Line::from(vec![
+            Span::raw(format!("{key}{}", " ".repeat(padding))),
+            Span::styled(description, section_style(state)),
+        ]));
     }
     lines
-}
-
-fn render_focus_view(
-    state: &ClientState,
-    frame: &mut ratatui::Frame,
-    area: Rect,
-    title: Line<'static>,
-    body: String,
-    scroll: u16,
-) {
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(0)])
-        .split(area);
-    frame.render_widget(
-        Paragraph::new(title).style(ui_style(state).add_modifier(Modifier::BOLD)),
-        rows[0],
-    );
-    frame.render_widget(
-        Paragraph::new(body)
-            .style(ui_style(state))
-            .scroll((scroll, 0))
-            .wrap(Wrap { trim: false }),
-        rows[1],
-    );
 }

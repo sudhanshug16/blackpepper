@@ -1,3 +1,4 @@
+use super::chrome;
 use super::glyph::Glyphs;
 use super::style::{danger_style, panel_style, section_style, warning_style};
 use crate::client::ClientState;
@@ -44,13 +45,17 @@ pub(super) fn render_ports(state: &mut ClientState, frame: &mut ratatui::Frame, 
         .split(area);
     // The count belongs on the right of the section label, matching the
     // session and hosts columns.
+    let pad = chrome::pad(area.width);
+    let inner = chrome::inner_width(area.width);
     let heading = if max_scroll == 0 {
-        Line::styled("PORTS", section_style(state))
+        Line::styled(format!("{pad}PORTS"), section_style(state))
     } else {
         let count = format!("{}/{}", scroll + 1, max_scroll + 1);
-        let padding = usize::from(area.width).saturating_sub(5 + count.chars().count());
         Line::styled(
-            format!("PORTS{}{count}", " ".repeat(padding)),
+            format!(
+                "{pad}{}{pad}",
+                chrome::right_aligned("PORTS", &count, inner)
+            ),
             section_style(state),
         )
     };
@@ -69,17 +74,13 @@ fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<Click
     let glyphs = Glyphs::of(state);
     let mut lines = Vec::new();
     let mut targets = Vec::new();
+    let mut listener_rows = 0usize;
+    let mut all_host_hint_shown = false;
     let active_workspace = state.selected_workspace.or(state.active_workspace);
     let active_host = active_workspace.and_then(|id| state.host_for_workspace(id));
+    let pad = chrome::pad(width);
+    let inner = chrome::inner_width(width);
     if let Some(snapshot) = active_host.and_then(|host_id| state.ports.get(&host_id)) {
-        if let Some(warning) = &snapshot.warning {
-            lines.push(Line::styled(
-                format!("{} {warning}", glyphs.warning()),
-                warning_style(state),
-            ));
-            lines.push(Line::styled(":ports --all-host", section_style(state)));
-            targets.extend([None, None]);
-        }
         let workspace_root = active_workspace.and_then(|workspace_id| {
             state
                 .snapshot
@@ -129,52 +130,82 @@ fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<Click
                     crate::ports::ForwardStatus::PortConflict => {
                         ("conflict".to_owned(), danger_style(state), None)
                     }
-                    crate::ports::ForwardStatus::Failed(reason) => (
-                        format!("failed: {}", reason.chars().take(24).collect::<String>()),
-                        danger_style(state),
-                        None,
-                    ),
+                    // The reason is fitted to the panel below, so it
+                    // ellipsizes inside the column instead of clipping at the
+                    // terminal edge.
+                    crate::ports::ForwardStatus::Failed(reason) => {
+                        (format!("failed: {reason}"), danger_style(state), None)
+                    }
                 }
             } else if ambiguous {
                 ("ambiguous".to_owned(), danger_style(state), None)
             } else if target.is_none() {
                 ("invalid address".to_owned(), danger_style(state), None)
             } else {
+                // Not the design's "enter to forward": Enter attaches the
+                // selected workspace, so the row names the command that
+                // actually runs, plus the click affordance that also works.
                 (
-                    "click to forward".to_owned(),
+                    ":forward · click".to_owned(),
                     section_style(state),
                     active_workspace.zip(target),
                 )
             };
 
             let port = listener.port.to_string();
-            let padding = usize::from(width)
+            let room = inner.saturating_sub(port.chars().count() + 1);
+            let action = fit(glyphs, &action, room);
+            let padding = inner
                 .saturating_sub(port.chars().count() + Line::raw(&action).width())
                 .max(1);
             lines.push(Line::from(vec![
-                Span::raw(port),
+                Span::raw(format!("{pad}{port}")),
                 Span::raw(" ".repeat(padding)),
                 Span::styled(action, action_style),
+                Span::raw(pad.clone()),
             ]));
             targets.push(clickable);
+            listener_rows += 1;
             // The detail row is never clickable; the port row above owns the
             // whole listener's hit target.
             lines.push(Line::styled(
-                fit(
-                    glyphs,
-                    &listener_detail(glyphs, listener, process),
-                    usize::from(width),
+                format!(
+                    "{pad}{}",
+                    fit(glyphs, &listener_detail(glyphs, listener, process), inner)
                 ),
                 section_style(state),
             ));
             targets.push(None);
         }
+        // Unattributed listeners are a caveat on the list above, so they read
+        // after it rather than pushing the ports themselves down.
+        if let Some(warning) = &snapshot.warning {
+            if listener_rows > 0 {
+                lines.push(Line::raw(""));
+                targets.push(None);
+            }
+            lines.push(Line::styled(
+                format!(
+                    "{pad}{} {}",
+                    glyphs.warning(),
+                    fit(glyphs, warning, inner.saturating_sub(2))
+                ),
+                warning_style(state),
+            ));
+            lines.push(Line::styled(
+                format!("{pad}:ports --all-host"),
+                section_style(state),
+            ));
+            targets.extend([None, None]);
+            all_host_hint_shown = true;
+        }
     }
-    if lines.is_empty() {
-        lines.extend([
-            Line::raw("No workspace ports found."),
-            Line::styled(":ports --all-host", section_style(state)),
-        ]);
+    if listener_rows == 0 && !all_host_hint_shown {
+        lines.push(Line::raw(format!("{pad}No workspace ports found.")));
+        lines.push(Line::styled(
+            format!("{pad}:ports --all-host"),
+            section_style(state),
+        ));
         targets.extend([None, None]);
     }
     debug_assert_eq!(lines.len(), targets.len());

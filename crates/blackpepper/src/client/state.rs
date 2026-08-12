@@ -376,6 +376,27 @@ impl ClientState {
         workspace_id: WorkspaceId,
         status: DisplayStatus,
     ) -> Option<String> {
+        let (provider, elapsed) = self.running_agent(workspace_id, status)?;
+        Some(format!("{provider} {elapsed}"))
+    }
+
+    /// The elapsed time without the provider. A narrow list column already
+    /// names the workspace, and the status row names the provider, so
+    /// repeating it on every row spends columns for nothing.
+    pub fn status_elapsed(
+        &self,
+        workspace_id: WorkspaceId,
+        status: DisplayStatus,
+    ) -> Option<String> {
+        self.running_agent(workspace_id, status)
+            .map(|(_, elapsed)| elapsed)
+    }
+
+    fn running_agent(
+        &self,
+        workspace_id: WorkspaceId,
+        status: DisplayStatus,
+    ) -> Option<(crate::agent_status::Provider, String)> {
         if status != DisplayStatus::Working {
             return None;
         }
@@ -389,7 +410,7 @@ impl ClientState {
             .as_ref()
             .and_then(|snapshot| snapshot.last_event_at_ms)
             .and_then(elapsed_label)?;
-        Some(format!("{} {elapsed}", run.provider))
+        Some((run.provider, elapsed))
     }
 
     pub fn refresh_workspace_status(&mut self, workspace_id: WorkspaceId) {

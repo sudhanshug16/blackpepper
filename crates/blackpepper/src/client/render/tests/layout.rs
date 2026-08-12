@@ -38,7 +38,7 @@ fn work_footer_at_62_columns_keeps_status_and_manage_for_a_long_workspace_name()
 
     assert!(footer.contains("! asks"), "status clipped from {footer:?}");
     assert!(
-        footer.contains("ctrl+] manage"),
+        footer.contains("^] manage"),
         "Manage chord clipped from {footer:?}"
     );
     assert!(
@@ -74,7 +74,7 @@ fn fixed_workspace_column_never_clips_the_selected_attention_state() {
                 .filter_map(|column| buffer.cell((column, *row)))
                 .map(|cell| cell.symbol())
                 .collect::<String>()
-                .contains("● blackpepper")
+                .contains("●  blackpepper")
         })
         .expect("selected workspace row");
     let row = (0..32)

@@ -66,7 +66,7 @@ fn a_running_agent_shows_its_provider_and_the_age_of_its_last_event() {
     let rendered = buffer_text(&draw(&mut state, 110, 24));
     // 134 seconds ago reads as "2m", not as the vocabulary word.
     assert!(
-        rendered.contains("▸ codex 2m"),
+        rendered.contains("▸ 2m"),
         "missing elapsed status in:\n{rendered}"
     );
     assert!(!rendered.contains("▸ running"));
@@ -110,7 +110,7 @@ fn the_ascii_flag_replaces_every_budgeted_glyph() {
     );
     // The status column keeps its meaning, only its marker changes.
     assert!(
-        rendered.contains("> codex 2m"),
+        rendered.contains("> 2m"),
         "missing ASCII status:\n{rendered}"
     );
 }
@@ -257,7 +257,7 @@ fn the_picker_filters_across_hosts_and_keeps_the_status_column() {
     assert!(rendered.contains("blackpepper"));
     assert!(rendered.contains("type to filter"));
     assert!(
-        rendered.contains("▸ codex 2m"),
+        rendered.contains("▸ 2m"),
         "picker dropped the status column in:\n{rendered}"
     );
 
@@ -286,9 +286,9 @@ fn both_status_rows_anchor_left_and_put_their_hints_hard_right() {
     state.mode = crate::client::ClientMode::Work;
     let terminal = draw(&mut state, 100, 24);
     let work = super::row_text(&terminal, 23);
-    assert!(work.starts_with("bp  blackpepper"), "work row: {work:?}");
+    assert!(work.starts_with("  bp  blackpepper"), "work row: {work:?}");
     assert!(
-        work.trim_end().ends_with("ctrl+\\ list"),
+        work.trim_end().ends_with("^\\ list"),
         "work hints not right-aligned: {work:?}"
     );
 
@@ -296,7 +296,7 @@ fn both_status_rows_anchor_left_and_put_their_hints_hard_right() {
     let terminal = draw(&mut state, 100, 24);
     let manage = super::row_text(&terminal, 23);
     assert!(
-        manage.starts_with(" MANAGE "),
+        manage.starts_with("   MANAGE "),
         "manage row lost its badge: {manage:?}"
     );
 }

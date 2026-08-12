@@ -40,7 +40,7 @@ fn port_rows_name_the_mouse_action_and_build_matching_targets() {
     assert!(rendered.contains("PORTS"));
     // Each listener is a right-aligned action row over a dim detail row.
     assert!(
-        rendered.contains("4000") && rendered.contains("click to forward"),
+        rendered.contains("4000") && rendered.contains(":forward · click"),
         "missing port row in:\n{rendered}"
     );
     assert!(
@@ -81,7 +81,7 @@ fn compact_ports_panel_scrolls_all_listeners_and_rebuilds_click_targets() {
 #[test]
 fn manage_footer_keeps_enter_bound_to_workspace_attach() {
     let state = state_with_ports(1);
-    let hint = super::super::footer::default_footer_hint(&state);
+    let hint = super::super::footer::default_footer_hint(&state, 120);
     assert!(hint.contains("enter attach"));
     assert!(!hint.contains("enter forward"));
 }

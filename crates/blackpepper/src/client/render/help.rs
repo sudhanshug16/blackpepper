@@ -5,6 +5,8 @@
 //! A command that cannot run right now stays listed and goes dim with the
 //! reason in that column — the list never lies about what will run.
 
+use super::chord::chord_label;
+use super::chrome;
 use super::glyph::Glyphs;
 use super::style::{accent_style, section_style, ui_style};
 use crate::client::catalog::{entries, CommandGroup};
@@ -14,9 +16,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-/// Width of the syntax column. Wide enough for the longest entry so the notes
-/// form a single readable right column.
-const SYNTAX_COLUMN: usize = 34;
+/// Minimum gap between the syntax column and the note column.
+const COLUMN_GAP: usize = 2;
 
 pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
     let glyphs = Glyphs::of(state);
@@ -28,24 +29,47 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
         .help
         .map(|help| usize::from(help.scroll).min(max_scroll) as u16)
         .unwrap_or_default();
+    let body = chrome::inner(area);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(1), Constraint::Min(0)])
-        .split(area);
+        .split(body);
 
     let separator = glyphs.separator();
+    let hint = format!("esc close {separator} {} scroll", glyphs.updown());
+    // Measure the rendered string, not its byte length — the glyph set changes
+    // how many columns it occupies.
+    let hint_pad = usize::from(rows[0].width)
+        .saturating_sub(5 + Line::raw(&hint).width())
+        .max(2);
     let heading = Line::from(vec![
         Span::styled(":", accent_style(state)),
         Span::raw("help"),
-        Span::styled(
-            format!("  esc close {separator} {} scroll", glyphs.updown()),
-            section_style(state),
-        ),
+        Span::raw(" ".repeat(hint_pad)),
+        Span::styled(hint, section_style(state)),
     ]);
     frame.render_widget(Paragraph::new(heading).style(ui_style(state)), rows[0]);
 
     let catalog = entries(state);
-    let mut lines = Vec::new();
+    // One column derived from the real catalog. Hardcoding the design's 26
+    // would glue the longest entries to their notes.
+    let syntax_column = catalog
+        .iter()
+        .map(|entry| entry.syntax.chars().count())
+        .chain(
+            [
+                &state.config.keymap.toggle_mode,
+                &state.config.keymap.switch_workspace,
+                &state.config.keymap.workspace_overlay,
+            ]
+            .into_iter()
+            .map(|binding| chord_label(binding).chars().count()),
+        )
+        .max()
+        .unwrap_or(0);
+    // One blank row under the heading, then one between groups — never two.
+    let mut lines = vec![Line::raw("")];
+    let mut emitted_group = false;
     for group in CommandGroup::ORDER {
         let group_entries = catalog
             .iter()
@@ -54,19 +78,21 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
         if group_entries.is_empty() {
             continue;
         }
-        if !lines.is_empty() {
+        if emitted_group {
             lines.push(Line::raw(""));
         }
+        emitted_group = true;
         lines.push(Line::styled(group.heading(), section_style(state)));
         for entry in group_entries {
-            let syntax = format!("{:SYNTAX_COLUMN$}", entry.syntax);
+            let padding = syntax_column.saturating_sub(entry.syntax.chars().count());
             let syntax_style = if entry.available {
                 Style::default()
             } else {
                 section_style(state)
             };
             lines.push(Line::from(vec![
-                Span::styled(syntax, syntax_style),
+                Span::styled(entry.syntax, syntax_style),
+                Span::raw(" ".repeat(padding + COLUMN_GAP)),
                 Span::styled(entry.note.clone(), section_style(state)),
             ]));
         }
@@ -84,8 +110,11 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
             "open the workspace picker",
         ),
     ] {
+        let chord = chord_label(chord);
+        let padding = syntax_column.saturating_sub(chord.chars().count());
         lines.push(Line::from(vec![
-            Span::raw(format!("{chord:SYNTAX_COLUMN$}")),
+            Span::raw(chord),
+            Span::raw(" ".repeat(padding + COLUMN_GAP)),
             Span::styled(meaning, section_style(state)),
         ]));
     }
@@ -107,5 +136,5 @@ pub(super) fn help_rows(state: &ClientState) -> usize {
         .count();
     // Each group contributes a heading plus a blank spacer, and the trailing
     // KEYS block adds its own heading, spacer, and three chord rows.
-    catalog.len() + groups * 2 + 5
+    catalog.len() + groups * 2 + 6
 }
