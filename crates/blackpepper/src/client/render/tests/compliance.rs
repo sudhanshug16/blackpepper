@@ -467,3 +467,46 @@ fn no_theme_confuses_its_brand_with_an_alert_at_the_floor() {
         }
     }
 }
+
+/// The command bar must not resize the body it sits over. Taking rows from
+/// the layout reflows the attached session — and its PTY — on every keystroke.
+#[test]
+fn the_completion_list_overlays_rather_than_resizing_the_session() {
+    let mut state = running_state();
+    let workspace = state.snapshot.workspaces[0].clone();
+    state.ports.insert(
+        workspace.host_id,
+        crate::ports::PortSnapshot {
+            listeners: vec![crate::ports::PortListener {
+                bind_address: "127.0.0.1".to_owned(),
+                port: 3000,
+                pid: Some(1),
+                process: Some("node".to_owned()),
+                workspace_path: Some(workspace.root_path.clone().into()),
+                attribution: crate::ports::AttributionConfidence::ExactCwd,
+            }],
+            completeness: crate::ports::ProbeCompleteness::Full,
+            warning: None,
+        },
+    );
+
+    draw(&mut state, 120, 24);
+    let closed = state.terminal_area.expect("session area while closed");
+
+    // Open the bar and type enough to produce a list.
+    state.command_active = true;
+    state.command_input = ":forward ".to_owned();
+    let terminal = draw(&mut state, 120, 24);
+    let open = state.terminal_area.expect("session area while open");
+
+    assert_eq!(
+        closed, open,
+        "the session was resized when the command bar opened"
+    );
+    // And the list really is on screen, over the body.
+    let rendered = buffer_text(&terminal);
+    assert!(
+        rendered.contains("forward 3000"),
+        "completion list did not draw over the body"
+    );
+}

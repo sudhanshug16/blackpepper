@@ -111,9 +111,12 @@ Background agent tabs use a one-pane layout with `focus=false`, an exact cwd,
 and a UUID-derived name.
 
 The selected Zellij binary validates the effective configuration with the
-read-only `setup --check` command before use. Blackpepper never rewrites that
-configuration or injects keybindings. Each attached client applies the
-client-local `on_force_close=detach` override so a configured
+read-only `setup --check` command before use. When the workspace host has no
+user, environment-selected, or system Zellij configuration, Blackpepper selects
+its own versioned appearance file; otherwise native Zellij configuration owns
+the entire UI. Blackpepper never rewrites user configuration or injects
+keybindings. Each attached client applies the client-local
+`on_force_close=detach` override so a configured
 `on_force_close "quit"` cannot terminate the persistent session when the
 Blackpepper attachment closes.
 

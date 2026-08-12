@@ -88,39 +88,59 @@ pub(super) fn handle_command_input(
         KeyCode::Escape => {
             state.command_active = false;
             state.command_input.clear();
-            state.command_selection = 0;
+            state.command_selection = None;
         }
+        // Enter runs the highlighted candidate when there is one, and what was
+        // typed when there is not. Completing onto a command that still wants
+        // an argument leaves the bar open rather than running something the
+        // parser would reject.
         KeyCode::Enter => {
+            if state.command_selection.is_some() {
+                let completed = apply_completion(state);
+                if !completed {
+                    return true;
+                }
+            }
             let input = std::mem::take(&mut state.command_input);
             state.command_active = false;
-            state.command_selection = 0;
+            state.command_selection = None;
             state.close_detail();
             match crate::client::parse_command(&input) {
                 Ok(command) => actions::execute_command(state, runtime, command),
                 Err(error) => state.set_output(error),
             }
         }
-        // Tab takes the highlighted candidate; the arrows move between them.
-        // Completion is always optional — typing the command out in full
-        // behaves exactly as it did before.
-        KeyCode::Tab => apply_completion(state),
-        KeyCode::UpArrow => state.command_selection = state.command_selection.saturating_sub(1),
+        // Tab takes the highlighted candidate, or the first one when nothing
+        // is highlighted yet.
+        KeyCode::Tab => {
+            apply_completion(state);
+        }
+        KeyCode::UpArrow => {
+            // Stepping off the top of the list returns to what was typed,
+            // which is the only way back to it without retyping.
+            state.command_selection = match state.command_selection {
+                Some(0) | None => None,
+                Some(index) => Some(index - 1),
+            };
+        }
         KeyCode::DownArrow => {
             let count = completion_count(state);
-            state.command_selection = state
-                .command_selection
-                .saturating_add(1)
-                .min(count.saturating_sub(1));
+            if count > 0 {
+                state.command_selection = Some(match state.command_selection {
+                    None => 0,
+                    Some(index) => index.saturating_add(1).min(count - 1),
+                });
+            }
         }
         KeyCode::Backspace => {
             state.command_input.pop();
-            state.command_selection = 0;
+            state.command_selection = None;
         }
         KeyCode::Char(character)
             if modifiers == Modifiers::NONE || modifiers == Modifiers::SHIFT =>
         {
             state.command_input.push(character);
-            state.command_selection = 0;
+            state.command_selection = None;
         }
         _ => {}
     }
@@ -136,25 +156,38 @@ fn completion_count(state: &ClientState) -> usize {
     crate::client::completion::candidates(state, &body).len()
 }
 
-fn apply_completion(state: &mut ClientState) {
+/// Replace the typed text with the highlighted candidate. Returns whether the
+/// result is a complete command; `false` means a placeholder was dropped and
+/// the bar is now waiting for an argument.
+fn apply_completion(state: &mut ClientState) -> bool {
     let body = state
         .command_input
         .strip_prefix(':')
         .unwrap_or(&state.command_input)
         .to_owned();
     let candidates = crate::client::completion::candidates(state, &body);
-    let Some(candidate) = candidates.get(state.command_selection) else {
-        return;
+    let Some(candidate) = candidates.get(state.command_selection.unwrap_or(0)) else {
+        return true;
     };
-    // Placeholder syntax is not runnable text, so completing onto a bare
-    // command leaves a trailing space and waits for the argument.
-    let value = candidate
-        .value
-        .split_whitespace()
-        .take_while(|word| !word.starts_with('<') && !word.starts_with('['))
-        .collect::<Vec<_>>()
-        .join(" ");
-    let trailing = if value == candidate.value { "" } else { " " };
+    // Placeholder syntax is not runnable text. A required `<arg>` leaves a
+    // trailing space and waits; an optional `[arg]` is dropped and the command
+    // runs without it, because that is what "optional" means.
+    let mut words = Vec::new();
+    let mut wants_argument = false;
+    for word in candidate.value.split_whitespace() {
+        if word.starts_with('<') {
+            wants_argument = true;
+            break;
+        }
+        if word.starts_with('[') {
+            break;
+        }
+        words.push(word);
+    }
+    let value = words.join(" ");
+    let complete = !wants_argument;
+    let trailing = if complete { "" } else { " " };
     state.command_input = format!(":{value}{trailing}");
-    state.command_selection = 0;
+    state.command_selection = None;
+    complete
 }

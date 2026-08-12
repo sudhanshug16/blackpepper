@@ -4,9 +4,44 @@ use crate::transport::{
     install_remote_in_data_home, release_asset, HostCommand, HttpDownloader, ManagedTool,
     SidecarCache, SidecarTarget, TransportError,
 };
+use crate::providers::runtime::ManagedAsset;
 use std::path::PathBuf;
 
+const MANAGED_ZELLIJ_CONFIG: &[u8] =
+    include_bytes!("../../../../assets/zellij/config.kdl");
+
 impl ClientRuntime {
+    /// Install the immutable, version-scoped appearance used only when the
+    /// workspace host has no effective Zellij configuration of its own.
+    pub(super) fn managed_zellij_config_path(
+        &mut self,
+        host_id: HostId,
+        version: &str,
+    ) -> Result<String, String> {
+        let application_data = if host_id == self.local_host_id {
+            SidecarCache::from_xdg()
+                .map_err(|error| error.to_string())?
+                .root()
+                .parent()
+                .ok_or_else(|| "Blackpepper data directory has no parent.".to_owned())?
+                .to_path_buf()
+        } else {
+            self.remote_data_home(host_id)?.join("blackpepper")
+        };
+        let path = application_data
+            .join("zellij-config")
+            .join(version)
+            .join("config.kdl");
+        self.install_assets(
+            host_id,
+            &[ManagedAsset {
+                path: path.clone(),
+                contents: MANAGED_ZELLIJ_CONFIG.to_vec(),
+            }],
+        )?;
+        text_path(&path)
+    }
+
     pub(crate) fn exact_binary(
         &mut self,
         host_id: HostId,

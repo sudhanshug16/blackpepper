@@ -1,0 +1,23 @@
+// Blackpepper's default Zellij appearance. This file is selected only when
+// Zellij reports that the workspace host has no user or system configuration.
+simplified_ui true
+theme "blackpepper"
+show_release_notes false
+show_startup_tips false
+mouse_hover_effects false
+
+themes {
+    blackpepper {
+        fg 230 228 225
+        bg 28 29 31
+        red 224 108 117
+        green 199 125 255
+        yellow 229 192 123
+        blue 127 140 255
+        magenta 199 125 255
+        orange 228 131 79
+        cyan 86 182 194
+        black 14 15 16
+        white 185 182 178
+    }
+}

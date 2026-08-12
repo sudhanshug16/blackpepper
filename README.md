@@ -242,7 +242,9 @@ project values without rewriting personal provider configuration.
 - Port forwards bind only to client loopback. A port-only selector must resolve
   to one exact discovered socket; ambiguous shared/overlapping sockets are
   refused.
-- Zellij configuration is checked read-only. Blackpepper adds no keybindings
+- Zellij configuration is checked read-only. When none exists, Blackpepper
+  selects its versioned default appearance; any user, environment-selected, or
+  system configuration owns Zellij instead. Blackpepper adds no keybindings
   and forces only detach-on-client-close for its attached client.
 - Registry and lock directories are private XDG state. Production and
   development share workspace/session coordination but not provider events.

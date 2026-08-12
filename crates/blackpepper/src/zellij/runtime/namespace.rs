@@ -67,6 +67,7 @@ impl ZellijRuntime {
             binary: self.binary.clone(),
             expected_version: self.expected_version.clone(),
             socket_directory: Some(socket_directory),
+            config_file: self.config_file.clone(),
         }
     }
 }

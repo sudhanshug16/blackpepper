@@ -53,7 +53,9 @@ pub(super) fn render_completion(state: &ClientState, frame: &mut ratatui::Frame,
         .split(area);
 
     let value_column = VALUE_COLUMN.min(inner.saturating_sub(4)).max(1);
-    let selected = state.command_selection.min(visible.saturating_sub(1));
+    let selected = state
+        .command_selection
+        .map(|index| index.min(visible.saturating_sub(1)));
     let lines = candidates
         .iter()
         .take(visible)
@@ -63,7 +65,7 @@ pub(super) fn render_completion(state: &ClientState, frame: &mut ratatui::Frame,
             let padding = value_column.saturating_sub(Line::raw(&value).width());
             // Only the value carries the selection cue, so the note column
             // stays a readable dim run rather than a reversed block.
-            let value_style = if index == selected {
+            let value_style = if Some(index) == selected {
                 ui_style(state).add_modifier(Modifier::REVERSED)
             } else {
                 mid_style(state)

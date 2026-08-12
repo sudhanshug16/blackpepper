@@ -50,8 +50,10 @@ pub struct ClientState {
     pub command_active: bool,
     pub command_input: String,
     /// Highlighted completion candidate, as an index into the grounded list
-    /// rebuilt on every keystroke.
-    pub command_selection: usize,
+    /// rebuilt on every keystroke. `None` means nothing is highlighted and
+    /// Enter runs exactly what was typed — the distinction Enter needs in
+    /// order not to guess.
+    pub command_selection: Option<usize>,
     /// Open workspace picker, if any.
     pub picker: Option<WorkspacePicker>,
     /// Open grouped help, if any.
@@ -135,7 +137,7 @@ impl ClientState {
             authentication_output: Vec::new(),
             command_active: false,
             command_input: String::new(),
-            command_selection: 0,
+            command_selection: None,
             picker: None,
             help: None,
             pending_approval: None,

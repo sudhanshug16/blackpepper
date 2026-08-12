@@ -37,24 +37,32 @@ pub fn render(state: &mut ClientState, frame: &mut ratatui::Frame) {
         return;
     }
 
-    // The completion list grows upward from the status row, so the prompt
-    // itself never moves while you type.
-    let completion_rows = command::completion_rows(state).min(frame.area().height / 2);
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),
             Constraint::Min(1),
-            Constraint::Length(completion_rows),
             Constraint::Length(1),
         ])
         .split(frame.area());
     render_header(state, frame, outer[0]);
     render_manage_body(state, frame, outer[1]);
-    if completion_rows > 0 {
-        command::render_completion(state, frame, outer[2]);
+    // The completion list draws over the bottom of the body rather than
+    // claiming rows from it. Taking rows would resize the body — and with it
+    // the attached PTY — on every keystroke, so the session behind the prompt
+    // would reflow while you typed.
+    let rows = command::completion_rows(state).min(outer[1].height);
+    if rows > 0 {
+        let overlay = Rect::new(
+            outer[1].x,
+            outer[1].y + outer[1].height - rows,
+            outer[1].width,
+            rows,
+        );
+        frame.render_widget(ratatui::widgets::Clear, overlay);
+        command::render_completion(state, frame, overlay);
     }
-    render_footer(state, frame, outer[3]);
+    render_footer(state, frame, outer[2]);
 }
 
 fn render_work(state: &mut ClientState, frame: &mut ratatui::Frame) {

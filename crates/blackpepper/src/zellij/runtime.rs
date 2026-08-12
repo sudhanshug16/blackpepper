@@ -26,6 +26,7 @@ pub struct ZellijRuntime {
     binary: String,
     expected_version: String,
     socket_directory: Option<String>,
+    config_file: Option<String>,
 }
 
 impl ZellijRuntime {
@@ -64,6 +65,7 @@ impl ZellijRuntime {
             binary,
             expected_version,
             socket_directory: None,
+            config_file: None,
         })
     }
 
@@ -93,6 +95,36 @@ impl ZellijRuntime {
 
     pub fn check_configuration_command(&self) -> HostCommand {
         self.command(["setup", "--check"])
+    }
+
+    /// Select one Blackpepper-owned configuration without changing Zellij's
+    /// native search path for runtimes that do not opt into it.
+    pub fn with_config_file(mut self, path: impl Into<String>) -> Result<Self, ZellijError> {
+        let path = path.into();
+        if !std::path::Path::new(&path).is_absolute() || path.contains(['\0', '\n', '\r']) {
+            return Err(ZellijError::InvalidName(
+                "Zellij configuration path must be absolute".to_owned(),
+            ));
+        }
+        self.config_file = Some(path);
+        Ok(self)
+    }
+
+    /// Validate Zellij's native effective configuration and report whether
+    /// the pinned binary found user or system configuration to own the UI.
+    ///
+    /// Zellij 0.44.3 has no machine-readable config-discovery API. Its pinned
+    /// `setup --check` contract is therefore parsed narrowly and covered by
+    /// exact-output tests. Any unfamiliar successful output fails closed.
+    pub fn user_configuration_present(
+        &self,
+        host: &mut dyn HostTransport,
+    ) -> Result<bool, ZellijError> {
+        let output = checked(
+            host.exec_timeout(&self.check_configuration_command(), METADATA_TIMEOUT)?,
+            "check Zellij configuration",
+        )?;
+        configuration_present(&output.stdout, &output.stderr)
     }
 
     /// Ask Zellij to parse its effective user configuration without writing
@@ -131,6 +163,10 @@ impl ZellijRuntime {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
+        let mut arguments = arguments.into_iter().map(Into::into).collect::<Vec<_>>();
+        if let Some(config_file) = &self.config_file {
+            arguments.splice(0..0, ["--config".to_owned(), config_file.clone()]);
+        }
         if let Some(socket_directory) = &self.socket_directory {
             return HostCommand::new(&self.binary)
                 .env("ZELLIJ_SOCKET_DIR", socket_directory)
@@ -145,6 +181,30 @@ impl ZellijRuntime {
             ])
             .args(arguments)
     }
+}
+
+fn configuration_present(stdout: &[u8], stderr: &[u8]) -> Result<bool, ZellijError> {
+    let stdout = std::str::from_utf8(stdout).map_err(|_| {
+        ZellijError::InvalidOutput("Zellij configuration diagnostics were not UTF-8.".to_owned())
+    })?;
+    let stderr = std::str::from_utf8(stderr).map_err(|_| {
+        ZellijError::InvalidOutput("Zellij configuration diagnostics were not UTF-8.".to_owned())
+    })?;
+    let diagnostics = format!("{stdout}\n{stderr}");
+    if diagnostics.contains("[CONFIG DIR]: Not Found")
+        && diagnostics.contains("[CONFIG FILE]: Not Found")
+    {
+        return Ok(false);
+    }
+    if diagnostics.contains("[CONFIG FILE]: Well defined.")
+        || diagnostics.contains("[LOOKING FOR CONFIG FILE FROM]:")
+        || diagnostics.contains("[CONFIG ERROR]:")
+    {
+        return Ok(true);
+    }
+    Err(ZellijError::InvalidOutput(
+        "Zellij returned unfamiliar configuration diagnostics.".to_owned(),
+    ))
 }
 
 fn launcher_script() -> &'static str {

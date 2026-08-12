@@ -179,11 +179,28 @@ impl ClientRuntime {
         let zellij = ZellijRuntime::for_version(zellij_binary, &session.backend_version)
             .map_err(|error| error.to_string())?;
         let config = self.workspace_config(workspace)?;
-        let (zellij, session_exists) = {
+        let user_configuration_present = {
             let transport = self.transport_mut(workspace.host_id)?;
             zellij
                 .check_version(transport)
                 .map_err(|error| error.to_string())?;
+            zellij
+                .user_configuration_present(transport)
+                .map_err(|error| error.to_string())?
+        };
+        let zellij = if user_configuration_present {
+            zellij
+        } else {
+            let path = self.managed_zellij_config_path(
+                workspace.host_id,
+                &session.backend_version,
+            )?;
+            zellij
+                .with_config_file(path)
+                .map_err(|error| error.to_string())?
+        };
+        let (zellij, session_exists) = {
+            let transport = self.transport_mut(workspace.host_id)?;
             zellij
                 .check_configuration(transport)
                 .map_err(|error| error.to_string())?;

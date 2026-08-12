@@ -442,6 +442,54 @@ fn configuration_check_is_read_only_and_uses_the_selected_binary() {
 }
 
 #[test]
+fn managed_configuration_is_an_explicit_single_file() {
+    let runtime = ZellijRuntime::new("/opt/zellij")
+        .unwrap()
+        .with_config_file("/var/lib/blackpepper/zellij/config.kdl")
+        .unwrap();
+    let command = runtime.check_configuration_command();
+
+    assert_eq!(
+        wrapped_zellij_args(&command, "/opt/zellij"),
+        [
+            "--config",
+            "/var/lib/blackpepper/zellij/config.kdl",
+            "setup",
+            "--check"
+        ]
+    );
+    assert!(ZellijRuntime::new("/opt/zellij")
+        .unwrap()
+        .with_config_file("relative/config.kdl")
+        .is_err());
+}
+
+#[test]
+fn native_configuration_detection_distinguishes_absence_from_user_intent() {
+    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
+    let mut absent = ScriptedTransport::new([success(
+        "[CONFIG DIR]: Not Found\n[CONFIG FILE]: Not Found\n",
+    )]);
+    assert!(!runtime.user_configuration_present(&mut absent).unwrap());
+
+    let mut configured = ScriptedTransport::new([success(
+        "[LOOKING FOR CONFIG FILE FROM]: /home/me/.config/zellij/config.kdl\n[CONFIG FILE]: Well defined.\n",
+    )]);
+    assert!(runtime
+        .user_configuration_present(&mut configured)
+        .unwrap());
+
+    // An explicit config directory is user intent even when its config.kdl is
+    // missing and pinned Zellij falls back to its built-in defaults.
+    let mut explicit_directory = ScriptedTransport::new([success(
+        "[LOOKING FOR CONFIG FILE FROM]: /owned/zellij/config.kdl\n[CONFIG ERROR]: missing\n",
+    )]);
+    assert!(runtime
+        .user_configuration_present(&mut explicit_directory)
+        .unwrap());
+}
+
+#[test]
 fn concurrent_clients_allow_attach_but_refuse_focus_affecting_mutations() {
     assert!(ClientOperation::Attach.allows(2));
     assert!(!ClientOperation::BackgroundMutation.allows(2));
