@@ -36,7 +36,7 @@ pub(crate) fn master_spec(
         OsString::from("--"),
         OsString::from(&config.destination),
     ]);
-    Ok(ProcessSpec::new(&config.ssh_binary).args(arguments))
+    Ok(ssh_process_spec(config, arguments))
 }
 
 pub(crate) fn session_spec(
@@ -81,7 +81,7 @@ pub(crate) fn session_spec_line(
         OsString::from(&config.destination),
         OsString::from(remote_command),
     ]);
-    Ok(ProcessSpec::new(&config.ssh_binary).args(arguments))
+    Ok(ssh_process_spec(config, arguments))
 }
 
 pub(crate) fn control_spec(
@@ -120,7 +120,15 @@ pub(crate) fn control_spec(
         arguments.push(OsString::from(format_forward(forward)));
     }
     arguments.extend([OsString::from("--"), OsString::from(&config.destination)]);
-    Ok(ProcessSpec::new(&config.ssh_binary).args(arguments))
+    Ok(ssh_process_spec(config, arguments))
+}
+
+fn ssh_process_spec(config: &SshConfig, arguments: Vec<OsString>) -> ProcessSpec {
+    // OpenSSH can create or replace local trust state such as known_hosts.
+    // Keep those files private without changing Blackpepper's process umask.
+    ProcessSpec::new(&config.ssh_binary)
+        .args(arguments)
+        .creation_umask(0o077)
 }
 
 fn fail_closed_arguments(config: &SshConfig) -> Vec<OsString> {

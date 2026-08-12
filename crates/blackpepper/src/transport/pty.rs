@@ -52,6 +52,8 @@ impl PtyProcess {
         for (key, value) in &spec.env {
             command.env(key, value);
         }
+        #[cfg(unix)]
+        command.umask(spec.creation_umask.map(|mask| mask as libc::mode_t));
 
         let child = pair
             .slave

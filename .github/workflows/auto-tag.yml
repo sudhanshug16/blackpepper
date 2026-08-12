@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: auto-tag-main
+  cancel-in-progress: true
+
 jobs:
   quality:
     uses: ./.github/workflows/quality.yml
@@ -18,16 +22,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Detect version bump
+      - name: Detect unreleased version
         id: version
         run: |
           write_output() {
             printf '%s\n' "$@" >> "$GITHUB_OUTPUT"
           }
-          if ! git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -q "^crates/blackpepper/Cargo.toml$"; then
-            write_output "changed=false"
-            exit 0
-          fi
           VERSION=$(sed -nE 's/^version\s*=\s*"([^"]+)".*/\1/p' crates/blackpepper/Cargo.toml | head -n1)
           if [ -z "$VERSION" ]; then
             write_output "changed=false"
@@ -41,8 +41,37 @@ jobs:
           write_output "changed=true" "version=$VERSION" "tag=$TAG"
       - name: Create tag
         if: steps.version.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          git fetch origin main --tags
+
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            echo "$TAG was created while quality checks were running."
+            exit 0
+          fi
+          if [ "$(git rev-parse refs/remotes/origin/main)" != "$GITHUB_SHA" ]; then
+            echo "A newer main commit exists; its quality run owns tagging."
+            exit 0
+          fi
+
+          if git push --atomic \
+            --force-with-lease="refs/heads/main:$GITHUB_SHA" \
+            origin \
+            "$GITHUB_SHA:refs/heads/main" \
+            "$GITHUB_SHA:refs/tags/$TAG"; then
+            exit 0
+          fi
+
+          remote_main=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          remote_tag=$(git ls-remote origin "refs/tags/$TAG" | awk '{print $1}')
+          if [ "$remote_tag" = "$GITHUB_SHA" ]; then
+            echo "$TAG was created concurrently at this commit."
+            exit 0
+          fi
+          if [ -z "$remote_tag" ] && [ "$remote_main" != "$GITHUB_SHA" ]; then
+            echo "A newer main commit won the race; its quality run owns tagging."
+            exit 0
+          fi
+          echo "Could not safely create $TAG at $GITHUB_SHA." >&2
+          exit 1

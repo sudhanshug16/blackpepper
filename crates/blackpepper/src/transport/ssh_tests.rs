@@ -56,6 +56,29 @@ fn mux_children_are_normal_sessions_with_atomic_fail_closed_options() {
 }
 
 #[test]
+fn every_ssh_process_constrains_local_file_creation() {
+    let root = tempfile::tempdir().unwrap();
+    let socket = ControlSocket::allocate(Some(root.path())).unwrap();
+    let config = SshConfig::new("devbox");
+    let command = HostCommand::new("true");
+    let forward = LocalForward {
+        bind_address: "127.0.0.1".parse().unwrap(),
+        local_port: 49_152,
+        remote_host: "127.0.0.1".to_owned(),
+        remote_port: 3_000,
+    };
+    let specs = [
+        ssh_command::master_spec(&config, &socket).unwrap(),
+        ssh_command::session_spec(&config, &socket, &command, false).unwrap(),
+        ssh_command::control_spec(&config, &socket, ControlAction::Forward(&forward)).unwrap(),
+    ];
+
+    for spec in specs {
+        assert_eq!(spec.creation_umask, Some(0o077));
+    }
+}
+
+#[test]
 fn foreground_master_enables_master_mode_exactly_once() {
     let root = tempfile::tempdir().unwrap();
     let socket = ControlSocket::allocate(Some(root.path())).unwrap();
@@ -271,4 +294,68 @@ fn control_socket_directory_is_private() {
     assert_eq!(mode, 0o700);
     assert!(socket.path().starts_with(root.path()));
     assert!(!Path::new(socket.path()).exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn control_master_creates_local_files_with_private_permissions() {
+    const WORKER_ENV: &str = "BLACKPEPPER_SSH_PERMISSION_TEST_WORKER";
+
+    if std::env::var_os(WORKER_ENV).is_none() {
+        let executable = std::env::current_exe().unwrap();
+        let status = std::process::Command::new("/bin/sh")
+            .args([
+                "-c",
+                "umask 022; exec \"$@\"",
+                "blackpepper-ssh-permission-test",
+            ])
+            .arg(executable)
+            .args([
+                "--exact",
+                "transport::ssh_tests::control_master_creates_local_files_with_private_permissions",
+                "--nocapture",
+            ])
+            .env(WORKER_ENV, "1")
+            .status()
+            .unwrap();
+        assert!(status.success());
+        return;
+    }
+
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = tempfile::tempdir().unwrap();
+    let created = temp.path().join("created-by-master");
+    let script = temp.path().join("ssh-stub");
+    let script_body = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" -O exit \"*) exit 0 ;;\nesac\n: > '{}'\nwhile :; do sleep 1; done\n",
+        created.display(),
+    );
+    fs::write(&script, script_body).unwrap();
+    let mut permissions = fs::metadata(&script).unwrap().permissions();
+    permissions.set_mode(0o700);
+    fs::set_permissions(&script, permissions).unwrap();
+
+    let mut config = SshConfig::new("stub-host");
+    config.ssh_binary = script;
+    config.control_root = Some(temp.path().join("control"));
+    let mut transport = SshTransport::new(config).unwrap();
+    transport.start_master(PtySize::default()).unwrap();
+
+    let directory_mode = fs::metadata(transport.control_socket_path().unwrap().parent().unwrap())
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(directory_mode, 0o700);
+
+    for _ in 0..100 {
+        if created.exists() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let mode = fs::metadata(&created).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600);
+    transport.disconnect().unwrap();
 }

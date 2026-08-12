@@ -112,6 +112,7 @@ pub struct ProcessSpec {
     pub args: Vec<OsString>,
     pub cwd: Option<PathBuf>,
     pub env: BTreeMap<OsString, OsString>,
+    pub(crate) creation_umask: Option<u32>,
 }
 
 impl ProcessSpec {
@@ -121,6 +122,7 @@ impl ProcessSpec {
             args: Vec::new(),
             cwd: None,
             env: BTreeMap::new(),
+            creation_umask: None,
         }
     }
 
@@ -148,6 +150,11 @@ impl ProcessSpec {
         self
     }
 
+    pub(crate) fn creation_umask(mut self, mask: u32) -> Self {
+        self.creation_umask = Some(mask);
+        self
+    }
+
     pub fn argv(&self) -> impl Iterator<Item = &OsStr> {
         std::iter::once(self.program.as_os_str()).chain(self.args.iter().map(OsString::as_os_str))
     }
@@ -159,6 +166,19 @@ impl ProcessSpec {
             command.current_dir(cwd);
         }
         command.envs(&self.env);
+        #[cfg(unix)]
+        if let Some(mask) = self.creation_umask {
+            use std::os::unix::process::CommandExt;
+
+            // SAFETY: `pre_exec` runs after fork and before exec. `umask` is
+            // async-signal-safe, has no failure mode, and touches no Rust state.
+            unsafe {
+                command.pre_exec(move || {
+                    libc::umask(mask as libc::mode_t);
+                    Ok(())
+                });
+            }
+        }
         command
     }
 }
