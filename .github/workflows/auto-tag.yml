@@ -9,7 +9,7 @@ permissions:
 
 concurrency:
   group: auto-tag-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   quality:
@@ -60,6 +60,16 @@ jobs:
             origin \
             "$GITHUB_SHA:refs/heads/main" \
             "$GITHUB_SHA:refs/tags/$TAG"; then
+            remote_main=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+            if [ "$remote_main" = "$GITHUB_SHA" ]; then
+              exit 0
+            fi
+
+            echo "A newer main commit landed while $TAG was created; removing the stale tag."
+            git push \
+              --force-with-lease="refs/tags/$TAG:$GITHUB_SHA" \
+              origin \
+              ":refs/tags/$TAG"
             exit 0
           fi
 
