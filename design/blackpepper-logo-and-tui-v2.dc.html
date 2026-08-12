@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0f1011; }
+  a { color: #e4834f; text-decoration: none; }
+  a:hover { color: #ffffff; }
+</style>
+</helmet>
+
+<section style="display:flex; flex-wrap:wrap; gap:56px; padding:48px 48px 0; font-family:'JetBrains Mono', ui-monospace, Menlo, monospace; align-items:flex-start;">
+
+  <div id="3a" style="width:1320px; display:flex; flex-direction:column; gap:20px;">
+    <div style="display:flex; align-items:baseline; gap:12px; color:#8b8a87; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;">
+      <span style="border:1px solid #3a3b3e; border-radius:3px; padding:2px 7px; color:#b9b6b2;">3a</span>
+      <span>Accent alternatives — the hue budget</span>
+    </div>
+
+    <div style="background:#1c1d1f; padding:26px 32px; display:flex; gap:36px; align-items:flex-start;">
+      <div style="width:560px; display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:12px; color:#e6e4e1; line-height:19px;">The status vocabulary has already spent four of the six usable hues.</div>
+        <div style="font-size:13px; line-height:22px;">
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#56b6c2;">cyan</span><span style="width:11ch; color:#b9b6b2;">running</span><span style="color:#6c6b68;">taken</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e5c07b;">yellow</span><span style="width:11ch; color:#b9b6b2;">asks</span><span style="color:#6c6b68;">taken — the one that nags</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#98c379;">green</span><span style="width:11ch; color:#b9b6b2;">done</span><span style="color:#6c6b68;">taken</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e06c75;">red</span><span style="width:11ch; color:#b9b6b2;">exited</span><span style="color:#6c6b68;">taken</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#c77dff;">magenta</span><span style="width:11ch; color:#6c6b68;">—</span><span style="color:#98c379;">free</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#b9b6b2;">white</span><span style="width:11ch; color:#6c6b68;">—</span><span style="color:#98c379;">free, via reverse video</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px; padding-top:4px;">
+          That is the case against the ember. At truecolor it reads as its own thing, but there is no orange in the 16-colour set — it degrades to <span style="color:#e5c07b;">yellow</span>, which is <span style="color:#e6e4e1;">exactly the colour of an agent waiting on you</span>. On ConnectBot the brand mark and the one alert that matters become indistinguishable. It is also, bluntly, the house colour of every LLM tool shipped in the last two years.
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px;">
+          The original code already knew this: today's <span style="color:#c77dff;">MANAGE</span> badge is <span style="color:#e6e4e1;">Magenta on Black</span>. Magenta is the only hue the status vocabulary does not need.
+        </div>
+      </div>
+
+      <div style="flex:1; display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">How to read the specimens</div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px;">Each option below shows the four places the accent is ever allowed — the <span style="color:#e6e4e1;">bp</span> anchor, the mode badge, the selected row, the <span style="color:#e6e4e1;">:</span> prompt — sitting directly beside a <span style="color:#e5c07b;">! asks</span> row. If your eye has to work out which of the two is the alert, the accent has failed, regardless of how it looks alone.</div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px;">The <span style="color:#e6e4e1;">16-col</span> strip on each shows what the terminal actually paints when there is no truecolor to degrade from.</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:24px; flex-wrap:wrap;">
+
+      <div style="width:424px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <span style="width:12px; height:12px; background:#c77dff; display:inline-block;"></span>
+          <span style="font-size:13px; color:#e6e4e1;">Peppercorn violet</span>
+          <span style="font-size:11px; color:#6c6b68;">#C77DFF · → magenta</span>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#c77dff; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="margin-left:auto; color:#e5c07b;">! 1</span></div>
+          <div style="display:flex; gap:1ch; background:#c77dff; color:#1c1d1f; margin:0 -1ch; padding:0 1ch;"><span>a</span><span>blackpepper</span><span style="margin-left:auto;">▸ 2m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#c77dff;">s</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#e5c07b;">asks</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#c77dff;">d</span><span style="color:#98c379;">✓</span><span style="color:#b9b6b2;">example</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="background:#c77dff; color:#1c1d1f; font-weight:700; padding:0 1ch;">MANAGE</span><span style="color:#c77dff;">:</span><span style="color:#6c6b68;">command</span></div>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#000000; color:#c0c0c0; font-size:12px; line-height:19px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch;"><span style="color:#aa00aa; font-weight:700;">bp</span><span style="color:#00aa00;">●</span><span>devbox</span><span style="margin-left:auto; color:#aa8800;">! 1</span><span style="color:#555555;">16-col</span></div>
+          <div style="display:flex; gap:1ch;"><span style="background:#aa00aa; color:#000000;">a blackpepper</span><span style="margin-left:auto; color:#aa8800;">! feature/auth</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">The only hue with no job. Survives the 16-colour floor as real magenta — nothing else on screen is magenta, so the brand mark stays unambiguous even on ConnectBot. Continues what the code already does today, rather than overruling it.</div>
+      </div>
+
+      <div style="width:424px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <span style="width:12px; height:12px; background:#d4788c; display:inline-block;"></span>
+          <span style="font-size:13px; color:#e6e4e1;">Pink peppercorn</span>
+          <span style="font-size:11px; color:#6c6b68;">#D4788C · → magenta</span>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#d4788c; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="margin-left:auto; color:#e5c07b;">! 1</span></div>
+          <div style="display:flex; gap:1ch; background:#d4788c; color:#1c1d1f; margin:0 -1ch; padding:0 1ch;"><span>a</span><span>blackpepper</span><span style="margin-left:auto;">▸ 2m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#d4788c;">s</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#e5c07b;">asks</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#d4788c;">d</span><span style="color:#98c379;">✓</span><span style="color:#b9b6b2;">example</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="background:#d4788c; color:#1c1d1f; font-weight:700; padding:0 1ch;">MANAGE</span><span style="color:#d4788c;">:</span><span style="color:#6c6b68;">command</span></div>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#000000; color:#c0c0c0; font-size:12px; line-height:19px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch;"><span style="color:#aa00aa; font-weight:700;">bp</span><span style="color:#00aa00;">●</span><span>devbox</span><span style="margin-left:auto; color:#aa8800;">! 1</span><span style="color:#555555;">16-col</span></div>
+          <div style="display:flex; gap:1ch;"><span style="background:#aa00aa; color:#000000;">a blackpepper</span><span style="margin-left:auto; color:#aa8800;">! feature/auth</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Pink peppercorn is a real peppercorn, so the name does the work the orange was pretending to. Softer and less synthetic than the violet at truecolor; identical magenta underneath. Risk: at low brightness it drifts toward the <span style="color:#e06c75;">exited</span> red.</div>
+      </div>
+
+      <div style="width:424px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <span style="width:12px; height:12px; background:#e6e4e1; display:inline-block;"></span>
+          <span style="font-size:13px; color:#e6e4e1;">No accent</span>
+          <span style="font-size:11px; color:#6c6b68;">reverse video only</span>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="margin-left:auto; color:#e5c07b;">! 1</span></div>
+          <div style="display:flex; gap:1ch; background:#e6e4e1; color:#1c1d1f; margin:0 -1ch; padding:0 1ch;"><span>a</span><span>blackpepper</span><span style="margin-left:auto;">▸ 2m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#b9b6b2;">s</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#e5c07b;">asks</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#b9b6b2;">d</span><span style="color:#98c379;">✓</span><span style="color:#b9b6b2;">example</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="background:#e6e4e1; color:#1c1d1f; font-weight:700; padding:0 1ch;">MANAGE</span><span style="color:#e6e4e1;">:</span><span style="color:#6c6b68;">command</span></div>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#000000; color:#c0c0c0; font-size:12px; line-height:19px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch;"><span style="color:#ffffff; font-weight:700;">bp</span><span style="color:#00aa00;">●</span><span>devbox</span><span style="margin-left:auto; color:#aa8800;">! 1</span><span style="color:#555555;">16-col</span></div>
+          <div style="display:flex; gap:1ch;"><span style="background:#c0c0c0; color:#000000;">a blackpepper</span><span style="margin-left:auto; color:#aa8800;">! feature/auth</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">The most honest reading of "the terminal owns the palette": colour means <em style="font-style:normal; color:#b9b6b2;">state</em> and nothing else, so the only coloured things on screen are things that changed. Identical on every tier, in every user theme, forever. The brand lives in the block mark and the wordmark instead — where it is already strongest. Costs you any colour recognition in a screenshot.</div>
+      </div>
+
+      <div style="width:424px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <span style="width:12px; height:12px; background:#7f8cff; display:inline-block;"></span>
+          <span style="font-size:13px; color:#e6e4e1;">Indigo</span>
+          <span style="font-size:11px; color:#6c6b68;">#7F8CFF · → blue</span>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#7f8cff; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="margin-left:auto; color:#e5c07b;">! 1</span></div>
+          <div style="display:flex; gap:1ch; background:#7f8cff; color:#1c1d1f; margin:0 -1ch; padding:0 1ch;"><span>a</span><span>blackpepper</span><span style="margin-left:auto;">▸ 2m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#7f8cff;">s</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#e5c07b;">asks</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#7f8cff;">d</span><span style="color:#98c379;">✓</span><span style="color:#b9b6b2;">example</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="background:#7f8cff; color:#1c1d1f; font-weight:700; padding:0 1ch;">MANAGE</span><span style="color:#7f8cff;">:</span><span style="color:#6c6b68;">command</span></div>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#000000; color:#c0c0c0; font-size:12px; line-height:19px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch;"><span style="color:#5555ff; font-weight:700;">bp</span><span style="color:#00aa00;">●</span><span>devbox</span><span style="margin-left:auto; color:#aa8800;">! 1</span><span style="color:#555555;">16-col</span></div>
+          <div style="display:flex; gap:1ch;"><span style="background:#5555ff; color:#000000;">a blackpepper</span><span style="margin-left:auto; color:#aa8800;">! feature/auth</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Blue is technically unspent, and it is the calmest option here. But it is the single worst-rendered colour in terminals — dark blue on black is illegible in a dozen default schemes, which is why almost no TUI uses it for anything load-bearing. Listed for completeness; I would not ship it.</div>
+      </div>
+
+      <div style="width:424px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <span style="width:12px; height:12px; background:#b8a04a; display:inline-block;"></span>
+          <span style="font-size:13px; color:#e6e4e1;">Brass</span>
+          <span style="font-size:11px; color:#6c6b68;">#B8A04A · → yellow</span>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#b8a04a; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="margin-left:auto; color:#e5c07b;">! 1</span></div>
+          <div style="display:flex; gap:1ch; background:#b8a04a; color:#1c1d1f; margin:0 -1ch; padding:0 1ch;"><span>a</span><span>blackpepper</span><span style="margin-left:auto;">▸ 2m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#b8a04a;">s</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#e5c07b;">asks</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#b8a04a;">d</span><span style="color:#98c379;">✓</span><span style="color:#b9b6b2;">example</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="background:#b8a04a; color:#1c1d1f; font-weight:700; padding:0 1ch;">MANAGE</span><span style="color:#b8a04a;">:</span><span style="color:#6c6b68;">command</span></div>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#000000; color:#c0c0c0; font-size:12px; line-height:19px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch;"><span style="color:#aa8800; font-weight:700;">bp</span><span style="color:#00aa00;">●</span><span>devbox</span><span style="margin-left:auto; color:#aa8800;">! 1</span><span style="color:#555555;">16-col</span></div>
+          <div style="display:flex; gap:1ch;"><span style="background:#aa8800; color:#000000;">a blackpepper</span><span style="margin-left:auto; color:#aa8800;">! feature/auth</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Muted enough to escape the LLM-orange association while keeping warmth, and it grinds well with the peppercorn story. But look at the 16-colour strip: the mark and <span style="color:#e5c07b;">! asks</span> are <em style="font-style:normal; color:#b9b6b2;">the same colour</em>. It inherits the exact flaw of the ember. Shown as evidence, not as a candidate.</div>
+      </div>
+
+      <div style="width:424px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <span style="width:12px; height:12px; background:#c77dff; display:inline-block; outline:1px solid #3a3b3e;"></span>
+          <span style="font-size:13px; color:#e6e4e1;">Violet, light terminal</span>
+          <span style="font-size:11px; color:#6c6b68;">the other half of your users</span>
+        </div>
+        <div style="width:46ch; box-sizing:border-box; background:#faf9f7; color:#1c1d1f; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#eceae6; margin:0 -1ch; padding:0 1ch;"><span style="color:#8b2fd6; font-weight:700;">bp</span><span style="color:#3f8c3f;">●</span><span style="color:#4a4a48;">devbox</span><span style="margin-left:auto; color:#9a6b00;">! 1</span></div>
+          <div style="display:flex; gap:1ch; background:#8b2fd6; color:#faf9f7; margin:0 -1ch; padding:0 1ch;"><span>a</span><span>blackpepper</span><span style="margin-left:auto;">▸ 2m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#8b2fd6;">s</span><span style="color:#9a6b00;">!</span><span style="color:#1c1d1f;">feature/auth</span><span style="margin-left:auto; color:#9a6b00;">asks</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#8b2fd6;">d</span><span style="color:#3f8c3f;">✓</span><span style="color:#4a4a48;">example</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="display:flex; gap:2ch; background:#eceae6; margin:0 -1ch; padding:0 1ch;"><span style="background:#8b2fd6; color:#faf9f7; font-weight:700; padding:0 1ch;">MANAGE</span><span style="color:#8b2fd6;">:</span><span style="color:#6c6b68;">command</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Worth checking, because a hybrid palette cannot pin a lightness. The accent is emitted as <span style="color:#e6e4e1;">one hue with two lightnesses</span> — the client already knows the terminal's background from OSC 11, so it picks the dark-background or light-background variant the same way it picks a colour tier. Everything else on the row is a named ANSI colour and follows the user's scheme untouched.</div>
+      </div>
+
+    </div>
+
+    <div style="background:#1c1d1f; padding:24px 32px; display:flex; gap:36px; font-size:11px; line-height:17px; color:#6c6b68;">
+      <div style="width:400px;"><div style="color:#c9ced6; margin-bottom:6px; letter-spacing:0.1em; text-transform:uppercase;">My pick</div><span style="color:#e6e4e1;">Peppercorn violet</span>, with <span style="color:#e6e4e1;">no accent</span> as the serious alternative if you want the tool to disappear into the user's terminal entirely. Violet is the only choice that stays distinct from every status colour all the way down to 16 colours, and it keeps faith with the magenta already in the code.</div>
+      <div style="width:400px;"><div style="color:#c9ced6; margin-bottom:6px; letter-spacing:0.1em; text-transform:uppercase;">If violet feels too loud</div>Use it at <span style="color:#e6e4e1;">one cell, not one row</span>: keep the <span style="color:#e6e4e1;">bp</span> anchor and the <span style="color:#e6e4e1;">:</span> prompt coloured, but make the selected row and the mode badge reverse video. That is a two-line change and lands halfway between the violet and the no-accent option.</div>
+      <div style="width:400px;"><div style="color:#c9ced6; margin-bottom:6px; letter-spacing:0.1em; text-transform:uppercase;">What does not change</div>The logo in <a href="#1a">1a</a> is built from block glyphs and carries no colour information, so it works under any of these — including no accent at all. Whatever you pick paints the mark; it is not designed around the hue.</div>
+    </div>
+  </div>
+
+  <div id="2a" style="width:1320px; display:flex; flex-direction:column; gap:20px;">
+    <div style="display:flex; align-items:baseline; gap:12px; color:#8b8a87; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;">
+      <span style="border:1px solid #3a3b3e; border-radius:3px; padding:2px 7px; color:#e4834f;">2a</span>
+      <span>Mobile — the constraints that decide the design</span>
+    </div>
+
+    <div style="display:flex; gap:24px; align-items:stretch; flex-wrap:wrap;">
+
+      <div style="width:404px; background:#1c1d1f; padding:24px; display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">The row budget</div>
+        <div style="display:flex; gap:14px;">
+          <div style="width:150px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:22px; background:#2b2c30; color:#8b8a87; font-size:10px; display:flex; align-items:center; padding:0 8px;">android status bar</div>
+            <div style="height:126px; background:#232427; border-left:2px solid #98c379; display:flex; align-items:center; justify-content:center; color:#98c379; font-size:11px; text-align:center; line-height:16px;">9 rows<br>always yours</div>
+            <div style="height:42px; background:#232427; border-left:2px solid #e4834f; display:flex; align-items:center; justify-content:center; color:#e4834f; font-size:11px; text-align:center; line-height:16px;">3 rows<br>bottom-anchored</div>
+            <div style="height:28px; background:#2b2c30; color:#8b8a87; font-size:10px; display:flex; align-items:center; padding:0 8px;">extra-keys row</div>
+            <div style="height:224px; background:#26262a; color:#6c6b68; font-size:11px; display:flex; align-items:center; justify-content:center; text-align:center; line-height:16px; border:1px dashed #3a3b3e; box-sizing:border-box;">soft keyboard<br>eats ~16 rows</div>
+          </div>
+          <div style="flex:1; font-size:11px; color:#6c6b68; line-height:17px; display:flex; flex-direction:column; justify-content:center; gap:10px;">
+            <div>Portrait Termux at default font: about <span style="color:#e6e4e1;">44 columns × 30 rows</span>. Open the keyboard and the terminal shrinks to <span style="color:#e6e4e1;">12 rows</span>.</div>
+            <div>So every screen is authored to <span style="color:#e6e4e1;">12 rows and 44 columns</span>. Status pins to the top row, actions pin to the bottom row, content scrolls between. Nothing important is ever in the middle of a long list.</div>
+            <div>Anything that needs more than 12 rows is a separate screen, not a scroll.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:404px; background:#1c1d1f; padding:24px; display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">No chords. Ever.</div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px;">A soft keyboard has no Ctrl and no Esc. Digits and <span style="color:#e6e4e1;">:</span> sit on the symbol layer — two taps and a context switch. Only <span style="color:#e6e4e1;">lowercase letters are one tap</span>, so every key on the critical path is one.</div>
+        <div style="background:#141517; padding:14px 16px; font-size:13px; line-height:21px;">
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e4834f;">a s d f</span><span style="color:#6c6b68;">pick the labelled row</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e6e4e1;">m</span><span style="color:#6c6b68;">menu — every command</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e6e4e1;">r</span><span style="color:#6c6b68;">reply to the agent</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e6e4e1;">t</span><span style="color:#6c6b68;">terminal — attach</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e6e4e1;">p</span><span style="color:#6c6b68;">poll — refresh now</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#e6e4e1;">q</span><span style="color:#6c6b68;">back one screen</span></div>
+          <div style="height:8px;"></div>
+          <div style="display:flex; gap:2ch;"><span style="width:9ch; color:#6c6b68;">: ↑↓ ^]</span><span style="color:#6c6b68;">still work, hardware kb</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px;">Rows are labelled left-hand (<span style="color:#e4834f;">a s d f g h</span>), actions are named right-hand mnemonics. Pick with one thumb, act with the other. Overflow rows take <span style="color:#e6e4e1;">z x c v</span>.</div>
+      </div>
+
+      <div style="width:404px; background:#1c1d1f; padding:24px; display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">What the client can assume</div>
+        <div style="font-size:12px; line-height:20px;">
+          <div style="display:flex; gap:1ch; color:#6c6b68; font-size:10px; letter-spacing:0.1em;"><span style="width:13ch;">EMULATOR</span><span style="width:8ch;">COLOR</span><span style="width:7ch;">MOUSE</span><span>GLYPHS</span></div>
+          <div style="height:6px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="width:13ch; color:#e6e4e1;">Termux</span><span style="width:8ch; color:#98c379;">true</span><span style="width:7ch; color:#98c379;">SGR</span><span style="color:#98c379;">full</span></div>
+          <div style="display:flex; gap:1ch;"><span style="width:13ch; color:#e6e4e1;">Blink iOS</span><span style="width:8ch; color:#98c379;">true</span><span style="width:7ch; color:#98c379;">SGR</span><span style="color:#98c379;">full</span></div>
+          <div style="display:flex; gap:1ch;"><span style="width:13ch; color:#b9b6b2;">a-Shell</span><span style="width:8ch; color:#e5c07b;">256</span><span style="width:7ch; color:#e06c75;">no</span><span style="color:#98c379;">full</span></div>
+          <div style="display:flex; gap:1ch;"><span style="width:13ch; color:#b9b6b2;">JuiceSSH</span><span style="width:8ch; color:#e5c07b;">256</span><span style="width:7ch; color:#e06c75;">no</span><span style="color:#e5c07b;">most</span></div>
+          <div style="display:flex; gap:1ch;"><span style="width:13ch; color:#b9b6b2;">ConnectBot</span><span style="width:8ch; color:#e06c75;">16</span><span style="width:7ch; color:#e06c75;">no</span><span style="color:#e5c07b;">most</span></div>
+          <div style="display:flex; gap:1ch;"><span style="width:13ch; color:#b9b6b2;">iSH</span><span style="width:8ch; color:#e5c07b;">256</span><span style="width:7ch; color:#e06c75;">no</span><span style="color:#e5c07b;">most</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px;">Half of them have no mouse, so <span style="color:#e6e4e1;">touch is never required</span> — taps are a shortcut for a key that already exists. Where SGR mouse is available the client enables it so a swipe scrolls the view instead of Termux's own scrollback.</div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px;">The 16-colour floor from <a href="#1b">1b</a> already covers ConnectBot. Mobile adds one rule: <span style="color:#e6e4e1;">no full-width accent fills</span> — on OLED at night they glare, so selection is reverse video and the accent stays a one-cell mark.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="2b" style="width:1320px; display:flex; flex-direction:column; gap:20px;">
+    <div style="display:flex; align-items:baseline; gap:12px; color:#8b8a87; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;">
+      <span style="border:1px solid #3a3b3e; border-radius:3px; padding:2px 7px; color:#e4834f;">2b</span>
+      <span>Mobile — the screens, 44 × 12</span>
+    </div>
+
+    <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Watch — home</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e4834f; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="color:#e5c07b;">◐</span><span style="color:#b9b6b2;">lab</span><span style="margin-left:auto; color:#e5c07b;">! 1</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">a</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">blackpepper</span><span style="margin-left:auto; color:#6c6b68;">devbox</span></div>
+          <div style="display:flex; gap:1ch; padding-left:4ch;"><span style="color:#b9b6b2;">"drop the legacy index?"</span><span style="margin-left:auto; color:#6c6b68;">2m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">s</span><span style="color:#56b6c2;">▸</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#6c6b68;">devbox</span></div>
+          <div style="display:flex; gap:1ch; padding-left:4ch;"><span style="color:#6c6b68;">running · cargo test</span><span style="margin-left:auto; color:#6c6b68;">14m</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">d</span><span style="color:#98c379;">✓</span><span style="color:#e6e4e1;">example</span><span style="margin-left:auto; color:#6c6b68;">lab</span></div>
+          <div style="display:flex; gap:1ch; padding-left:4ch;"><span style="color:#6c6b68;">done · 3 files edited</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">f</span><span style="color:#6c6b68;">·</span><span style="color:#b9b6b2;">gpu-train</span><span style="margin-left:auto; color:#6c6b68;">gpu-box</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span><span style="color:#e6e4e1;">m</span> menu</span><span><span style="color:#e6e4e1;">r</span> reply</span><span><span style="color:#e6e4e1;">t</span> attach</span><span><span style="color:#e6e4e1;">p</span> poll</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">The three-pane dashboard collapses to one list. Two rows per workspace: state, then <span style="color:#e6e4e1;">why you would care</span> — the pending question, the running command, the result. Sorted by who needs you, not alphabetically.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Workspace — the agent asks</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1;">q</span><span style="color:#e6e4e1;">blackpepper</span><span style="color:#6c6b68;">devbox</span><span style="margin-left:auto; color:#e5c07b;">! asks</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#56b6c2;">codex</span><span style="color:#6c6b68;">waiting on you · 2m14s</span></div>
+          <div style="height:22px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e5c07b;">&gt;</span><span style="color:#b9b6b2;">I can drop the legacy index, but</span></div>
+          <div style="padding-left:2ch; color:#b9b6b2;">two migrations still reference it.</div>
+          <div style="height:22px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">a</span><span style="color:#e6e4e1;">drop it</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">s</span><span style="color:#e6e4e1;">keep and deprecate</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">d</span><span style="color:#e6e4e1;">show me the migrations</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span><span style="color:#e6e4e1;">r</span> type a reply</span><span><span style="color:#e6e4e1;">t</span> attach</span><span><span style="color:#e6e4e1;">m</span> menu</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">The biggest mobile win: when the provider emits structured options — or the question parses cleanly — answering is <span style="color:#e6e4e1;">one letter</span>. When it doesn't parse, the option block is simply absent and <span style="color:#e6e4e1;">r</span> is the only route. It never guesses out loud.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Reply — bottom-anchored compose</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1;">q</span><span style="color:#e6e4e1;">reply to codex</span><span style="margin-left:auto; color:#6c6b68;">blackpepper</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e5c07b;">&gt;</span><span style="color:#6c6b68;">two migrations still reference it.</span></div>
+          <div style="height:44px;"></div>
+          <div style="color:#e6e4e1;">keep it and add a deprecation note</div>
+          <div style="display:flex;"><span style="color:#e6e4e1;">to both migrations, then open a PR</span><span style="background:#e6e4e1; color:#1c1d1f;">&nbsp;</span></div>
+          <div style="height:22px;"></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span><span style="color:#e6e4e1;">enter</span> send</span><span style="margin-left:auto;"><span style="color:#e6e4e1;">q</span> on an empty line cancels</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">The composer grows upward from the footer, so it stays put when the keyboard opens. Cancel is <span style="color:#e6e4e1;">q on an empty line</span> because Esc does not exist — every other letter is text. Autocorrect belongs to the IME and cannot be turned off from inside a terminal, so what you typed is shown back to you before it is sent, verbatim.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Attach — real zellij, 44 cols</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px;">
+          <div style="display:flex; background:#0e0f10; overflow:hidden; white-space:nowrap;">
+            <span style="background:#98c379; color:#0e0f10; padding:0 1ch;">shell</span>
+            <span style="background:#26272a; color:#8b8a87; padding:0 1ch;">agent-cod…</span>
+            <span style="background:#26272a; color:#8b8a87; padding:0 1ch;">agent-cl…</span>
+            <span style="flex:1;"></span>
+          </div>
+          <div style="padding:0 1ch;">
+            <div style="display:flex; color:#98c379;"><span style="white-space:nowrap;">╭─ cargo&nbsp;</span><span style="flex:1; overflow:hidden; white-space:nowrap;">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</span><span>╮</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">test result: <span style="color:#98c379;">ok</span>. 412</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">passed; 0 failed; 3</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">ignored</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#e6e4e1; padding:0 1ch; overflow:hidden; white-space:nowrap;">$ <span style="background:#e6e4e1; color:#1c1d1f;">&nbsp;</span></span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>╰</span><span style="flex:1; overflow:hidden; white-space:nowrap;">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</span><span>╯</span></div>
+          </div>
+          <div style="display:flex; gap:1ch; background:#0e0f10; padding:0 1ch; overflow:hidden; white-space:nowrap;">
+            <span style="color:#8b8a87;">Ctrl +</span>
+            <span style="color:#98c379;">&lt;g&gt;</span><span style="color:#98c379;">&lt;p&gt;</span><span style="color:#98c379;">&lt;t&gt;</span><span style="color:#98c379;">&lt;n&gt;</span><span style="color:#98c379;">&lt;h&gt;</span><span style="color:#98c379;">&lt;s&gt;</span><span style="color:#98c379;">&lt;o&gt;</span><span style="color:#e06c75;">&lt;q&gt;</span>
+          </div>
+          <div style="background:#0e0f10; padding:0 1ch; color:#8b8a87; overflow:hidden; white-space:nowrap;">Tip: <span style="color:#e6e4e1;">Alt +</span> &lt;n&gt; =&gt; new pane.</div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Attach is <span style="color:#e6e4e1;">stock zellij</span>, exactly as on desktop — blackpepper renders nothing here and owns no zellij config. Zellij's own status bar already degrades: at 44 columns the mode labels drop and only the keys remain. Tab names truncate rather than wrap.</div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">The cost is rows. Tab bar 1 + frame 2 + status bar 2 = <span style="color:#e6e4e1;">5 of the 12</span> you have with the keyboard open, leaving 7 for actual output. A documented mobile zellij config — <span style="color:#e6e4e1;">simplified_ui</span>, <span style="color:#e6e4e1;">pane_frames false</span>, compact bar — gets 3 of them back. Documented, never imposed: the same stance the client already takes with <span style="color:#e6e4e1;">setup --check</span>.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Before attaching — the two warnings</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1;">q</span><span style="color:#e6e4e1;">attach blackpepper</span><span style="margin-left:auto; color:#e5c07b;">⚠</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e5c07b;">⚠</span><span style="color:#b9b6b2;">1 other client attached</span></div>
+          <div style="color:#6c6b68; padding-left:2ch;">zellij sizes the session to its</div>
+          <div style="color:#6c6b68; padding-left:2ch;">smallest client. your desktop</div>
+          <div style="color:#6c6b68; padding-left:2ch;">reflows to 44 cols until you</div>
+          <div style="color:#6c6b68; padding-left:2ch;">detach.</div>
+          <div style="height:11px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e5c07b;">⚠</span><span style="color:#b9b6b2;">zellij needs Ctrl to detach</span></div>
+          <div style="color:#6c6b68; padding-left:2ch;">enable the Termux keys row</div>
+          <div style="color:#6c6b68; padding-left:2ch;">first: Ctrl o d</div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="background:#e4834f; color:#1c1d1f; font-weight:700; padding:0 1ch;">armed</span><span style="color:#6c6b68;"><span style="color:#e6e4e1;">enter</span> attach</span><span style="color:#6c6b68;"><span style="color:#e6e4e1;">q</span> cancel</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Once you attach, <span style="color:#e6e4e1;">zellij owns every keystroke</span> — none of the single-letter keys from <a href="#2a">2a</a> exist any more, and getting back out is <span style="color:#e6e4e1;">Ctrl o d</span>. That is the one place mobile genuinely depends on the emulator's modifier row, so the client checks and says so <em style="font-style:normal; color:#b9b6b2;">before</em> you are trapped in a full-screen session, not after.</div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">This is why the rest of the mobile design earns its keep: monitoring, replying and approving all happen <span style="color:#e6e4e1;">without attaching</span>. Attach stays available and unchanged — it is just no longer the only way in.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Menu — parity without typing</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1;">q</span><span style="color:#e6e4e1;">menu</span><span style="margin-left:auto; color:#6c6b68;">blackpepper</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">a</span><span style="width:11ch; color:#e6e4e1;">agent</span><span style="color:#6c6b68;">spawn · stop</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">s</span><span style="width:11ch; color:#e6e4e1;">ports</span><span style="color:#6c6b68;">3 · forward</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">d</span><span style="width:11ch; color:#e6e4e1;">worktree</span><span style="color:#6c6b68;">list · create</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">f</span><span style="width:11ch; color:#e6e4e1;">host</span><span style="color:#6c6b68;">add · connect</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">g</span><span style="width:11ch; color:#e6e4e1;">workspace</span><span style="color:#6c6b68;">terminate</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">h</span><span style="width:11ch; color:#e6e4e1;">client</span><span style="color:#6c6b68;">keys · version</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#6c6b68;">·</span><span style="width:11ch; color:#6c6b68;">approve</span><span style="color:#6c6b68;">nothing pending</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span><span style="color:#e6e4e1;">:</span> type it instead</span><span style="margin-left:auto;">6 groups · 24 commands</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Same registry as <a href="#1b">1b</a>'s <span style="color:#e6e4e1;">:help</span>, rendered as a two-level pick instead of a list to read. Unavailable commands stay visible and dim with the reason beside them — identical rule to desktop.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Guided argument — the hard one</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1;">q</span><span style="color:#e6e4e1;">worktree create</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex;"><span style="width:9ch; color:#6c6b68;">branch</span><span style="color:#e6e4e1;">feature/auth</span><span style="background:#e6e4e1; color:#1c1d1f;">&nbsp;</span></div>
+          <div style="height:11px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="width:8ch; color:#6c6b68;">base</span><span style="color:#e4834f;">a</span><span style="color:#e6e4e1;">main</span><span style="color:#e4834f;">s</span><span style="color:#b9b6b2;">develop</span><span style="color:#e4834f;">d</span><span style="color:#b9b6b2;">HEAD</span></div>
+          <div style="height:11px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="width:8ch; color:#6c6b68;">hooks</span><span style="color:#e5c07b;">2 unapproved</span></div>
+          <div style="display:flex; gap:1ch; padding-left:9ch;"><span style="color:#6c6b68;">bootstrap.sh, pnpm i</span></div>
+          <div style="height:11px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="width:8ch; color:#6c6b68;">runs</span><span style="color:#b9b6b2;">wt create feature/auth</span></div>
+          <div style="display:flex; gap:1ch; padding-left:9ch;"><span style="color:#b9b6b2;">--base main --foreground</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span><span style="color:#e6e4e1;">enter</span> review the mutation</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Complexity is kept, typing is not. One free-text field for the thing only you know; every flag is a labelled pick from real state. The assembled argv is shown as it is built, so the guided form and the typed command are visibly the same command.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Approval — armed, not tapped</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1;">q</span><span style="color:#e6e4e1;">approval</span><span style="margin-left:auto; color:#e5c07b;">⚠</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="color:#b9b6b2;">worktrunk will mutate</div>
+          <div style="color:#e6e4e1;">sudhanshug16/blackpepper</div>
+          <div style="height:11px;"></div>
+          <div style="color:#e6e4e1;">wt create feature/auth --base</div>
+          <div style="color:#e6e4e1; padding-left:2ch;">main --foreground</div>
+          <div style="height:11px;"></div>
+          <div style="color:#6c6b68;">hooks, not yet approved</div>
+          <div style="color:#e6e4e1; padding-left:2ch;">./scripts/bootstrap.sh</div>
+          <div style="color:#e6e4e1; padding-left:2ch;">pnpm install --frozen-lock…</div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="background:#e4834f; color:#1c1d1f; font-weight:700; padding:0 1ch;">armed</span><span style="color:#6c6b68;"><span style="color:#e6e4e1;">enter</span> run</span><span style="color:#6c6b68;"><span style="color:#e6e4e1;">q</span> cancel</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">A mis-tap on a phone must never mutate a repository. <span style="color:#e6e4e1;">a</span> only arms the approval — the footer changes state and <span style="color:#e6e4e1;">enter</span> commits. Two intentional keys, no chord, and the armed state is visible rather than implied.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">SSH auth — one field at a time</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e6e4e1;">q</span><span style="color:#e6e4e1;">connect lab</span><span style="margin-left:auto; color:#e5c07b;">⚠</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="color:#b9b6b2;">lab is not in known_hosts.</div>
+          <div style="height:11px;"></div>
+          <div style="color:#6c6b68;">ED25519 · SHA256</div>
+          <div style="color:#e6e4e1;">9Xk2r+Qm7Lp0aZ1cVbN4tYuIoP8s</div>
+          <div style="color:#e6e4e1; padding-left:2ch;">D3fG6hJkL9mN0oQ</div>
+          <div style="height:11px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">a</span><span style="color:#e6e4e1;">it matches, continue</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">s</span><span style="color:#e6e4e1;">copy fingerprint</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span>openssh decides · bp relays</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">A fingerprint is unreadable on one 44-column line, so it wraps at a fixed point and <span style="color:#e6e4e1;">s</span> puts it on the Android clipboard via termux-api for comparison against the real thing. The password prompt that follows is its own screen — one field, nothing else on it.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Reconnect — the mobile-only screen</div>
+        <div style="width:46ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e4834f; font-weight:700;">bp</span><span style="color:#e5c07b;">⚠</span><span style="color:#b9b6b2;">devbox</span><span style="margin-left:auto; color:#e5c07b;">reconnecting 3s</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="color:#b9b6b2;">the ssh control connection</div>
+          <div style="color:#b9b6b2;">dropped.</div>
+          <div style="height:11px;"></div>
+          <div style="color:#98c379;">codex is still running on</div>
+          <div style="color:#98c379;">devbox. nothing was lost.</div>
+          <div style="height:11px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">a</span><span style="color:#e6e4e1;">retry now</span></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">s</span><span style="color:#e6e4e1;">show last known state</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">────────────────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span>updated 41s ago</span><span style="margin-left:auto;">retry 3 of ∞</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Phones lose the network constantly — a tunnel, a lift, a screen lock. So the disconnect screen leads with the only thing that matters: <span style="color:#e6e4e1;">the work is still running over there</span>. Stale views are always stamped with their age rather than silently frozen.</div>
+      </div>
+
+      <div style="width:404px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Locked screen — the real entry point</div>
+        <div style="width:46ch; box-sizing:border-box; background:#141517; padding:16px 1ch; display:flex; flex-direction:column; gap:0; font-size:14px; line-height:22px;">
+          <div style="background:#232427; padding:10px 12px; display:flex; flex-direction:column; gap:2px; border-radius:4px;">
+            <div style="display:flex; gap:1ch; font-size:12px;"><span style="color:#e4834f; font-weight:700;">bp</span><span style="color:#6c6b68;">blackpepper</span><span style="margin-left:auto; color:#6c6b68;">now</span></div>
+            <div style="color:#e6e4e1;">feature/auth asks</div>
+            <div style="color:#b9b6b2; font-size:13px;">"drop the legacy index?"</div>
+            <div style="display:flex; gap:2ch; margin-top:6px; font-size:12px;"><span style="color:#e4834f;">REPLY</span><span style="color:#e4834f;">OPEN</span><span style="color:#6c6b68;">MUTE 1H</span></div>
+          </div>
+          <div style="height:14px;"></div>
+          <div style="color:#6c6b68; font-size:12px; line-height:18px;">termux-notification, one per workspace,<br>replaced in place — never stacked.</div>
+          <div style="height:8px;"></div>
+          <div style="color:#6c6b68; font-size:12px; line-height:18px;">no termux-api? <span style="color:#b9b6b2;">BEL + OSC 0 title</span>, which<br>Termux surfaces as its own notification.</div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">On a phone you are not watching the TUI — you are being interrupted by it. <span style="color:#e6e4e1;">REPLY</span> opens straight into the composer for that workspace, skipping the list entirely. Only <span style="color:#e6e4e1;">asks</span> notifies; running, done and exited never do.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="2c" style="width:1320px; display:flex; flex-direction:column; gap:20px;">
+    <div style="display:flex; align-items:baseline; gap:12px; color:#8b8a87; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;">
+      <span style="border:1px solid #3a3b3e; border-radius:3px; padding:2px 7px; color:#e4834f;">2c</span>
+      <span>Mobile — degrades and parity</span>
+    </div>
+
+    <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
+
+      <div style="width:336px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">36 cols — large font</div>
+        <div style="width:38ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e4834f; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="margin-left:auto; color:#e5c07b;">! 1</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">──────────────────────────────────────────</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">a</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">blackpepper</span><span style="margin-left:auto; color:#6c6b68;">2m</span></div>
+          <div style="padding-left:4ch; color:#b9b6b2;">"drop the legacy…"</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">s</span><span style="color:#56b6c2;">▸</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#6c6b68;">14m</span></div>
+          <div style="padding-left:4ch; color:#6c6b68;">cargo test</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">d</span><span style="color:#98c379;">✓</span><span style="color:#e6e4e1;">example</span><span style="margin-left:auto; color:#6c6b68;">1h</span></div>
+          <div style="color:#3a3b3e; overflow:hidden; white-space:nowrap;">──────────────────────────────────────────</div>
+          <div style="display:flex; gap:2ch; background:#232427; margin:0 -1ch; padding:0 1ch; color:#6c6b68;"><span><span style="color:#e6e4e1;">m</span></span><span><span style="color:#e6e4e1;">r</span></span><span><span style="color:#e6e4e1;">t</span></span><span><span style="color:#e6e4e1;">p</span></span><span style="margin-left:auto;">36×12</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">The host column is the first thing to go — it is already in the header. Then footer labels shorten to bare keys. The row structure never changes.</div>
+      </div>
+
+      <div style="width:588px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Landscape — 90 × 8 with the keyboard up</div>
+        <div style="width:92ch; box-sizing:border-box; background:#1c1d1f; color:#e6e4e1; font-size:10.5px; line-height:18px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#232427; margin:0 -1ch; padding:0 1ch;"><span style="color:#e4834f; font-weight:700;">bp</span><span style="color:#98c379;">●</span><span style="color:#b9b6b2;">devbox</span><span style="color:#e5c07b;">◐</span><span style="color:#b9b6b2;">lab</span><span style="margin-left:auto; color:#6c6b68;">m menu · r reply · t attach · p poll</span></div>
+          <div style="display:flex;">
+            <div style="width:44ch;">
+              <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">a</span><span style="color:#e5c07b;">!</span><span style="color:#e6e4e1;">blackpepper</span><span style="margin-left:auto; color:#6c6b68;">devbox 2m</span></div>
+              <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">s</span><span style="color:#56b6c2;">▸</span><span style="color:#e6e4e1;">feature/auth</span><span style="margin-left:auto; color:#6c6b68;">devbox 14m</span></div>
+              <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">d</span><span style="color:#98c379;">✓</span><span style="color:#e6e4e1;">example</span><span style="margin-left:auto; color:#6c6b68;">lab 1h</span></div>
+              <div style="display:flex; gap:1ch;"><span style="color:#e4834f;">f</span><span style="color:#6c6b68;">·</span><span style="color:#b9b6b2;">gpu-train</span><span style="margin-left:auto; color:#6c6b68;">gpu-box —</span></div>
+            </div>
+            <div style="flex:1; padding-left:2ch; border-left:1px solid #2b2c30;">
+              <div style="color:#6c6b68;">codex · waiting on you · 2m14s</div>
+              <div style="color:#b9b6b2;">&gt; I can drop the legacy index, but two</div>
+              <div style="color:#b9b6b2; padding-left:2ch;">migrations still reference it.</div>
+              <div style="display:flex; gap:2ch;"><span style="color:#e4834f;">a</span><span style="color:#e6e4e1;">drop it</span><span style="color:#e4834f;">s</span><span style="color:#e6e4e1;">deprecate</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Landscape is the only mobile orientation with room for two panes, so list and detail sit side by side and the footer folds up into the header — eight rows is not enough to spend one on a rule. This is the same layout logic as <a href="#1b">1b</a>, just at a quarter of the height.</div>
+      </div>
+
+      <div style="width:336px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">ConnectBot — 16 colours, no glyphs</div>
+        <div style="width:38ch; box-sizing:border-box; background:#000000; color:#c0c0c0; font-size:14px; line-height:22px; padding:0 1ch;">
+          <div style="display:flex; gap:1ch; background:#c0c0c0; color:#000000; margin:0 -1ch; padding:0 1ch;"><span style="font-weight:700;">bp</span><span>devbox</span><span style="margin-left:auto;">! 1</span></div>
+          <div style="color:#555555; overflow:hidden; white-space:nowrap;">------------------------------------------</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#ffffff;">a</span><span style="color:#aa8800;">!</span><span style="color:#ffffff;">blackpepper</span><span style="margin-left:auto;">2m</span></div>
+          <div style="padding-left:4ch;">"drop the legacy…"</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#ffffff;">s</span><span style="color:#00aaaa;">&gt;</span><span style="color:#ffffff;">feature/auth</span><span style="margin-left:auto;">14m</span></div>
+          <div style="padding-left:4ch;">cargo test</div>
+          <div style="display:flex; gap:1ch;"><span style="color:#ffffff;">d</span><span style="color:#00aa00;">+</span><span style="color:#ffffff;">example</span><span style="margin-left:auto;">1h</span></div>
+          <div style="color:#555555; overflow:hidden; white-space:nowrap;">------------------------------------------</div>
+          <div style="display:flex; gap:2ch; background:#c0c0c0; color:#000000; margin:0 -1ch; padding:0 1ch;"><span>m</span><span>r</span><span>t</span><span>p</span><span style="margin-left:auto;">ascii</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Accent becomes reverse video, <span style="color:#e6e4e1;">─</span> becomes <span style="color:#e6e4e1;">-</span>, and the status glyphs fall back to <span style="color:#e6e4e1;">! &gt; + x · ?</span>. Every column position is identical to the Termux render.</div>
+      </div>
+
+      <div style="width:1320px; background:#1c1d1f; padding:26px 32px; display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Parity — every desktop surface has a mobile route</div>
+        <div style="display:flex; gap:40px; font-size:12px; line-height:22px;">
+          <div style="flex:1;">
+            <div style="display:flex; gap:2ch; color:#6c6b68; font-size:10px; letter-spacing:0.1em;"><span style="width:22ch;">DESKTOP</span><span>MOBILE</span></div>
+            <div style="height:4px;"></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">3-pane dashboard</span><span style="color:#e6e4e1;">watch list, sorted by urgency</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">sidebar tree</span><span style="color:#e6e4e1;">flattened, host in the header</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">ports panel</span><span style="color:#e6e4e1;">menu → ports</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">zellij attach</span><span style="color:#e6e4e1;">identical — stock zellij</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">work-mode status row</span><span style="color:#e6e4e1;">the header, on every screen</span></div>
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex; gap:2ch; color:#6c6b68; font-size:10px; letter-spacing:0.1em;"><span style="width:22ch;">DESKTOP</span><span>MOBILE</span></div>
+            <div style="height:4px;"></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">: command bar</span><span style="color:#e6e4e1;">m menu, or : if you have keys</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">:help</span><span style="color:#e6e4e1;">the menu is the help</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">flags and arguments</span><span style="color:#e6e4e1;">guided form, same argv</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">approval review</span><span style="color:#e6e4e1;">stacked, arm then confirm</span></div>
+            <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">overlays</span><span style="color:#e6e4e1;">full screens — no room to float</span></div>
+          </div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:17px; max-width:920px;">Nothing is removed on mobile, and nothing new is invented for it. The differences are all consequences of two numbers — <span style="color:#e6e4e1;">44 columns</span> and <span style="color:#e6e4e1;">12 rows</span> — plus one fact: there are no modifier keys. Where desktop shows things beside each other, mobile shows them one at a time; where desktop lets you type a command, mobile lets you pick the same command; where desktop can afford a floating overlay, mobile gives it the whole screen.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section style="display:flex; flex-wrap:wrap; gap:56px; padding:48px; font-family:'JetBrains Mono', ui-monospace, Menlo, monospace; align-items:flex-start;">
+
+  <div id="1a" style="width:720px; display:flex; flex-direction:column; gap:20px;">
+    <div style="display:flex; align-items:baseline; gap:12px; color:#8b8a87; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;">
+      <span style="border:1px solid #3a3b3e; border-radius:3px; padding:2px 7px; color:#e4834f;">1a</span>
+      <span>Logo system</span>
+    </div>
+
+    <div style="background:#1c1d1f; padding:36px 32px; display:flex; flex-direction:column; gap:34px;">
+      <div style="display:flex; align-items:center; gap:28px;">
+        <div style="width:96px; height:96px; background:#e4834f; color:#1c1d1f; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:11px; white-space:pre; font-weight:700;">█
+█▀▄  █▀▄
+█▄▀  █▄▀
+     █</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="font-size:34px; line-height:34px; letter-spacing:-0.02em; color:#e6e4e1; font-weight:500;">black<span style="color:#e4834f;">pepper</span></div>
+          <div style="font-size:12px; color:#8b8a87; letter-spacing:0.04em;">remote-first terminal workspace for coding agents</div>
+        </div>
+      </div>
+
+      <div style="height:1px; background:#2b2c30;"></div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Terminal banner — first run, <span style="color:#e6e4e1;">bp</span> with no workspace</div>
+        <div style="background:#141517; padding:20px 22px; font-size:13px; line-height:18px; color:#e6e4e1;">
+          <div style="color:#e4834f; white-space:pre; font-size:13px; line-height:13px;">█
+█▀▄  █▀▄
+█▄▀  █▄▀
+     █</div>
+          <div style="height:18px;"></div>
+          <div><span style="color:#e6e4e1;">blackpepper</span> <span style="color:#8b8a87;">v0.4.0 · zellij 0.44.3 · worktrunk 0.72.0</span></div>
+          <div style="height:18px;"></div>
+          <div><span style="color:#8b8a87;">this folder is registered.  press</span> <span style="color:#e6e4e1;">enter</span> <span style="color:#8b8a87;">to open its session.</span></div>
+          <div><span style="color:#8b8a87;">or</span> <span style="color:#e6e4e1;">:host add &lt;name&gt; &lt;ssh-alias&gt;</span> <span style="color:#8b8a87;">to work on another machine.</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Four rows, twelve columns. Built only from ▀ ▄ █ ▌ ▐ ▄▀ half-blocks — no font dependency beyond a box-drawing-capable monospace, no color needed (renders as plain fg on a 2-color terminal).</div>
+      </div>
+
+      <div style="height:1px; background:#2b2c30;"></div>
+
+      <div style="display:flex; gap:26px; align-items:flex-start;">
+        <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+          <div style="width:72px; height:72px; border-radius:16px; background:#e4834f; display:flex; align-items:center; justify-content:center;">
+            <div style="display:grid; grid-template-columns:repeat(2, 12px); gap:8px;">
+              <div style="width:12px; height:12px; border-radius:50%; background:#1c1d1f;"></div>
+              <div style="width:12px; height:12px; border-radius:50%; background:#1c1d1f;"></div>
+              <div style="width:12px; height:12px; border-radius:50%; background:#1c1d1f;"></div>
+              <div style="width:12px; height:12px; border-radius:50%; background:#1c1d1f;"></div>
+            </div>
+          </div>
+          <div style="font-size:10px; color:#8b8a87;">app icon 72px</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+          <div style="width:72px; height:72px; border-radius:16px; background:#1c1d1f; border:1px solid #2b2c30; display:flex; align-items:center; justify-content:center; color:#e4834f; font-size:9px; line-height:9px; white-space:pre; font-weight:700;">█
+█▀▄  █▀▄
+█▄▀  █▄▀
+     █</div>
+          <div style="font-size:10px; color:#8b8a87;">dark variant</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+          <div style="width:32px; height:32px; background:#e4834f; display:flex; align-items:center; justify-content:center;">
+            <div style="display:grid; grid-template-columns:repeat(2, 6px); gap:4px;">
+              <div style="width:6px; height:6px; border-radius:50%; background:#1c1d1f;"></div>
+              <div style="width:6px; height:6px; border-radius:50%; background:#1c1d1f;"></div>
+              <div style="width:6px; height:6px; border-radius:50%; background:#1c1d1f;"></div>
+              <div style="width:6px; height:6px; border-radius:50%; background:#1c1d1f;"></div>
+            </div>
+          </div>
+          <div style="font-size:10px; color:#8b8a87;">favicon 32</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+          <div style="width:16px; height:16px; background:#e4834f; display:flex; align-items:center; justify-content:center;">
+            <div style="display:grid; grid-template-columns:repeat(2, 3px); gap:2px;">
+              <div style="width:3px; height:3px; background:#1c1d1f;"></div>
+              <div style="width:3px; height:3px; background:#1c1d1f;"></div>
+              <div style="width:3px; height:3px; background:#1c1d1f;"></div>
+              <div style="width:3px; height:3px; background:#1c1d1f;"></div>
+            </div>
+          </div>
+          <div style="font-size:10px; color:#8b8a87;">16px</div>
+        </div>
+        <div style="flex:1; font-size:11px; color:#6c6b68; line-height:16px;">
+          The icon is the grinder plate: four holes on an ember square. It survives 16px because it is four squares on a field — the same silhouette the block mark makes at 4 rows.
+        </div>
+      </div>
+
+      <div style="height:1px; background:#2b2c30;"></div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Social card 1280×640 — crop</div>
+        <div style="height:200px; background:#141517; display:flex; align-items:center; justify-content:space-between; padding:0 40px;">
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:30px; color:#e6e4e1; font-weight:500;">black<span style="color:#e4834f;">pepper</span></div>
+            <div style="font-size:13px; color:#8b8a87;">one UI for local folders and Linux SSH hosts.<br>zellij keeps the work alive where it runs.</div>
+          </div>
+          <div style="color:#e4834f; font-size:22px; line-height:22px; white-space:pre; font-weight:700; opacity:0.9;">█
+█▀▄  █▀▄
+█▄▀  █▄▀
+     █</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:14px; background:#1c1d1f; padding:26px 32px;">
+      <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">One accent, and what happens without it</div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        <div style="display:flex; flex-direction:column; gap:6px;"><div style="width:132px; height:44px; background:#e4834f;"></div><div style="font-size:10px; color:#8b8a87; line-height:15px;">Peppercorn<br>#E4834F · oklch(.70 .14 45)</div></div>
+        <div style="display:flex; flex-direction:column; gap:6px;"><div style="width:132px; height:44px; background:#1c1d1f; border:1px solid #2b2c30;"></div><div style="font-size:10px; color:#8b8a87; line-height:15px;">Canvas<br>terminal default bg</div></div>
+        <div style="display:flex; flex-direction:column; gap:6px;"><div style="width:132px; height:44px; background:#e6e4e1;"></div><div style="font-size:10px; color:#8b8a87; line-height:15px;">Ink<br>terminal default fg</div></div>
+      </div>
+      <div style="font-size:11px; color:#6c6b68; line-height:17px;">
+        Accent is emitted as a truecolor SGR only when <span style="color:#e6e4e1;">COLORTERM</span> says truecolor. At 256 colors it degrades to <span style="color:#e6e4e1;">color 173</span>; at 16 colors to <span style="color:#e6e4e1;">yellow</span>; at 2 colors to <span style="color:#e6e4e1;">bold</span>. The mark itself carries no color information — it is legible in every one of those tiers.
+      </div>
+    </div>
+  </div>
+
+  <div id="1b" style="width:1320px; display:flex; flex-direction:column; gap:20px;">
+    <div style="display:flex; align-items:baseline; gap:12px; color:#8b8a87; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;">
+      <span style="border:1px solid #3a3b3e; border-radius:3px; padding:2px 7px; color:#e4834f;">1b</span>
+      <span>TUI — borderless, 16-ANSI floor</span>
+    </div>
+
+    <div style="width:1280px; height:660px; background:#1c1d1f; color:#e6e4e1; font-size:13px; line-height:20px; display:flex; flex-direction:column; box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="height:20px; display:flex; align-items:center; padding:0 2ch; gap:2ch; background:#232427;">
+        <span style="color:#e4834f; font-weight:700;">bp</span>
+        <span style="color:#e6e4e1;">blackpepper</span>
+        <span style="color:#6c6b68;">sudhanshu-devbox:/home/s/dev/blackpepper</span>
+        <span style="margin-left:auto; color:#6c6b68;">main* ↑2 · PR #418 open · v0.4.0</span>
+      </div>
+
+      <div style="flex:1; display:flex; min-height:0;">
+        <div style="width:32ch; background:#232427; padding:12px 2ch; display:flex; flex-direction:column; gap:2px;">
+          <div style="color:#6c6b68; font-size:11px; letter-spacing:0.14em;">HOSTS</div>
+          <div style="height:6px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#98c379;">●</span><span style="color:#e6e4e1;">sudhanshu-devbox</span><span style="margin-left:auto; color:#6c6b68;">local</span></div>
+          <div style="color:#6c6b68; padding-left:2ch;">folder</div>
+          <div style="display:flex; padding-left:3ch; color:#b9b6b2;"><span>dev</span><span style="margin-left:auto; color:#6c6b68;">·</span></div>
+          <div style="color:#6c6b68; padding-left:2ch;">sudhanshug16/blackpepper</div>
+          <div style="display:flex; padding-left:3ch; background:#e4834f; color:#1c1d1f; margin-left:-2ch; padding-right:2ch; margin-right:-2ch; padding-left:5ch;"><span>blackpepper</span><span style="margin-left:auto;">▸ 2m</span></div>
+          <div style="display:flex; padding-left:3ch; color:#b9b6b2;"><span>feature/auth</span><span style="margin-left:auto; color:#e5c07b;">! asks</span></div>
+          <div style="height:14px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#e5c07b;">◐</span><span style="color:#e6e4e1;">lab</span><span style="margin-left:auto; color:#6c6b68;">connecting</span></div>
+          <div style="color:#6c6b68; padding-left:2ch;">srv/example</div>
+          <div style="display:flex; padding-left:3ch; color:#b9b6b2;"><span>example</span><span style="margin-left:auto; color:#6c6b68;">·</span></div>
+          <div style="height:14px;"></div>
+          <div style="display:flex; gap:1ch;"><span style="color:#6c6b68;">○</span><span style="color:#6c6b68;">gpu-box</span><span style="margin-left:auto; color:#6c6b68;">off</span></div>
+        </div>
+
+        <div style="flex:1; background:#1c1d1f; display:flex; flex-direction:column; overflow:hidden;">
+
+          <div style="display:flex; background:#0e0f10;">
+            <span style="background:#3a3b3e; color:#e6e4e1; padding:0 1ch;">bp-blackpepper</span>
+            <span style="background:#98c379; color:#0e0f10; padding:0 1ch;">shell</span>
+            <span style="background:#26272a; color:#8b8a87; padding:0 1ch;">agent-codex</span>
+            <span style="background:#26272a; color:#8b8a87; padding:0 1ch;">agent-claude</span>
+            <span style="background:#26272a; color:#8b8a87; padding:0 1ch;">web</span>
+            <span style="flex:1; background:#0e0f10;"></span>
+          </div>
+
+          <div style="flex:1; display:flex; flex-direction:column; padding:0 1ch; min-height:0;">
+            <div style="display:flex; color:#98c379;"><span style="white-space:nowrap;">╭─ cargo&nbsp;</span><span style="flex:1; overflow:hidden; white-space:nowrap;">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</span><span>╮</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">$ cargo test --workspace</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;"><span style="color:#98c379;">   Compiling</span> blackpepper v0.4.0 (/home/s/dev/blackpepper)</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;"><span style="color:#98c379;">    Finished</span> test profile [unoptimized + debuginfo] in 41.02s</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">     <span style="color:#e6e4e1;">Running</span> unittests src/lib.rs</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; padding:0 1ch;"></span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">test render::manage_mode_keeps_the_dashboard ... <span style="color:#98c379;">ok</span></span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">test ports::ambiguous_socket_is_refused ........ <span style="color:#98c379;">ok</span></span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; padding:0 1ch;"></span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#8b8a87; padding:0 1ch; overflow:hidden; white-space:nowrap;">test result: <span style="color:#98c379;">ok</span>. 412 passed; 0 failed; 3 ignored</span><span>│</span></div>
+            <div style="display:flex; color:#98c379;"><span>│</span><span style="flex:1; color:#e6e4e1; padding:0 1ch; overflow:hidden; white-space:nowrap;">$ <span style="background:#e6e4e1; color:#1c1d1f;">&nbsp;</span></span><span>│</span></div>
+            <div style="flex:1;"></div>
+            <div style="display:flex; color:#98c379;"><span>╰</span><span style="flex:1; overflow:hidden; white-space:nowrap;">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</span><span>╯</span></div>
+          </div>
+
+          <div style="display:flex; gap:1ch; background:#0e0f10; padding:0 1ch; overflow:hidden; white-space:nowrap;">
+            <span style="color:#8b8a87;">Ctrl +</span>
+            <span style="background:#26272a;"><span style="color:#98c379;">&lt;g&gt;</span> <span style="color:#e6e4e1;">LOCK</span></span>
+            <span style="background:#26272a;"><span style="color:#98c379;">&lt;p&gt;</span> <span style="color:#e6e4e1;">PANE</span></span>
+            <span style="background:#26272a;"><span style="color:#98c379;">&lt;t&gt;</span> <span style="color:#e6e4e1;">TAB</span></span>
+            <span style="background:#26272a;"><span style="color:#98c379;">&lt;n&gt;</span> <span style="color:#e6e4e1;">RESIZE</span></span>
+            <span style="background:#26272a;"><span style="color:#98c379;">&lt;h&gt;</span> <span style="color:#e6e4e1;">MOVE</span></span>
+            <span style="background:#26272a;"><span style="color:#98c379;">&lt;s&gt;</span> <span style="color:#e6e4e1;">SEARCH</span></span>
+            <span style="background:#26272a;"><span style="color:#98c379;">&lt;o&gt;</span> <span style="color:#e6e4e1;">SESSION</span></span>
+            <span style="background:#26272a;"><span style="color:#e06c75;">&lt;q&gt;</span> <span style="color:#e6e4e1;">QUIT</span></span>
+          </div>
+          <div style="background:#0e0f10; padding:0 1ch; color:#8b8a87; overflow:hidden; white-space:nowrap;">Tip: <span style="color:#e6e4e1;">Alt +</span> &lt;n&gt; =&gt; new pane. <span style="color:#e6e4e1;">Alt +</span> &lt;[]&gt; =&gt; rotate layout.</div>
+        </div>
+
+        <div style="width:30ch; background:#232427; padding:12px 2ch; display:flex; flex-direction:column; gap:2px;">
+          <div style="display:flex; color:#6c6b68; font-size:11px; letter-spacing:0.14em;"><span>PORTS</span><span style="margin-left:auto; letter-spacing:0; font-size:12px;">1/2</span></div>
+          <div style="height:6px;"></div>
+          <div style="display:flex; color:#b9b6b2;"><span>3000</span><span style="margin-left:auto; color:#e6e4e1;">→ 3000</span></div>
+          <div style="color:#6c6b68; padding-left:0;">node · localhost:3000</div>
+          <div style="height:10px;"></div>
+          <div style="display:flex; color:#b9b6b2;"><span>5432</span><span style="margin-left:auto; color:#6c6b68;">enter to forward</span></div>
+          <div style="color:#6c6b68;">postgres</div>
+          <div style="height:10px;"></div>
+          <div style="display:flex; color:#b9b6b2;"><span>8080</span><span style="margin-left:auto; color:#e06c75;">conflict</span></div>
+          <div style="color:#6c6b68;">caddy · retry :forward 8081</div>
+          <div style="height:14px;"></div>
+          <div style="color:#e5c07b;">⚠ 2 listeners unattributed</div>
+          <div style="color:#6c6b68;">:ports --all-host</div>
+        </div>
+      </div>
+
+      <div style="height:20px; background:#232427; display:flex; align-items:center; padding:0 2ch; gap:2ch;">
+        <span style="background:#e4834f; color:#1c1d1f; font-weight:700; padding:0 1ch;">MANAGE</span>
+        <span style="color:#6c6b68;">↑↓ select · enter attach · : command · ^] work · q quit</span>
+        <span style="margin-left:auto; color:#e5c07b;">! feature/auth asks</span>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:24px; flex-wrap:wrap;">
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Work mode — one status row</div>
+        <div style="background:#1c1d1f; padding:14px 0 0;">
+          <div style="color:#8b8a87; padding:0 2ch 14px; white-space:pre; font-size:13px; line-height:20px;">❯ npm run dev
+  <span style="color:#98c379;">ready</span> in 812 ms  ·  <span style="color:#e6e4e1;">http://localhost:3000</span></div>
+          <div style="height:20px; background:#232427; display:flex; align-items:center; padding:0 2ch; gap:2ch; font-size:13px;">
+            <span style="color:#e4834f; font-weight:700;">bp</span>
+            <span style="color:#e6e4e1;">blackpepper</span>
+            <span style="color:#56b6c2;">▸ codex 2m</span>
+            <span style="margin-left:auto; color:#6c6b68;">^] manage · ^n next</span>
+          </div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Same row as Manage, same left anchor. Only the middle changes, so the eye never re-hunts for mode or workspace.</div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Command bar + :help</div>
+        <div style="background:#1c1d1f; padding:14px 2ch; display:flex; flex-direction:column; gap:2px; font-size:13px; line-height:20px;">
+          <div style="display:flex;"><span style="color:#e4834f;">:</span><span style="color:#e6e4e1;">forward&nbsp;</span><span style="color:#6c6b68;">&lt;port|address:port&gt;</span><span style="background:#e6e4e1; color:#1c1d1f;">&nbsp;</span></div>
+          <div style="height:10px;"></div>
+          <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#e6e4e1;">forward 3000</span><span style="color:#6c6b68;">discovered · node</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">forward 5432</span><span style="color:#6c6b68;">discovered · postgres</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:22ch; color:#b9b6b2;">forward cancel 3000</span><span style="color:#6c6b68;">active on this client</span></div>
+          <div style="height:10px;"></div>
+          <div style="color:#6c6b68;">binds to client loopback only · enter run · esc cancel</div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Completion is grounded in discovered state, not a static command list — an argument you can't run never appears.</div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">:help — grouped, current context first</div>
+        <div style="background:#1c1d1f; padding:14px 2ch; font-size:13px; line-height:20px;">
+          <div style="display:flex;"><span style="color:#e4834f;">:</span><span style="color:#e6e4e1;">help</span><span style="margin-left:auto; color:#6c6b68;">esc close · ↑↓ scroll</span></div>
+          <div style="height:10px;"></div>
+          <div style="color:#6c6b68; font-size:11px; letter-spacing:0.14em;">THIS WORKSPACE</div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:agent spawn &lt;provider&gt;</span><span style="color:#6c6b68;">codex · claude · opencode</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:service start &lt;name&gt;</span><span style="color:#6c6b68;">web</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:ports [--all-host]</span><span style="color:#6c6b68;">3 listeners known</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:forward &lt;port&gt;</span><span style="color:#6c6b68;">to client loopback</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:workspace terminate</span><span style="color:#6c6b68;">ends the zellij session</span></div>
+          <div style="height:10px;"></div>
+          <div style="color:#6c6b68; font-size:11px; letter-spacing:0.14em;">REPOSITORY</div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:worktree list</span><span style="color:#6c6b68;">branches and worktrees</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:worktree create &lt;branch&gt;</span><span style="color:#6c6b68;">--base &lt;ref&gt; · previews first</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:worktree open &lt;target&gt;</span><span style="color:#6c6b68;">branch · PR · URL</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#6c6b68;">:approve</span><span style="color:#6c6b68;">nothing under review</span></div>
+          <div style="height:10px;"></div>
+          <div style="color:#6c6b68; font-size:11px; letter-spacing:0.14em;">HOSTS</div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:host add &lt;name&gt; &lt;alias&gt;</span><span style="color:#6c6b68;">openssh alias, literal</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:host connect lab</span><span style="color:#e5c07b;">connecting</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:26ch; color:#e6e4e1;">:refresh · :status explain</span><span style="color:#6c6b68;">registries · agent diagnostics</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Unavailable commands stay listed but dim, with the reason in the right column — the list never lies about what will run.</div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Approval review</div>
+        <div style="background:#1c1d1f; padding:14px 2ch; font-size:13px; line-height:20px;">
+          <div style="display:flex; gap:2ch;"><span style="color:#e5c07b;">⚠</span><span style="color:#e6e4e1;">worktrunk will mutate this repository</span></div>
+          <div style="height:10px;"></div>
+          <div style="color:#6c6b68;">repository</div>
+          <div style="color:#b9b6b2;">sudhanshug16/blackpepper</div>
+          <div style="height:8px;"></div>
+          <div style="color:#6c6b68;">mutation</div>
+          <div style="color:#e6e4e1; word-break:break-all;">wt create feature/auth --base main --foreground --format=json</div>
+          <div style="height:8px;"></div>
+          <div style="color:#6c6b68;">unapproved project hooks</div>
+          <div style="color:#e6e4e1;">post-create: ./scripts/bootstrap.sh</div>
+          <div style="color:#e6e4e1;">post-create: pnpm install --frozen-lockfile</div>
+          <div style="height:12px;"></div>
+          <div style="color:#6c6b68;">approval binds to this exact argv and hook plan.</div>
+          <div style="display:flex; gap:2ch; margin-top:6px;"><span style="background:#e4834f; color:#1c1d1f; padding:0 1ch; font-weight:700;">:approve</span><span style="color:#6c6b68;">run · esc dismiss · ↑↓ scroll</span></div>
+        </div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Agent status vocabulary</div>
+        <div style="background:#1c1d1f; padding:14px 2ch; font-size:13px; line-height:22px;">
+          <div style="display:flex; gap:2ch;"><span style="width:3ch; color:#6c6b68;">·</span><span style="width:12ch; color:#6c6b68;">idle</span><span style="width:10ch; color:#6c6b68;">default</span><span style="color:#6c6b68;">no run in this workspace</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:3ch; color:#56b6c2;">▸</span><span style="width:12ch; color:#e6e4e1;">running</span><span style="width:10ch; color:#6c6b68;">cyan</span><span style="color:#6c6b68;">provider event, with elapsed</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:3ch; color:#e5c07b;">!</span><span style="width:12ch; color:#e6e4e1;">asks</span><span style="width:10ch; color:#6c6b68;">yellow</span><span style="color:#6c6b68;">needs_input — the only nagging state</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:3ch; color:#98c379;">✓</span><span style="width:12ch; color:#e6e4e1;">done</span><span style="width:10ch; color:#6c6b68;">green</span><span style="color:#6c6b68;">clears on next attach</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:3ch; color:#e06c75;">×</span><span style="width:12ch; color:#e6e4e1;">exited</span><span style="width:10ch; color:#6c6b68;">red</span><span style="color:#6c6b68;">pane gone, no relaunch</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:3ch; color:#6c6b68;">?</span><span style="width:12ch; color:#b9b6b2;">unsure</span><span style="width:10ch; color:#6c6b68;">dim</span><span style="color:#6c6b68;">partial coverage · :status explain</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">Six words, one glyph each, one column wide. “ready” is gone — it read like a state the agent was in, not a state the client guessed.</div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Overlays — picker, loader</div>
+        <div style="background:#1c1d1f; padding:0; display:flex; flex-direction:column;">
+          <div style="background:#232427; padding:12px 2ch; font-size:13px; line-height:20px;">
+            <div style="color:#6c6b68; font-size:11px; letter-spacing:0.14em;">SWITCH TO</div>
+            <div style="height:6px;"></div>
+            <div style="display:flex; background:#e4834f; color:#1c1d1f; margin:0 -2ch; padding:0 2ch;"><span>blackpepper</span><span style="margin-left:auto;">devbox · ▸ 2m</span></div>
+            <div style="display:flex; color:#b9b6b2;"><span>feature/auth</span><span style="margin-left:auto; color:#e5c07b;">devbox · ! asks</span></div>
+            <div style="display:flex; color:#b9b6b2;"><span>example</span><span style="margin-left:auto; color:#6c6b68;">lab · ·</span></div>
+            <div style="height:8px;"></div>
+            <div style="color:#6c6b68;">type to filter · enter attach · esc cancel</div>
+          </div>
+          <div style="height:14px;"></div>
+          <div style="padding:0 2ch 14px; font-size:13px; line-height:20px;">
+            <div style="display:flex; gap:2ch;"><span style="color:#e4834f;">⠹</span><span style="color:#e6e4e1;">connecting to lab</span></div>
+            <div style="color:#6c6b68; padding-left:3ch;">openssh control connection · esc cancels</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">SSH auth — first-use host key</div>
+        <div style="background:#1c1d1f; padding:14px 2ch; font-size:13px; line-height:20px;">
+          <div style="display:flex; gap:2ch;"><span style="color:#e5c07b;">⚠</span><span style="color:#e6e4e1;">lab is not in known_hosts</span></div>
+          <div style="height:8px;"></div>
+          <div style="color:#6c6b68;">ED25519 key fingerprint</div>
+          <div style="color:#e6e4e1; word-break:break-all;">SHA256:9Xk2r+Qm7Lp0aZ1cVbN4tYuIoP8sD3fG6hJkL9mN0oQ</div>
+          <div style="height:12px;"></div>
+          <div style="color:#6c6b68;">openssh owns this decision — blackpepper only relays it.</div>
+          <div style="height:12px;"></div>
+          <div style="display:flex;"><span style="color:#e4834f;">password:&nbsp;</span><span style="color:#e6e4e1;">••••••••</span><span style="background:#e6e4e1; color:#1c1d1f;">&nbsp;</span></div>
+          <div style="color:#6c6b68;">^c cancels · nothing is stored</div>
+        </div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">Empty / first run</div>
+        <div style="background:#1c1d1f; padding:20px 2ch; font-size:13px; line-height:20px;">
+          <div style="color:#e4834f; white-space:pre; font-weight:700; line-height:12px; font-size:12px;">█
+█▀▄  █▀▄
+█▄▀  █▄▀
+     █</div>
+          <div style="height:14px;"></div>
+          <div style="color:#e6e4e1;">/home/s/dev/blackpepper is registered.</div>
+          <div style="height:10px;"></div>
+          <div style="display:flex; gap:2ch;"><span style="width:16ch; color:#e6e4e1;">enter</span><span style="color:#6c6b68;">open this workspace</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:16ch; color:#e6e4e1;">:host add</span><span style="color:#6c6b68;">work on a linux ssh host</span></div>
+          <div style="display:flex; gap:2ch;"><span style="width:16ch; color:#e6e4e1;">:agent spawn</span><span style="color:#6c6b68;">codex · claude · opencode</span></div>
+        </div>
+      </div>
+
+      <div style="width:628px; display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:11px; color:#8b8a87; letter-spacing:0.1em; text-transform:uppercase;">The 16-color floor</div>
+        <div style="background:#000000; padding:14px 2ch; font-size:13px; line-height:20px; color:#c0c0c0;">
+          <div style="display:flex; gap:2ch;"><span style="background:#c0c0c0; color:#000000; font-weight:700;">&nbsp;MANAGE&nbsp;</span><span>↑↓ select · enter attach · : command</span></div>
+          <div style="height:10px;"></div>
+          <div style="display:flex;"><span style="color:#00aa00;">●&nbsp;</span><span style="color:#ffffff;">sudhanshu-devbox</span></div>
+          <div style="padding-left:2ch;">sudhanshug16/blackpepper</div>
+          <div style="display:flex; padding-left:3ch;"><span style="background:#c0c0c0; color:#000000;">blackpepper</span><span style="margin-left:auto; color:#00aaaa;">▸ 2m</span></div>
+          <div style="display:flex; padding-left:3ch;"><span>feature/auth</span><span style="margin-left:auto; color:#aa8800;">! asks</span></div>
+        </div>
+        <div style="font-size:11px; color:#6c6b68; line-height:16px;">
+          No shade tiers exist here, so separation falls back to what every terminal has: a blank column, a dim uppercase label, and <span style="color:#e6e4e1;">reverse video</span> for selection and the mode badge. Accent becomes reverse or yellow. Nothing in the layout moves — only the paint changes.
+        </div>
+      </div>
+
+    </div>
+
+    <div style="background:#1c1d1f; padding:24px 32px; display:flex; gap:36px; font-size:11px; line-height:17px; color:#6c6b68;">
+      <div style="width:300px;"><div style="color:#c9ced6; margin-bottom:6px; letter-spacing:0.1em; text-transform:uppercase;">Why borderless</div>Rounded boxes cost two rows and two columns per panel and draw more attention than anything inside them. Shade tiers cost nothing, and on a 16-color terminal the panels simply merge into a labelled column layout that still reads.</div>
+      <div style="width:300px;"><div style="color:#c9ced6; margin-bottom:6px; letter-spacing:0.1em; text-transform:uppercase;">Where the accent is allowed</div>Exactly four places: the <span style="color:#e6e4e1;">bp</span> anchor, the mode badge, the selected row, and the <span style="color:#e6e4e1;">:</span> prompt. Everything else is a named ANSI color the user's theme already owns.</div>
+      <div style="width:300px;"><div style="color:#c9ced6; margin-bottom:6px; letter-spacing:0.1em; text-transform:uppercase;">Ratatui reality check</div>Shade tiers keep the existing <span style="color:#e6e4e1;">blend_color</span> approach — 6% for a raised surface, no border style needed. Selection moves from a 16% blend to <span style="color:#e6e4e1;">Modifier::REVERSED</span> so it is correct on every color tier.</div>
+      <div style="width:300px;"><div style="color:#c9ced6; margin-bottom:6px; letter-spacing:0.1em; text-transform:uppercase;">Glyph budget</div>● ○ ◐ ▸ ! ✓ × ? ⚠ ⠹ and half-blocks. All are in the BMP and present in every common terminal font; each has an ASCII fallback (<span style="color:#e6e4e1;">* o . &gt; ! + x ? ! -</span>) behind one config flag.</div>
+    </div>
+  </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script></script>
+</body>
+</html>
