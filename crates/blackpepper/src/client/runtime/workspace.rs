@@ -6,6 +6,8 @@ use crate::transport::{HostCommand, HostTransport};
 use crate::workspace_identity::detect_local;
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
+mod managed_config_tests;
 mod persistence;
 mod session;
 mod sidecars;

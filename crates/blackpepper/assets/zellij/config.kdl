@@ -1,5 +1,18 @@
 // Blackpepper's default Zellij appearance. This file is selected only when
 // Zellij reports that the workspace host has no user or system configuration.
+//
+// Two rules shape it. Panes are edge to edge: a frame around every pane costs
+// two rows and two columns and draws more attention than anything inside it,
+// which is the same reason the Blackpepper dashboard is borderless. And the
+// tab bar is flat rectangles rather than powerline arrows, so the chrome reads
+// as labels rather than as decoration.
+//
+// The sixteen-colour palette below is what programs inside a pane paint with,
+// so it stays faithful: green is green, and a test suite that prints a green
+// "ok" gets one. Chrome takes its colour from the `themes` UI components
+// instead, which is what keeps the two from fighting.
+
+pane_frames false
 simplified_ui true
 theme "blackpepper"
 show_release_notes false
@@ -8,16 +21,153 @@ mouse_hover_effects false
 
 themes {
     blackpepper {
+        // Pane contents. Faithful ANSI, so program output is not recoloured.
         fg 230 228 225
         bg 28 29 31
+        black 14 15 16
         red 224 108 117
-        green 199 125 255
+        green 152 195 121
         yellow 229 192 123
         blue 127 140 255
         magenta 199 125 255
-        orange 228 131 79
         cyan 86 182 194
-        black 14 15 16
-        white 185 182 178
+        white 230 228 225
+        orange 184 160 74
+
+        // Chrome. `base` is foreground, `background` is fill, and the emphasis
+        // slots colour the shortcut letters Zellij highlights inside a ribbon.
+        text_unselected {
+            base 185 182 178
+            background 28 29 31
+            emphasis_0 184 160 74
+            emphasis_1 230 228 225
+            emphasis_2 184 160 74
+            emphasis_3 185 182 178
+        }
+        text_selected {
+            base 230 228 225
+            background 35 36 39
+            emphasis_0 184 160 74
+            emphasis_1 230 228 225
+            emphasis_2 184 160 74
+            emphasis_3 230 228 225
+        }
+
+        // Tabs and status-bar controls. The selected one carries the brand
+        // accent; the rest are a flat raised rectangle with dim text.
+        ribbon_unselected {
+            base 139 138 135
+            background 38 39 42
+            emphasis_0 185 182 178
+            emphasis_1 185 182 178
+            emphasis_2 185 182 178
+            emphasis_3 185 182 178
+        }
+        ribbon_selected {
+            base 14 15 16
+            background 184 160 74
+            emphasis_0 14 15 16
+            emphasis_1 14 15 16
+            emphasis_2 14 15 16
+            emphasis_3 14 15 16
+        }
+
+        list_unselected {
+            base 185 182 178
+            background 28 29 31
+            emphasis_0 184 160 74
+            emphasis_1 230 228 225
+            emphasis_2 184 160 74
+            emphasis_3 185 182 178
+        }
+        list_selected {
+            base 14 15 16
+            background 184 160 74
+            emphasis_0 14 15 16
+            emphasis_1 14 15 16
+            emphasis_2 14 15 16
+            emphasis_3 14 15 16
+        }
+
+        table_title {
+            base 184 160 74
+            background 28 29 31
+            emphasis_0 184 160 74
+            emphasis_1 230 228 225
+            emphasis_2 184 160 74
+            emphasis_3 185 182 178
+        }
+        table_cell_unselected {
+            base 185 182 178
+            background 28 29 31
+            emphasis_0 184 160 74
+            emphasis_1 230 228 225
+            emphasis_2 184 160 74
+            emphasis_3 185 182 178
+        }
+        table_cell_selected {
+            base 14 15 16
+            background 184 160 74
+            emphasis_0 14 15 16
+            emphasis_1 14 15 16
+            emphasis_2 14 15 16
+            emphasis_3 14 15 16
+        }
+
+        // Frames are off, but a floating pane still draws one.
+        frame_unselected {
+            base 108 107 104
+            background 28 29 31
+            emphasis_0 108 107 104
+            emphasis_1 108 107 104
+            emphasis_2 108 107 104
+            emphasis_3 108 107 104
+        }
+        frame_selected {
+            base 184 160 74
+            background 28 29 31
+            emphasis_0 184 160 74
+            emphasis_1 184 160 74
+            emphasis_2 184 160 74
+            emphasis_3 184 160 74
+        }
+        frame_highlight {
+            base 184 160 74
+            background 28 29 31
+            emphasis_0 184 160 74
+            emphasis_1 184 160 74
+            emphasis_2 184 160 74
+            emphasis_3 184 160 74
+        }
+
+        exit_code_success {
+            base 152 195 121
+            background 28 29 31
+            emphasis_0 152 195 121
+            emphasis_1 152 195 121
+            emphasis_2 152 195 121
+            emphasis_3 152 195 121
+        }
+        exit_code_error {
+            base 224 108 117
+            background 28 29 31
+            emphasis_0 224 108 117
+            emphasis_1 224 108 117
+            emphasis_2 224 108 117
+            emphasis_3 224 108 117
+        }
+
+        multiplayer_user_colors {
+            player_1 184 160 74
+            player_2 86 182 194
+            player_3 199 125 255
+            player_4 152 195 121
+            player_5 229 192 123
+            player_6 127 140 255
+            player_7 224 108 117
+            player_8 185 182 178
+            player_9 108 107 104
+            player_10 139 138 135
+        }
     }
 }
