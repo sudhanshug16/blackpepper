@@ -172,14 +172,13 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
     let mut reader = transport.master_pty_mut().unwrap().take_reader().unwrap();
     assert!(transport.master_pty_mut().unwrap().take_reader().is_err());
     let (prompt_sender, prompt_receiver) = std::sync::mpsc::sync_channel(1);
-    let (release_sender, release_receiver) = std::sync::mpsc::channel();
     let reader_thread = std::thread::spawn(move || {
         let mut prompt = [0u8; 10];
         let result = reader.read_exact(&mut prompt).map(|()| prompt);
         let prompt_was_read = result.is_ok();
         let _ = prompt_sender.send(result);
         if prompt_was_read {
-            let _ = release_receiver.recv();
+            let _ = std::io::copy(&mut reader, &mut std::io::sink());
         }
     });
     let prompt = prompt_receiver
@@ -190,8 +189,17 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
     transport
         .master_pty_mut()
         .unwrap()
-        .write_all(b"secret\n")
+        .write_all(b"secret\r")
         .unwrap();
+
+    let authentication_deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !marker.exists() {
+        assert!(
+            std::time::Instant::now() < authentication_deadline,
+            "SSH stub did not consume terminal authentication input within five seconds"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
     fs::write(transport.control_socket_path().unwrap(), b"stub socket").unwrap();
 
     let mut state = ConnectionState::Connecting;
@@ -203,13 +211,11 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert_eq!(state, ConnectionState::Ready);
-    release_sender.send(()).unwrap();
-    reader_thread.join().unwrap();
 
     transport
         .master_pty_mut()
         .unwrap()
-        .write_all(b"quit\n")
+        .write_all(b"quit\r")
         .unwrap();
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     let exit = loop {
@@ -223,6 +229,7 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
         std::thread::sleep(Duration::from_millis(10));
     };
     assert!(exit.success, "SSH stub rejected the cooperative quit");
+    reader_thread.join().unwrap();
     transport.disconnect().unwrap();
 }
 
