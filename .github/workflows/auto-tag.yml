@@ -76,7 +76,15 @@ jobs:
           remote_main=$(git ls-remote origin refs/heads/main | awk '{print $1}')
           remote_tag=$(git ls-remote origin "refs/tags/$TAG" | awk '{print $1}')
           if [ "$remote_tag" = "$GITHUB_SHA" ]; then
-            echo "$TAG was created concurrently at this commit."
+            if [ "$remote_main" = "$GITHUB_SHA" ]; then
+              echo "$TAG was created concurrently at this commit."
+              exit 0
+            fi
+            echo "$TAG reached the server before a lost reply, but main advanced; removing the stale tag."
+            git push \
+              --force-with-lease="refs/tags/$TAG:$GITHUB_SHA" \
+              origin \
+              ":refs/tags/$TAG"
             exit 0
           fi
           if [ -z "$remote_tag" ] && [ "$remote_main" != "$GITHUB_SHA" ]; then
