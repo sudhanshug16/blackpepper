@@ -59,6 +59,7 @@ jobs:
           scripts/test-dev-installer.sh
           scripts/test-web-dev.sh
           scripts/test-website.sh
+          scripts/test-ssh-terminal-guard.sh
       - name: Install isolated development build
         run: scripts/setup.sh
       - name: Zellij socket namespace persistence acceptance
@@ -98,6 +99,8 @@ jobs:
           components: clippy,rustfmt
       - name: macOS formatting
         run: cargo fmt --all -- --check
+      - name: macOS terminal guard acceptance
+        run: scripts/test-ssh-terminal-guard.sh
       - name: macOS tests
         run: cargo test --workspace
       - name: macOS lint

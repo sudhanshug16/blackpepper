@@ -1,6 +1,7 @@
 use super::{build_tree, ClientEvent, DisplayStatus, EmbeddedTerminal, HostConnection, HostNode};
 use crate::client_config::ClientConfig;
 mod agent_run;
+mod input_modes;
 mod view;
 
 use crate::core::{HostAgentRun, HostId, RegistrySnapshot, WorkspaceId};
@@ -448,29 +449,11 @@ impl ClientState {
         }
         updated
     }
-
-    pub fn update_input_modes(&mut self) {
-        let desired = if self.mode == ClientMode::Manage {
-            InputModes::manage_interface()
-        } else {
-            self.active_terminal_mut()
-                .map(|terminal| terminal.input_modes())
-                .unwrap_or_default()
-        };
-        let bytes = desired.diff_bytes(&self.input_modes_applied);
-        if !bytes.is_empty() {
-            self.pending_input_mode_bytes.extend(bytes);
-            self.input_modes_applied = desired;
-        }
-    }
-
-    pub fn reset_input_modes(&mut self) {
-        let desired = InputModes::default();
-        self.pending_input_mode_bytes
-            .extend(desired.diff_bytes(&self.input_modes_applied));
-        self.input_modes_applied = desired;
-    }
 }
+
+#[cfg(test)]
+#[path = "state/input_mode_tests.rs"]
+mod input_mode_tests;
 
 #[cfg(test)]
 mod tests {

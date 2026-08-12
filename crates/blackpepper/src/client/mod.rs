@@ -28,6 +28,7 @@ use crate::core::WorkspaceId;
 pub enum ClientEvent {
     RawInput(Vec<u8>),
     InputFlush,
+    TerminalInputClosed,
     TerminalOutput(WorkspaceId, uuid::Uuid, Vec<u8>),
     TerminalNotice(WorkspaceId, uuid::Uuid, String),
     TerminalExited(WorkspaceId, uuid::Uuid),

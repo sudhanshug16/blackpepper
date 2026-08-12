@@ -40,5 +40,6 @@ fs2 = "0.4.3"
 tar = "0.4.44"
 ureq = { version = "2.12.1", default-features = false, features = ["tls"] }
 xz2 = "0.1.7"
+signal-hook = "0.3.18"
 
 [dev-dependencies]

@@ -16,6 +16,7 @@ pub(super) fn handle_event(
     match event {
         ClientEvent::RawInput(bytes) => handle_raw(state, runtime, &bytes),
         ClientEvent::InputFlush => flush_input(state, runtime),
+        ClientEvent::TerminalInputClosed => state.should_quit = true,
         ClientEvent::TerminalOutput(workspace_id, attachment_id, bytes) => {
             if let Some(terminal) = state
                 .terminals
@@ -360,3 +361,7 @@ fn handle_manage_event(state: &mut ClientState, runtime: &mut ClientRuntime, eve
 }
 
 pub(super) use manage::{apply_attachment, attach_selected};
+
+#[cfg(test)]
+#[path = "control/terminal_lifecycle_tests.rs"]
+mod terminal_lifecycle_tests;

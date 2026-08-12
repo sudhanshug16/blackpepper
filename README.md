@@ -66,6 +66,11 @@ host-key decisions, and password/passphrase/security-key prompts. Blackpepper
 relays those prompts and does not store credentials. `:host import` previews
 literal positive aliases from `~/.ssh/config`; it does not register them.
 
+Running this native client locally is the recommended SSH boundary. If a
+development session instead runs Linux `bp` inside an outer `ssh` command, use
+the optional [terminal guard](docs/macos-ssh-pty.md#recommended-ssh-boundary)
+so the local caller can restore its terminal after a lost data channel.
+
 Start an agent, create a worktree, or forward a discovered listener:
 
 ```text
