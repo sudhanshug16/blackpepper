@@ -67,6 +67,8 @@ ZELLIJ_SOCKET_ROOT=''
 BACKEND_SESSION=''
 HOSTILE_SOCKET_A="$TEST_ROOT/hostile-a"
 HOSTILE_SOCKET_B="$TEST_ROOT/hostile-b"
+HOSTILE_TMPDIR="$TEST_ROOT/hostile-tmp"
+HOSTILE_TMP_SOCKET="$HOSTILE_TMPDIR/zellij-$(id -u)"
 SECOND_RUNTIME="$TEST_ROOT/second-runtime"
 CANONICAL_SOCKET="/tmp/zellij-$(id -u)"
 SECOND_XDG_SOCKET="$SECOND_RUNTIME/zellij"
@@ -79,39 +81,80 @@ case "$E2E_DATA_HOME" in
   *) printf 'FAIL: namespace E2E data home must be absolute: %s\n' "$E2E_DATA_HOME" >&2; exit 1 ;;
 esac
 
+reported_session_rows_are_valid() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+rows = [row for row in data.split(b"\n") if row]
+valid = (
+    0 < len(data) <= 65_536
+    and data.endswith(b"\n")
+    and b"\0" not in data
+    and bool(rows)
+    and all(row != b"\r" for row in rows)
+)
+raise SystemExit(0 if valid else 1)
+PY
+}
+
+stderr_is_no_active_session() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+raise SystemExit(
+    0
+    if Path(sys.argv[1]).read_bytes().rstrip(b"\r\n")
+    == b"There is no active session!"
+    else 1
+)
+PY
+}
+
 namespace_probe() {
-  local socket_dir="$1" output error status stderr_text
+  local socket_dir="$1" output error rows status first_line missing_header
   output="$TEST_ROOT/probe.stdout"
   error="$TEST_ROOT/probe.stderr"
+  rows="$TEST_ROOT/probe.rows"
+  missing_header="Session '$BACKEND_SESSION' not found. The following sessions are active:"
   set +e
   ZELLIJ_SOCKET_DIR="$socket_dir" "$ZELLIJ_BIN" \
     --session "$BACKEND_SESSION" action list-clients >"$output" 2>"$error"
   status=$?
   set -e
-  stderr_text="$(tr -d '\r\n' < "$error")"
+  first_line="$(sed -n '1p' "$error")"
   if [ "$status" -eq 0 ]; then
-    if [ "$stderr_text" = \
-      "Session '$BACKEND_SESSION' not found. The following sessions are active:" ]; then
+    if [ "$first_line" = "$missing_header" ] &&
+      [ "$(wc -l < "$error")" -eq 1 ] &&
+      reported_session_rows_are_valid "$output"; then
       printf '%s\n' missing
       return 0
     fi
-    grep -Fxq 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND' "$output" || {
-      LAST_CAPTURE="$output"
-      fail_e2e "Zellij returned an invalid client list in namespace $socket_dir"
-    }
     [ ! -s "$error" ] || {
       LAST_CAPTURE="$error"
-      fail_e2e "Zellij reported stderr while probing namespace $socket_dir"
+      fail_e2e "Zellij reported unexpected stderr while probing namespace $socket_dir"
+    }
+    IFS= read -r first_line < "$output" || true
+    [ "$first_line" = 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND' ] || {
+      LAST_CAPTURE="$output"
+      fail_e2e "Zellij returned an invalid client list in namespace $socket_dir"
     }
     printf '%s\n' active
     return 0
   fi
-  if [ "$status" -eq 1 ] && [ ! -s "$output" ] &&
-    { [ "$stderr_text" = 'There is no active session!' ] ||
-      [ "$stderr_text" = \
-        "Session '$BACKEND_SESSION' not found. The following sessions are active:" ]; }; then
-    printf '%s\n' missing
-    return 0
+  if [ "$status" -eq 1 ] && [ ! -s "$output" ]; then
+    if stderr_is_no_active_session "$error"; then
+      printf '%s\n' missing
+      return 0
+    fi
+    tail -n +2 "$error" > "$rows"
+    if [ "$first_line" = "$missing_header" ] &&
+      reported_session_rows_are_valid "$rows"; then
+      printf '%s\n' missing
+      return 0
+    fi
   fi
   LAST_CAPTURE="$error"
   fail_e2e "Zellij namespace probe failed unexpectedly for $socket_dir (status $status)"
@@ -150,21 +193,25 @@ valid_backend_session() {
 }
 
 assert_single_canonical_namespace() {
-  local label="$1" canonical candidate state
-  canonical="$(namespace_probe "$CANONICAL_SOCKET")"
-  if [ "$canonical" != active ]; then
-    fail_e2e "$label split the registered Zellij session across socket namespaces"
-  fi
-  for candidate in "$HOSTILE_SOCKET_A" "$HOSTILE_SOCKET_B" "$SECOND_XDG_SOCKET"; do
-    state="$(namespace_probe "$candidate")"
-    [ "$state" = missing ] ||
-      fail_e2e "$label duplicated the registered Zellij session in $candidate"
+  local label="$1" attempts="${2:-150}" canonical candidate state
+  for _attempt in $(seq 1 "$attempts"); do
+    canonical="$(namespace_probe "$CANONICAL_SOCKET")"
+    for candidate in \
+      "$HOSTILE_SOCKET_A" "$HOSTILE_SOCKET_B" "$HOSTILE_TMP_SOCKET" \
+      "$SECOND_XDG_SOCKET"; do
+      state="$(namespace_probe "$candidate")"
+      [ "$state" = missing ] ||
+        fail_e2e "$label duplicated the registered Zellij session in $candidate"
+    done
+    if [ -d "${STANDARD_XDG_SOCKET%/zellij}" ]; then
+      state="$(namespace_probe "$STANDARD_XDG_SOCKET")"
+      [ "$state" = missing ] ||
+        fail_e2e "$label duplicated the registered Zellij session in $STANDARD_XDG_SOCKET"
+    fi
+    [ "$canonical" = active ] && return 0
+    [ "$_attempt" -eq "$attempts" ] || sleep 0.1
   done
-  if [ -d "${STANDARD_XDG_SOCKET%/zellij}" ]; then
-    state="$(namespace_probe "$STANDARD_XDG_SOCKET")"
-    [ "$state" = missing ] ||
-      fail_e2e "$label duplicated the registered Zellij session in $STANDARD_XDG_SOCKET"
-  fi
+  fail_e2e "$label split the registered Zellij session across socket namespaces"
 }
 
 wait_for_canonical_client_count() {
@@ -196,7 +243,7 @@ cleanup_namespace_e2e() {
   if [ -n "$ZELLIJ_BIN" ] && [ -x "$ZELLIJ_BIN" ] && [ -n "$BACKEND_SESSION" ]; then
     for socket_dir in \
       "$CANONICAL_SOCKET" "$HOSTILE_SOCKET_A" "$HOSTILE_SOCKET_B" \
-      "$SECOND_XDG_SOCKET" "$STANDARD_XDG_SOCKET"; do
+      "$HOSTILE_TMP_SOCKET" "$SECOND_XDG_SOCKET" "$STANDARD_XDG_SOCKET"; do
       ZELLIJ_SOCKET_DIR="$socket_dir" "$ZELLIJ_BIN" kill-session "$BACKEND_SESSION" \
         >/dev/null 2>&1 || true
     done
@@ -216,7 +263,7 @@ trap cleanup_namespace_e2e EXIT HUP INT TERM
 install -d -m 0700 \
   "$ARTIFACTS" "$WORKSPACE" "$TEMP_HOME" "$TEST_ROOT/config" \
   "$TEST_ROOT/state" "$TEST_ROOT/cache" "$HOSTILE_SOCKET_A" \
-  "$HOSTILE_SOCKET_B" "$SECOND_RUNTIME" "$E2E_DATA_HOME"
+  "$HOSTILE_SOCKET_B" "$HOSTILE_TMPDIR" "$SECOND_RUNTIME" "$E2E_DATA_HOME"
 printf '%s\n' '# Blackpepper Zellij namespace acceptance fixture' > "$WORKSPACE/README.md"
 git -C "$WORKSPACE" init --initial-branch=main --quiet
 git -C "$WORKSPACE" config user.name 'Blackpepper E2E'
@@ -233,6 +280,7 @@ export SHELL='/bin/bash'
 export TERM='xterm-256color'
 export LANG='C.UTF-8'
 export LC_ALL='C.UTF-8'
+export TMPDIR="$HOSTILE_TMPDIR"
 unset BLACKPEPPER_E2E_ZELLIJ_SOCKET_DIR
 
 # The first client resembles a non-desktop SSH/browser shell: no XDG runtime,
@@ -255,7 +303,7 @@ done
 BACKEND_SESSION="$(session_from_registry)"
 valid_backend_session "$BACKEND_SESSION" ||
   fail_e2e "registry returned invalid backend session: $BACKEND_SESSION"
-assert_single_canonical_namespace first-startup
+assert_single_canonical_namespace first-startup 150
 
 send_enter
 wait_for_screen ' WORK ' first-attached 30
