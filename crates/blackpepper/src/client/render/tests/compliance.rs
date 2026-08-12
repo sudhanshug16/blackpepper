@@ -232,8 +232,47 @@ fn completion_offers_only_listeners_this_client_has_discovered() {
     assert!(!rendered.contains("forward 5432"));
 
     let candidates = crate::client::completion::candidates(&state, "forward ");
-    assert_eq!(candidates.len(), 1);
-    assert_eq!(candidates[0].value, "forward 3000");
+    let listener_values = candidates
+        .iter()
+        .filter(|candidate| candidate.value != "forward cancel")
+        .map(|candidate| candidate.value.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(listener_values, ["forward 3000"]);
+    assert!(candidates
+        .iter()
+        .any(|candidate| candidate.value == "forward cancel"));
+}
+
+#[test]
+fn completion_uses_exact_addresses_when_a_port_has_multiple_listeners() {
+    let mut state = workspace_state();
+    let workspace = state.snapshot.workspaces[0].clone();
+    state.ports.insert(
+        workspace.host_id,
+        crate::ports::PortSnapshot {
+            listeners: ["127.0.0.1", "127.0.0.2"]
+                .into_iter()
+                .map(|address| crate::ports::PortListener {
+                    bind_address: address.to_owned(),
+                    port: 3000,
+                    pid: Some(1),
+                    process: Some("node".to_owned()),
+                    workspace_path: Some(workspace.root_path.clone().into()),
+                    attribution: crate::ports::AttributionConfidence::ExactCwd,
+                })
+                .collect(),
+            completeness: crate::ports::ProbeCompleteness::Full,
+            warning: None,
+        },
+    );
+
+    let values = crate::client::completion::candidates(&state, "forward ")
+        .into_iter()
+        .map(|candidate| candidate.value)
+        .collect::<Vec<_>>();
+    assert!(values.contains(&"forward 127.0.0.1:3000".to_owned()));
+    assert!(values.contains(&"forward 127.0.0.2:3000".to_owned()));
+    assert!(!values.contains(&"forward 3000".to_owned()));
 }
 
 #[test]
@@ -245,6 +284,23 @@ fn the_command_bar_shows_the_argument_it_is_waiting_for() {
     assert!(
         rendered.contains("<port|address:port>"),
         "missing argument placeholder in:\n{rendered}"
+    );
+}
+
+#[test]
+fn argument_completion_quotes_workspace_names_and_round_trips_through_the_parser() {
+    let mut state = workspace_state();
+    state.snapshot.workspaces[0].display_name = Some("black pepper".to_owned());
+    state.rebuild_tree();
+
+    let candidates = crate::client::completion::candidates(&state, "workspace switch black");
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].value, "workspace switch 'black pepper'");
+    assert_eq!(
+        crate::client::parse_command(&format!(":{}", candidates[0].value)).unwrap(),
+        crate::client::ClientCommand::WorkspaceSwitch {
+            selector: "black pepper".to_owned(),
+        }
     );
 }
 

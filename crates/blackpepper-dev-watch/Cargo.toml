@@ -1,0 +1,16 @@
+[package]
+name = "blackpepper-dev-watch"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "bp-dev-watch"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2.180"
+notify = "8.2.0"
+signal-hook = "0.3.18"
+tempfile = "3.24.0"
+toml = "0.9.11"

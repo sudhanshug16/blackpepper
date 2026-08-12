@@ -58,34 +58,35 @@ impl CorePaths {
         // one launched through SSH or an embedded terminal may not. Keep the
         // per-channel singleton in the state tree so both environments contend
         // on the same advisory lock. Production and development get one client
-        // each. The stable workspace/session registry and persistent safety
-        // locks remain shared so both channels see the same live resources.
-        self.singleton_lock_path_for(crate::IS_DEVELOPMENT_BUILD)
+        // each. A source-watch run is a third, temporary channel. The stable
+        // workspace/session registry and persistent safety locks remain shared
+        // so every channel sees the same live resources.
+        self.singleton_lock_path_for(client_channel())
     }
 
-    fn singleton_lock_path_for(&self, development: bool) -> PathBuf {
-        self.state_dir.join(if development {
-            "run/bp-dev.lock"
-        } else {
-            "run/bp.lock"
+    fn singleton_lock_path_for(&self, channel: ClientChannel) -> PathBuf {
+        self.state_dir.join(match channel {
+            ClientChannel::Production => "run/bp.lock",
+            ClientChannel::Development => "run/bp-dev.lock",
+            ClientChannel::SourceWatch => "run/bp-watch.lock",
         })
     }
 
     pub fn agent_events_path(&self) -> PathBuf {
-        self.agent_events_path_for(crate::IS_DEVELOPMENT_BUILD)
+        self.agent_events_path_for(client_channel())
     }
 
-    fn agent_events_path_for(&self, development: bool) -> PathBuf {
+    fn agent_events_path_for(&self, channel: ClientChannel) -> PathBuf {
         // Agent runs are launch/build-channel state, unlike the shared host,
         // workspace, and session inventory. Keeping the development event
         // schema separate prevents an experimental migration from making the
         // installed production helper unable to record or reconcile its own
         // live agents. The dev path is stable across rebuilds so compatible
         // upgrades can still rehydrate an existing development run.
-        self.state_dir.join(if development {
-            "agent-events-dev.sqlite3"
-        } else {
-            "agent-events.sqlite3"
+        self.state_dir.join(match channel {
+            ClientChannel::Production => "agent-events.sqlite3",
+            ClientChannel::Development => "agent-events-dev.sqlite3",
+            ClientChannel::SourceWatch => "agent-events-watch.sqlite3",
         })
     }
 
@@ -107,6 +108,23 @@ impl CorePaths {
         create_private_dir(&self.repository_lock_dir())?;
         create_private_dir(&self.session_lock_dir())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ClientChannel {
+    Production,
+    Development,
+    SourceWatch,
+}
+
+fn client_channel() -> ClientChannel {
+    if crate::IS_SOURCE_WATCH_BUILD {
+        ClientChannel::SourceWatch
+    } else if crate::IS_DEVELOPMENT_BUILD {
+        ClientChannel::Development
+    } else {
+        ClientChannel::Production
     }
 }
 
@@ -242,20 +260,28 @@ mod tests {
     }
 
     #[test]
-    fn production_and_development_clients_have_distinct_singletons_but_shared_state_locks() {
+    fn runtime_channels_have_distinct_singletons_but_shared_state_locks() {
         let root = tempfile::tempdir().unwrap();
         let paths = CorePaths::from_roots(root.path().join("state"), root.path().join("run"));
         paths.prepare().unwrap();
-        let production = paths.singleton_lock_path_for(false);
-        let development = paths.singleton_lock_path_for(true);
+        let production = paths.singleton_lock_path_for(ClientChannel::Production);
+        let development = paths.singleton_lock_path_for(ClientChannel::Development);
+        let source_watch = paths.singleton_lock_path_for(ClientChannel::SourceWatch);
 
         assert_ne!(production, development);
-        assert_ne!(
-            paths.agent_events_path_for(false),
-            paths.agent_events_path_for(true)
-        );
+        assert_ne!(production, source_watch);
+        assert_ne!(development, source_watch);
+        let event_paths = [
+            paths.agent_events_path_for(ClientChannel::Production),
+            paths.agent_events_path_for(ClientChannel::Development),
+            paths.agent_events_path_for(ClientChannel::SourceWatch),
+        ];
+        assert_ne!(event_paths[0], event_paths[1]);
+        assert_ne!(event_paths[0], event_paths[2]);
+        assert_ne!(event_paths[1], event_paths[2]);
         let production_lock = SingletonLock::acquire(&production).unwrap();
         let development_lock = SingletonLock::acquire(&development).unwrap();
+        let source_watch_lock = SingletonLock::acquire(&source_watch).unwrap();
         assert_eq!(
             paths.registry_path(),
             paths.state_dir().join("host-registry.sqlite3")
@@ -268,6 +294,6 @@ mod tests {
             paths.session_lock_dir(),
             paths.state_dir().join("run/session-locks")
         );
-        drop((production_lock, development_lock));
+        drop((production_lock, development_lock, source_watch_lock));
     }
 }

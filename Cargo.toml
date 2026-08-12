@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/blackpepper"]
+members = ["crates/blackpepper", "crates/blackpepper-dev-watch"]
 resolver = "2"

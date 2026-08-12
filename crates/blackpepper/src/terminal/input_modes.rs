@@ -47,6 +47,18 @@ impl InputModes {
         }
     }
 
+    /// Keep one Blackpepper-owned status row clickable even when the embedded
+    /// application is not currently asking for mouse reports. Mouse events in
+    /// the PTY viewport are discarded in that case; if the application did ask
+    /// for them, its exact mode and encoding remain unchanged.
+    pub fn with_shell_pointer_capture(mut self) -> Self {
+        if self.mouse_mode == MouseProtocolMode::None {
+            self.mouse_mode = MouseProtocolMode::PressRelease;
+            self.mouse_encoding = MouseProtocolEncoding::Sgr;
+        }
+        self
+    }
+
     pub fn diff_bytes(&self, prev: &Self) -> Vec<u8> {
         let mut out = Vec::new();
         self.write_diff(prev, &mut out);
@@ -88,27 +100,18 @@ fn write_mouse_mode_diff(mode: MouseProtocolMode, prev: MouseProtocolMode, out: 
         return;
     }
 
+    match prev {
+        MouseProtocolMode::None => {}
+        MouseProtocolMode::Press => out.extend_from_slice(b"\x1b[?9l"),
+        MouseProtocolMode::PressRelease => out.extend_from_slice(b"\x1b[?1000l"),
+        MouseProtocolMode::ButtonMotion => out.extend_from_slice(b"\x1b[?1002l"),
+        MouseProtocolMode::AnyMotion => out.extend_from_slice(b"\x1b[?1003l"),
+    }
     match mode {
-        MouseProtocolMode::None => match prev {
-            MouseProtocolMode::None => {}
-            MouseProtocolMode::Press => out.extend_from_slice(b"\x1b[?9l"),
-            MouseProtocolMode::PressRelease => {
-                out.extend_from_slice(b"\x1b[?1000l");
-            }
-            MouseProtocolMode::ButtonMotion => {
-                out.extend_from_slice(b"\x1b[?1002l");
-            }
-            MouseProtocolMode::AnyMotion => {
-                out.extend_from_slice(b"\x1b[?1003l");
-            }
-        },
+        MouseProtocolMode::None => {}
         MouseProtocolMode::Press => out.extend_from_slice(b"\x1b[?9h"),
-        MouseProtocolMode::PressRelease => {
-            out.extend_from_slice(b"\x1b[?1000h");
-        }
-        MouseProtocolMode::ButtonMotion => {
-            out.extend_from_slice(b"\x1b[?1002h");
-        }
+        MouseProtocolMode::PressRelease => out.extend_from_slice(b"\x1b[?1000h"),
+        MouseProtocolMode::ButtonMotion => out.extend_from_slice(b"\x1b[?1002h"),
         MouseProtocolMode::AnyMotion => out.extend_from_slice(b"\x1b[?1003h"),
     }
 }
@@ -122,12 +125,13 @@ fn write_mouse_encoding_diff(
         return;
     }
 
+    match prev {
+        MouseProtocolEncoding::Default => {}
+        MouseProtocolEncoding::Utf8 => out.extend_from_slice(b"\x1b[?1005l"),
+        MouseProtocolEncoding::Sgr => out.extend_from_slice(b"\x1b[?1006l"),
+    }
     match encoding {
-        MouseProtocolEncoding::Default => match prev {
-            MouseProtocolEncoding::Default => {}
-            MouseProtocolEncoding::Utf8 => out.extend_from_slice(b"\x1b[?1005l"),
-            MouseProtocolEncoding::Sgr => out.extend_from_slice(b"\x1b[?1006l"),
-        },
+        MouseProtocolEncoding::Default => {}
         MouseProtocolEncoding::Utf8 => out.extend_from_slice(b"\x1b[?1005h"),
         MouseProtocolEncoding::Sgr => out.extend_from_slice(b"\x1b[?1006h"),
     }
@@ -175,6 +179,21 @@ mod tests {
     }
 
     #[test]
+    fn diff_replaces_the_pointer_capture_with_the_child_mouse_mode() {
+        let prev = InputModes::default().with_shell_pointer_capture();
+        let next = InputModes {
+            mouse_mode: MouseProtocolMode::ButtonMotion,
+            mouse_encoding: MouseProtocolEncoding::Utf8,
+            ..InputModes::default()
+        };
+
+        assert_eq!(
+            next.diff_bytes(&prev),
+            b"\x1b[?1000l\x1b[?1002h\x1b[?1006l\x1b[?1005h"
+        );
+    }
+
+    #[test]
     fn diff_enables_mouse_encoding() {
         let prev = InputModes::default();
         let next = InputModes {
@@ -182,5 +201,19 @@ mod tests {
             ..prev
         };
         assert_eq!(next.diff_bytes(&prev), b"\x1b[?1006h");
+    }
+
+    #[test]
+    fn shell_pointer_capture_only_supplies_a_mode_when_the_child_has_none() {
+        let capture = InputModes::default().with_shell_pointer_capture();
+        assert_eq!(capture.mouse_mode, MouseProtocolMode::PressRelease);
+        assert_eq!(capture.mouse_encoding, MouseProtocolEncoding::Sgr);
+
+        let child = InputModes {
+            mouse_mode: MouseProtocolMode::ButtonMotion,
+            mouse_encoding: MouseProtocolEncoding::Utf8,
+            ..InputModes::default()
+        };
+        assert_eq!(child.with_shell_pointer_capture(), child);
     }
 }

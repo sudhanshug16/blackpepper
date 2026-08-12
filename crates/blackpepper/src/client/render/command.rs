@@ -7,7 +7,8 @@
 
 use super::chrome;
 use super::glyph::Glyphs;
-use super::style::{accent_style, mid_style, section_style, ui_style};
+use super::style::{accent_style, danger_style, mid_style, section_style, ui_style};
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::{completion, ClientState};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -27,40 +28,48 @@ pub(super) fn completion_rows(state: &ClientState) -> u16 {
         return 0;
     }
     let candidates = completion::candidates(state, command_body(state));
-    if candidates.is_empty() {
-        return 0;
-    }
-    // One row per candidate, a blank separator, and the trailing constraint.
-    (candidates.len().min(VISIBLE) + 2) as u16
+    let visible = candidates.len().min(VISIBLE);
+    // Keep feedback visible even when the current input has no candidates.
+    (visible + usize::from(visible > 0) + 1) as u16
 }
 
-pub(super) fn render_completion(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
+pub(super) fn render_completion(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     let glyphs = Glyphs::of(state);
     let candidates = completion::candidates(state, command_body(state));
-    if candidates.is_empty() || area.height == 0 {
+    if area.height == 0 {
         return;
     }
     let pad = chrome::pad(area.width);
     let inner = chrome::inner_width(area.width);
-    let visible = candidates.len().min(VISIBLE);
+    let visible = candidates
+        .len()
+        .min(VISIBLE)
+        .min(usize::from(area.height.saturating_sub(1)));
+    let selected = state
+        .command_selection
+        .map(|index| index.min(candidates.len().saturating_sub(1)));
+    let offset = selected
+        .unwrap_or(0)
+        .saturating_sub(visible.saturating_sub(1))
+        .min(candidates.len().saturating_sub(visible));
+    let separator_height = u16::from(visible > 0 && area.height > visible as u16 + 1);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(visible as u16),
-            Constraint::Length(1),
+            Constraint::Length(separator_height),
             Constraint::Min(0),
         ])
         .split(area);
 
     let value_column = VALUE_COLUMN.min(inner.saturating_sub(4)).max(1);
-    let selected = state
-        .command_selection
-        .map(|index| index.min(visible.saturating_sub(1)));
     let lines = candidates
         .iter()
+        .skip(offset)
         .take(visible)
         .enumerate()
-        .map(|(index, candidate)| {
+        .map(|(row, candidate)| {
+            let index = offset + row;
             let value = fit(glyphs, &candidate.value, value_column);
             let padding = value_column.saturating_sub(Line::raw(&value).width());
             // Only the value carries the selection cue, so the note column
@@ -87,23 +96,53 @@ pub(super) fn render_completion(state: &ClientState, frame: &mut ratatui::Frame,
         .collect::<Vec<_>>();
     frame.render_widget(Paragraph::new(lines).style(ui_style(state)), rows[0]);
     frame.render_widget(Paragraph::new("").style(ui_style(state)), rows[1]);
+    state
+        .mouse_targets
+        .extend((0..visible).map(|row| MouseTarget {
+            area: Rect::new(
+                rows[0].x,
+                rows[0].y.saturating_add(row as u16),
+                rows[0].width,
+                1,
+            ),
+            action: MouseAction::ChooseCompletion(offset + row),
+        }));
 
     let separator = glyphs.separator();
     let constraint = completion::constraint(command_body(state))
         .map(|constraint| format!("{constraint} {separator} "))
         .unwrap_or_default();
-    frame.render_widget(
-        Paragraph::new(Line::styled(
-            fit(
-                glyphs,
-                &format!("{pad}{constraint}enter run {separator} esc cancel"),
-                usize::from(area.width),
+    let cancel = "[cancel]";
+    let (hint, hint_style) = match state.command_error.as_ref() {
+        Some(error) => (format!("{pad}{error}  {cancel}"), danger_style(state)),
+        None => (
+            format!(
+                "{pad}{constraint}click/tab complete {separator} enter choose/run {separator} {cancel}"
             ),
             section_style(state),
-        ))
-        .style(ui_style(state)),
+        ),
+    };
+    let hint = fit(glyphs, &hint, usize::from(area.width));
+    let cancel_x = hint
+        .find(cancel)
+        .map(|index| Line::raw(&hint[..index]).width());
+    frame.render_widget(
+        Paragraph::new(Line::styled(hint, hint_style)).style(ui_style(state)),
         rows[2],
     );
+    if let Some(x) = cancel_x.filter(|x| *x < usize::from(rows[2].width)) {
+        state.mouse_targets.push(MouseTarget {
+            area: Rect::new(
+                rows[2].x.saturating_add(x as u16),
+                rows[2].y,
+                Line::raw(cancel)
+                    .width()
+                    .min(usize::from(rows[2].width) - x) as u16,
+                1,
+            ),
+            action: MouseAction::CloseCommand,
+        });
+    }
 }
 
 /// The single status-row form of the prompt: accent colon, what you typed, the

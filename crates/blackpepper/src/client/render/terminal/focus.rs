@@ -9,6 +9,7 @@ use super::super::glyph::Glyphs;
 use super::super::style::{
     accent_badge_style, accent_style, mid_style, section_style, ui_style, warning_style,
 };
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::ClientState;
 use crate::core::RepositoryIdentity;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -46,7 +47,12 @@ pub(in crate::client::render) fn render_approval(
     ];
     lines.extend(review_lines(state, &pending.review));
     lines.push(Line::raw(""));
-    lines.push(Line::from(vec![
+    let controls = format!(
+        " :approve   run {sep} esc dismiss {sep} {} scroll",
+        glyphs.updown(),
+        sep = glyphs.separator()
+    );
+    let control_line = Line::from(vec![
         Span::styled(" :approve ", accent_badge_style(state)),
         Span::raw("  "),
         Span::styled(
@@ -57,13 +63,33 @@ pub(in crate::client::render) fn render_approval(
             ),
             section_style(state),
         ),
-    ]));
+    ]);
+    // Actions stay fixed below the scrollable exact plan. Besides keeping the
+    // irreversible control visible, this gives its pointer target one stable
+    // rendered row even when review lines wrap at narrow widths.
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(body);
     frame.render_widget(
         Paragraph::new(lines)
             .style(ui_style(state))
             .scroll((state.approval_scroll, 0))
             .wrap(Wrap { trim: false }),
-        body,
+        rows[0],
+    );
+    frame.render_widget(Paragraph::new(control_line).style(ui_style(state)), rows[1]);
+    state.mouse_targets.push(MouseTarget {
+        area: rows[0],
+        action: MouseAction::ScrollApproval,
+    });
+    register_line_action(state, rows[1], &controls, ":approve", MouseAction::Approve);
+    register_line_action(
+        state,
+        rows[1],
+        &controls,
+        "esc dismiss",
+        MouseAction::DismissApproval,
     );
 }
 
@@ -113,19 +139,58 @@ pub(in crate::client::render) fn render_detail(
 ) {
     state.terminal_area = None;
     let detail = state.detail.as_ref().expect("detail checked before render");
+    let title = format!(
+        "{}  Esc close {} {} scroll",
+        detail.title.to_uppercase(),
+        Glyphs::of(state).separator(),
+        Glyphs::of(state).updown()
+    );
+    let detail_body = detail.body.clone();
     render_focus_view(
         state,
         frame,
         area,
-        Line::from(format!(
-            "{}  Esc close {} {} scroll",
-            detail.title.to_uppercase(),
-            Glyphs::of(state).separator(),
-            Glyphs::of(state).updown()
-        )),
-        detail.body.clone(),
+        Line::from(title.clone()),
+        detail_body,
         state.detail_scroll,
     );
+    let body = chrome::inner(area);
+    state.mouse_targets.push(MouseTarget {
+        area: body,
+        action: MouseAction::ScrollDetail,
+    });
+    register_line_action(
+        state,
+        Rect::new(body.x, body.y, body.width, 1),
+        &title,
+        "Esc close",
+        MouseAction::CloseDetail,
+    );
+}
+
+fn register_line_action(
+    state: &mut ClientState,
+    area: Rect,
+    line: &str,
+    label: &str,
+    action: MouseAction,
+) {
+    let Some(byte_index) = line.find(label) else {
+        return;
+    };
+    let x = Line::raw(&line[..byte_index]).width();
+    if x >= usize::from(area.width) {
+        return;
+    }
+    state.mouse_targets.push(MouseTarget {
+        area: Rect::new(
+            area.x.saturating_add(x as u16),
+            area.y,
+            Line::raw(label).width().min(usize::from(area.width) - x) as u16,
+            1,
+        ),
+        action,
+    });
 }
 
 pub(in crate::client::render) fn render_authentication(

@@ -212,9 +212,28 @@ commands:
 :q
 ```
 
-Future state gating may dim a command with a reason only if parsing it would be
-valid. State-grounded argument completion shown in the design board is planned;
-it is not current behavior.
+State gating dims a command with a reason only if parsing it would otherwise be
+valid. Completion is progressive: command paths narrow first, then the prompt
+names one missing argument at a time. Observed hosts, workspaces, services,
+providers, listeners, and active forwards become selectable argument rows.
+Inserted values are shell-quoted when needed, and parse errors remain beside the
+editable prompt.
+
+## Pointer behavior
+
+Every visible Blackpepper action has a hit target built from the current frame;
+responsive layout and scrolling therefore cannot leave invisible controls. A
+workspace row selects it, the Manage-mode session enters Work mode, and the
+Work-mode status row returns to Manage. Picker rows attach, completion and help
+rows prefill commands, port rows forward or explain their current forward, and
+the wheel acts on the panel under the pointer. Overlays capture pointer input so
+clicks cannot leak into the session behind them.
+
+The Work-mode session remains terminal-transparent. Blackpepper captures only
+its one status row; mouse input inside the viewport still follows the embedded
+terminal's requested protocol. If the child disables mouse reporting,
+Blackpepper temporarily captures pointer reports only to keep its status row
+clickable and drops viewport reports instead of sending unexpected bytes.
 
 ## Reviews, authentication, and errors
 

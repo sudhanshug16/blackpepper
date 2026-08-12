@@ -4,7 +4,8 @@
 # provides the isolated XDG roots and exact Blackpepper/Zellij binaries.
 
 BLACKPEPPER_MANAGE_MARKER=' MANAGE '
-BLACKPEPPER_TERMINAL_ANCHOR='bp  blackpepper'
+BLACKPEPPER_HEADER_ANCHOR='bp  blackpepper'
+BLACKPEPPER_TERMINAL_ANCHOR='bp  '
 
 seed_zellij_cache() {
   local destination="$1/$ZELLIJ_CACHE_RELATIVE"
@@ -103,7 +104,7 @@ screen_is_manage() {
 }
 
 screen_is_terminal() {
-  screen_has "$BLACKPEPPER_TERMINAL_ANCHOR" &&
+  capture_screen 2>/dev/null | tail -n 1 | grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" &&
     screen_lacks "$BLACKPEPPER_MANAGE_MARKER" &&
     screen_lacks ' AUTHENTICATE '
 }
@@ -118,7 +119,7 @@ start_client() {
     "$client/config" "$client/data" "$client/state" "$client/runtime" \
     "$SSH_CONFIG" "$SSH_LOG" "$BP_BINARY" "$TEST_ROOT/run-client"
   tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 150 -y 42 -c "$client/cwd" "$command"
-  wait_until "$label startup screen" 30 screen_has "$BLACKPEPPER_TERMINAL_ANCHOR"
+  wait_until "$label startup screen" 30 screen_has "$BLACKPEPPER_HEADER_ANCHOR"
   wait_until "$label hosts surface" 10 screen_has 'HOSTS'
   wait_until "$label session surface" 10 screen_has 'SESSION'
   wait_until "$label ports surface" 10 screen_has 'PORTS'

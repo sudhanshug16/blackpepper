@@ -1,3 +1,5 @@
+mod targets;
+
 use super::chord::chord_label;
 use super::chrome;
 use super::glyph::Glyphs;
@@ -5,37 +7,85 @@ use super::style::{
     accent_badge_style, anchor_style, panel_style, section_style, status_span, status_text,
     warning_style,
 };
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::{ClientMode, ClientState, DisplayStatus};
 use crate::ports::{ForwardStatus, ProbeCompleteness};
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-pub(super) fn render_footer(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
+pub(super) fn render_footer(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     let pad = chrome::pad(area.width);
+    let pad_width = Line::raw(&pad).width();
     let line = if state.mode == ClientMode::Work {
+        state.mouse_targets.push(MouseTarget {
+            area,
+            action: MouseAction::EnterManage,
+        });
         work_footer(state, area.width)
     } else if state.command_active {
         command_footer(state, area.width)
     } else {
-        let mut spans = vec![Span::raw(pad), mode_badge(state)];
+        let mode = mode_badge(state);
+        let mode_width = Line::from(mode.clone()).width();
+        if state.mode == ClientMode::Manage
+            && state
+                .active_workspace
+                .is_some_and(|workspace| state.terminals.contains_key(&workspace))
+        {
+            state.mouse_targets.push(MouseTarget {
+                area: Rect::new(
+                    area.x.saturating_add(pad_width as u16),
+                    area.y,
+                    mode_width as u16,
+                    1,
+                ),
+                action: MouseAction::EnterWork,
+            });
+        }
+        let mut spans = vec![Span::raw(pad), mode];
         if let Some(output) = state.visible_output() {
             spans.push(Span::raw("  "));
             spans.push(Span::raw(output.to_owned()));
         } else {
             // Anything wanting a person goes hard right, opposite the badge, so
             // the two ends of the row answer "where am I" and "what needs me".
-            spans.push(Span::styled(
-                default_footer_hint(state, area.width),
-                section_style(state),
-            ));
+            let hint = default_footer_hint(state, area.width);
+            targets::register_hint_targets(state, area, pad_width + mode_width, &hint);
+            spans.push(Span::styled(hint, section_style(state)));
             if let Some(attention) = manage_attention(state) {
-                push_right_aligned(&mut spans, attention, warning_style(state), area.width);
+                let attention_width = Line::raw(&attention).width();
+                if push_right_aligned(&mut spans, attention, warning_style(state), area.width) {
+                    if let Some(workspace_id) = first_asking_workspace(state) {
+                        let gutter = usize::from(chrome::gutter(area.width));
+                        let start =
+                            usize::from(area.width).saturating_sub(gutter + attention_width);
+                        state.mouse_targets.push(MouseTarget {
+                            area: Rect::new(
+                                area.x.saturating_add(start as u16),
+                                area.y,
+                                attention_width.min(usize::from(area.width) - start) as u16,
+                                1,
+                            ),
+                            action: MouseAction::SelectWorkspace(workspace_id),
+                        });
+                    }
+                }
             }
         }
         Line::from(spans)
     };
     frame.render_widget(Paragraph::new(line).style(panel_style(state)), area);
+}
+
+fn first_asking_workspace(state: &ClientState) -> Option<crate::core::WorkspaceId> {
+    state
+        .tree
+        .iter()
+        .flat_map(|host| &host.repositories)
+        .flat_map(|repository| &repository.workspaces)
+        .find(|workspace| workspace.status == DisplayStatus::NeedsInput)
+        .map(|workspace| workspace.id)
 }
 
 /// The workspaces asking for a person, named so the badge is actionable
@@ -66,19 +116,20 @@ fn push_right_aligned(
     text: String,
     style: ratatui::style::Style,
     width: u16,
-) {
+) -> bool {
     let gutter = usize::from(chrome::gutter(width));
     let used = Line::from(spans.clone()).width();
     let needed = Line::raw(&text).width();
     let Some(padding) = usize::from(width).checked_sub(used + needed + gutter) else {
-        return;
+        return false;
     };
     if padding < 2 {
-        return;
+        return false;
     }
     spans.push(Span::raw(" ".repeat(padding)));
     spans.push(Span::styled(text, style));
     spans.push(Span::raw(" ".repeat(gutter)));
+    true
 }
 
 fn mode_badge(state: &ClientState) -> Span<'static> {

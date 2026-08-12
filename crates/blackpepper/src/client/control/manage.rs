@@ -6,7 +6,7 @@ use super::ClientRuntime;
 use crate::keymap::matches_chord;
 use termwiz::input::{KeyCode, KeyEvent, Modifiers};
 
-use modal::{handle_command_input, handle_help, handle_picker};
+use modal::{handle_command_input, handle_help, handle_picker, open_command};
 
 pub(super) use mouse::handle as handle_mouse;
 
@@ -34,8 +34,7 @@ pub(super) fn handle_key(state: &mut ClientState, runtime: &mut ClientRuntime, k
     }
     match key.key {
         KeyCode::Char(':') if modifiers == Modifiers::NONE => {
-            state.command_active = true;
-            state.command_input = ":".to_owned();
+            open_command(state);
         }
         KeyCode::Char('q') if modifiers == Modifiers::NONE => state.should_quit = true,
         KeyCode::UpArrow => state.select_next(-1),
@@ -93,6 +92,10 @@ fn cancel_operation(
     if key.key != KeyCode::Escape || modifiers != Modifiers::NONE {
         return false;
     }
+    cancel_host_operation(state, runtime)
+}
+
+pub(super) fn cancel_host_operation(state: &mut ClientState, runtime: &mut ClientRuntime) -> bool {
     let host_id = state.selected_host.or_else(|| {
         state
             .selected_workspace

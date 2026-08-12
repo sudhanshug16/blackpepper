@@ -10,6 +10,7 @@ use super::chrome;
 use super::glyph::Glyphs;
 use super::style::{accent_style, section_style, ui_style};
 use crate::client::catalog::{entries, CommandGroup};
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::ClientState;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
@@ -19,7 +20,7 @@ use ratatui::widgets::Paragraph;
 /// Minimum gap between the syntax column and the note column.
 const COLUMN_GAP: usize = 2;
 
-pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
+pub(super) fn render_help(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     let glyphs = Glyphs::of(state);
     // Clamp rather than let the view scroll past its own end, which would
     // otherwise leave an empty pane and no obvious way back.
@@ -69,6 +70,7 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
         .unwrap_or(0);
     // One blank row under the heading, then one between groups — never two.
     let mut lines = vec![Line::raw("")];
+    let mut row_actions = Vec::new();
     let mut emitted_group = false;
     for group in CommandGroup::ORDER {
         let group_entries = catalog
@@ -84,6 +86,7 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
         emitted_group = true;
         lines.push(Line::styled(group.heading(), section_style(state)));
         for entry in group_entries {
+            let line_index = lines.len();
             let padding = syntax_column.saturating_sub(entry.syntax.chars().count());
             let syntax_style = if entry.available {
                 Style::default()
@@ -95,21 +98,36 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
                 Span::raw(" ".repeat(padding + COLUMN_GAP)),
                 Span::styled(entry.note.clone(), section_style(state)),
             ]));
+            if entry.available {
+                row_actions.push((
+                    line_index,
+                    MouseAction::PrefillCommand(crate::client::completion::prefill_from_syntax(
+                        entry.syntax,
+                    )),
+                ));
+            }
         }
     }
     lines.push(Line::raw(""));
     lines.push(Line::styled("KEYS", section_style(state)));
-    for (chord, meaning) in [
-        (&state.config.keymap.toggle_mode, "switch work / manage"),
+    for (chord, meaning, action) in [
+        (
+            &state.config.keymap.toggle_mode,
+            "switch work / manage",
+            state.active_workspace.map(|_| MouseAction::EnterWork),
+        ),
         (
             &state.config.keymap.switch_workspace,
             "attach next workspace",
+            (!state.snapshot.workspaces.is_empty()).then_some(MouseAction::AttachNext),
         ),
         (
             &state.config.keymap.workspace_overlay,
             "open the workspace picker",
+            (!state.snapshot.workspaces.is_empty()).then_some(MouseAction::OpenPicker),
         ),
     ] {
+        let line_index = lines.len();
         let chord = chord_label(chord);
         let padding = syntax_column.saturating_sub(chord.chars().count());
         lines.push(Line::from(vec![
@@ -117,6 +135,9 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
             Span::raw(" ".repeat(padding + COLUMN_GAP)),
             Span::styled(meaning, section_style(state)),
         ]));
+        if let Some(action) = action {
+            row_actions.push((line_index, action));
+        }
     }
 
     frame.render_widget(
@@ -125,6 +146,38 @@ pub(super) fn render_help(state: &ClientState, frame: &mut ratatui::Frame, area:
             .scroll((scroll, 0)),
         rows[1],
     );
+    state.mouse_targets.push(MouseTarget {
+        area: rows[1],
+        action: MouseAction::ScrollHelp,
+    });
+    let close_x = 5 + hint_pad;
+    if close_x < usize::from(rows[0].width) {
+        state.mouse_targets.push(MouseTarget {
+            area: Rect::new(
+                rows[0].x.saturating_add(close_x as u16),
+                rows[0].y,
+                Line::raw("esc close")
+                    .width()
+                    .min(usize::from(rows[0].width) - close_x) as u16,
+                1,
+            ),
+            action: MouseAction::CloseHelp,
+        });
+    }
+    state
+        .mouse_targets
+        .extend(row_actions.into_iter().filter_map(|(line, action)| {
+            let visible = line.checked_sub(usize::from(scroll))?;
+            (visible < usize::from(rows[1].height)).then_some(MouseTarget {
+                area: Rect::new(
+                    rows[1].x,
+                    rows[1].y.saturating_add(visible as u16),
+                    rows[1].width,
+                    1,
+                ),
+                action,
+            })
+        }));
 }
 
 /// Row count of the rendered help, used to clamp scrolling.

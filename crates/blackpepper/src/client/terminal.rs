@@ -100,16 +100,21 @@ impl EmbeddedTerminal {
         &mut self,
         bytes: &[u8],
         terminal_area: Option<Rect>,
-    ) -> Result<(), TransportError> {
+    ) -> Result<bool, TransportError> {
         if bytes.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
+        let screen = self.parser.screen();
         let translated = self.mouse_input.process(
             bytes,
             terminal_area,
-            self.parser.screen().mouse_protocol_encoding(),
+            screen.mouse_protocol_encoding(),
+            screen.mouse_protocol_mode(),
         );
-        self.process.write_all(&translated)
+        if !translated.bytes.is_empty() {
+            self.process.write_all(&translated.bytes)?;
+        }
+        Ok(translated.shell_clicked)
     }
 
     pub fn resize(&mut self, rows: u16, cols: u16) -> Result<(), TransportError> {

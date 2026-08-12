@@ -85,69 +85,73 @@ pub(super) fn handle_command_input(
         return false;
     }
     match key.key {
-        KeyCode::Escape => {
-            state.command_active = false;
-            state.command_input.clear();
-            state.command_selection = None;
-        }
-        // Enter runs the highlighted candidate when there is one, and what was
-        // typed when there is not. Completing onto a command that still wants
-        // an argument leaves the bar open rather than running something the
-        // parser would reject.
+        KeyCode::Escape => close_command(state),
         KeyCode::Enter => {
-            if state.command_selection.is_some() {
-                let completed = apply_completion(state);
-                if !completed {
-                    return true;
+            if state.command_selection.is_some() && !apply_completion(state) {
+                return true;
+            }
+            let input = state.command_input.clone();
+            match crate::client::parse_command(&input) {
+                Ok(command) => {
+                    close_command(state);
+                    state.close_detail();
+                    actions::execute_command(state, runtime, command);
+                }
+                Err(error) => {
+                    state.command_error = Some(error);
                 }
             }
-            let input = std::mem::take(&mut state.command_input);
-            state.command_active = false;
-            state.command_selection = None;
-            state.close_detail();
-            match crate::client::parse_command(&input) {
-                Ok(command) => actions::execute_command(state, runtime, command),
-                Err(error) => state.set_output(error),
-            }
         }
-        // Tab takes the highlighted candidate, or the first one when nothing
-        // is highlighted yet.
+        // Tab takes the highlighted candidate; the arrows move between them.
+        // Completion is always optional — typing the command out in full
+        // behaves exactly as it did before.
+        KeyCode::Tab if modifiers.contains(Modifiers::SHIFT) => move_completion(state, -1),
         KeyCode::Tab => {
             apply_completion(state);
         }
-        KeyCode::UpArrow => {
-            // Stepping off the top of the list returns to what was typed,
-            // which is the only way back to it without retyping.
-            state.command_selection = match state.command_selection {
-                Some(0) | None => None,
-                Some(index) => Some(index - 1),
-            };
-        }
-        KeyCode::DownArrow => {
-            let count = completion_count(state);
-            if count > 0 {
-                state.command_selection = Some(match state.command_selection {
-                    None => 0,
-                    Some(index) => index.saturating_add(1).min(count - 1),
-                });
-            }
-        }
+        KeyCode::UpArrow => move_completion(state, -1),
+        KeyCode::DownArrow => move_completion(state, 1),
         KeyCode::Backspace => {
-            state.command_input.pop();
-            state.command_selection = None;
+            if state.command_input == ":" {
+                close_command(state);
+            } else {
+                state.command_input.pop();
+                reset_command_feedback(state);
+            }
         }
         KeyCode::Char(character)
             if modifiers == Modifiers::NONE || modifiers == Modifiers::SHIFT =>
         {
             state.command_input.push(character);
-            state.command_selection = None;
+            reset_command_feedback(state);
         }
         _ => {}
     }
     true
 }
 
-fn completion_count(state: &ClientState) -> usize {
+pub(super) fn open_command(state: &mut ClientState) {
+    state.command_active = true;
+    state.command_input = ":".to_owned();
+    reset_command_feedback(state);
+}
+
+pub(super) fn prefill_command(state: &mut ClientState, input: impl Into<String>) {
+    state.command_active = true;
+    state.command_input = input.into();
+    if !state.command_input.starts_with(':') {
+        state.command_input.insert(0, ':');
+    }
+    reset_command_feedback(state);
+}
+
+pub(super) fn close_command(state: &mut ClientState) {
+    state.command_active = false;
+    state.command_input.clear();
+    reset_command_feedback(state);
+}
+
+pub(super) fn completion_count(state: &ClientState) -> usize {
     let body = state
         .command_input
         .strip_prefix(':')
@@ -156,10 +160,15 @@ fn completion_count(state: &ClientState) -> usize {
     crate::client::completion::candidates(state, &body).len()
 }
 
-/// Replace the typed text with the highlighted candidate. Returns whether the
-/// result is a complete command; `false` means a placeholder was dropped and
-/// the bar is now waiting for an argument.
-fn apply_completion(state: &mut ClientState) -> bool {
+pub(super) fn choose_completion(state: &mut ClientState, index: usize) {
+    let count = completion_count(state);
+    state.command_selection = (count > 0).then_some(index.min(count - 1));
+    apply_completion(state);
+}
+
+/// Apply the highlighted candidate, or the first candidate for Tab. Returns
+/// whether the result is a complete command that Enter may execute.
+pub(super) fn apply_completion(state: &mut ClientState) -> bool {
     let body = state
         .command_input
         .strip_prefix(':')
@@ -169,25 +178,37 @@ fn apply_completion(state: &mut ClientState) -> bool {
     let Some(candidate) = candidates.get(state.command_selection.unwrap_or(0)) else {
         return true;
     };
-    // Placeholder syntax is not runnable text. A required `<arg>` leaves a
-    // trailing space and waits; an optional `[arg]` is dropped and the command
-    // runs without it, because that is what "optional" means.
-    let mut words = Vec::new();
-    let mut wants_argument = false;
-    for word in candidate.value.split_whitespace() {
-        if word.starts_with('<') {
-            wants_argument = true;
-            break;
-        }
-        if word.starts_with('[') {
-            break;
-        }
-        words.push(word);
-    }
-    let value = words.join(" ");
-    let complete = !wants_argument;
-    let trailing = if complete { "" } else { " " };
-    state.command_input = format!(":{value}{trailing}");
-    state.command_selection = None;
+    state.command_input = format!(
+        ":{}{}",
+        candidate.value,
+        if candidate.expects_more { " " } else { "" }
+    );
+    let complete = !candidate.expects_more;
+    reset_command_feedback(state);
     complete
+}
+
+fn move_completion(state: &mut ClientState, direction: i32) {
+    let count = completion_count(state);
+    if count == 0 {
+        state.command_selection = None;
+        return;
+    }
+    state.command_selection = if direction < 0 {
+        match state.command_selection {
+            None | Some(0) => None,
+            Some(index) => Some(index - 1),
+        }
+    } else {
+        Some(match state.command_selection {
+            None => 0,
+            Some(index) => index.saturating_add(1).min(count - 1),
+        })
+    };
+    state.command_error = None;
+}
+
+fn reset_command_feedback(state: &mut ClientState) {
+    state.command_selection = None;
+    state.command_error = None;
 }

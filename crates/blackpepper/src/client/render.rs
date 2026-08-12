@@ -31,6 +31,9 @@ const PORTS_ROWS: u16 = 8;
 
 pub fn render(state: &mut ClientState, frame: &mut ratatui::Frame) {
     state.expire_transient_output();
+    // Pointer regions describe only the frame being drawn. Clearing first is
+    // what prevents a responsive-layout change from leaving invisible actions.
+    state.mouse_targets.clear();
     frame.render_widget(Block::default().style(ui_style(state)), frame.area());
     if state.mode == ClientMode::Work {
         render_work(state, frame);
@@ -155,7 +158,6 @@ fn render_manage_body(state: &mut ClientState, frame: &mut ratatui::Frame, area:
 
 fn clear_ports(state: &mut ClientState) {
     state.ports_area = None;
-    state.port_click_targets.clear();
 }
 
 fn union_horizontal(left: Rect, right: Rect) -> Rect {

@@ -4,7 +4,8 @@
 
 LAST_CAPTURE=''
 BLACKPEPPER_MANAGE_MARKER=' MANAGE '
-BLACKPEPPER_TERMINAL_ANCHOR='bp  blackpepper'
+BLACKPEPPER_HEADER_ANCHOR='bp  blackpepper'
+BLACKPEPPER_TERMINAL_ANCHOR='bp  '
 
 cleanup_agent_e2e() {
   local status=$?
@@ -108,7 +109,7 @@ capture_is_manage() {
 }
 
 capture_is_terminal() {
-  grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" "$LAST_CAPTURE" &&
+  tail -n 1 "$LAST_CAPTURE" | grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" &&
     ! grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE" &&
     ! grep -Fq -- ' AUTHENTICATE ' "$LAST_CAPTURE"
 }
@@ -164,7 +165,7 @@ dismiss_zellij_popups() {
 start_client() {
   tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 170 -y 46 \
     -c "$WORKSPACE" "$BP_BINARY"
-  wait_for_screen 'bp  blackpepper' startup 60
+  wait_for_screen "$BLACKPEPPER_HEADER_ANCHOR" startup 60
   wait_for_screen 'HOSTS' startup-hosts 30
   wait_for_screen 'SESSION' startup-session 30
   wait_for_screen 'PORTS' startup-ports 30

@@ -133,9 +133,28 @@ pub fn parse(input: &str) -> Result<ClientCommand, String> {
         ["refresh"] => Ok(ClientCommand::Refresh),
         ["help"] => Ok(ClientCommand::Help),
         ["quit" | "q"] => Ok(ClientCommand::Quit),
-        [] => Err("Enter a command after ':'.".to_string()),
-        _ => Err(format!("Unknown Blackpepper command: :{input}")),
+        [] => Err("Choose a command; type to filter the list below.".to_string()),
+        _ => Err(usage_error(input, &values)),
     }
+}
+
+fn usage_error(input: &str, values: &[&str]) -> String {
+    let usage = match values.first().copied() {
+        Some("host") => {
+            ":host add <name> <ssh-alias> | import | connect <name> | disconnect <name>"
+        }
+        Some("workspace") => ":workspace add <path> | switch <name|id> | ungroup | terminate",
+        Some("worktree") => {
+            ":worktree list | create <branch> [--base <ref>] | open <branch|pr:123|url> | remove"
+        }
+        Some("agent") => ":agent spawn <codex|claude|opencode>",
+        Some("service") => ":service start <name>",
+        Some("ports") => ":ports [--all-host]",
+        Some("forward") => ":forward [cancel] <port|address:port>",
+        Some("status") => ":status explain",
+        _ => return format!("Unknown command: :{input}. Type :help for the full list."),
+    };
+    format!("Usage: {usage}")
 }
 
 pub const HELP: &[(&str, &str)] = &[

@@ -3,14 +3,14 @@
 # Stable, Blackpepper-owned v2 mode anchors. Terminal output must never be
 # treated as a mode marker on its own.
 BLACKPEPPER_MANAGE_MARKER=' MANAGE '
-BLACKPEPPER_TERMINAL_ANCHOR='bp  blackpepper'
+BLACKPEPPER_TERMINAL_ANCHOR='bp  '
 
 capture_is_manage_mode() {
   grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE"
 }
 
 capture_is_terminal_mode() {
-  grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" "$LAST_CAPTURE" &&
+  tail -n 1 "$LAST_CAPTURE" | grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" &&
     ! grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE" &&
     ! grep -Fq -- ' AUTHENTICATE ' "$LAST_CAPTURE"
 }
