@@ -48,6 +48,10 @@ pub enum ClientCommand {
         remote_port: u16,
         bind_address: Option<String>,
     },
+    /// `None` lists the palettes; `Some` switches to one.
+    Theme {
+        name: Option<String>,
+    },
     StatusExplain,
     Approve,
     Refresh,
@@ -120,6 +124,10 @@ pub fn parse(input: &str) -> Result<ClientCommand, String> {
                 bind_address,
             })
         }
+        ["theme"] => Ok(ClientCommand::Theme { name: None }),
+        ["theme", name] => Ok(ClientCommand::Theme {
+            name: Some(name.to_string()),
+        }),
         ["status", "explain"] => Ok(ClientCommand::StatusExplain),
         ["approve"] => Ok(ClientCommand::Approve),
         ["refresh"] => Ok(ClientCommand::Refresh),
@@ -175,6 +183,7 @@ pub const HELP: &[(&str, &str)] = &[
         ":forward cancel <port|address:port>",
         "Cancel this client's exact forward",
     ),
+    (":theme [<name>]", "List palettes, or switch to one"),
     (":status explain", "Show redacted status evidence"),
     (":approve", "Approve the displayed Worktrunk command"),
     (":refresh", "Refresh hosts, workspaces, agents, and ports"),

@@ -4,64 +4,29 @@ use crate::client_config::ColorTier;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
 
-pub(super) const PEPPERCORN: (u8, u8, u8) = (0xe4, 0x83, 0x4f);
-pub(super) const CANVAS: (u8, u8, u8) = (0x1c, 0x1d, 0x1f);
-pub(super) const RAISED: (u8, u8, u8) = (0x23, 0x24, 0x27);
-pub(super) const INK: (u8, u8, u8) = (0xe6, 0xe4, 0xe1);
-
-/// The neutral ramp between `INK` and `CANVAS`. The design's third grey,
-/// `#8b8a87`, styles its own page captions and the mocked terminal body, so it
-/// is deliberately absent here — the client draws neither.
-const MID: (u8, u8, u8) = (0xb9, 0xb6, 0xb2);
-const RECESSIVE: (u8, u8, u8) = (0x6c, 0x6b, 0x68);
+/// The active palette. Every colour below comes from here, so a theme change
+/// is one lookup rather than a sweep through the renderer.
+fn theme(state: &ClientState) -> crate::client_config::Theme {
+    state.config.ui.theme
+}
 
 /// How far each neutral sits from the foreground, as a percentage blend toward
-/// the background. Derived rather than hardcoded so a configured palette keeps
-/// its own hue; the defaults reproduce the tokens above exactly.
+/// the background. Used only when the user has overridden the surfaces, in
+/// which case the theme's own neutrals no longer sit on the right ramp.
 const MID_BLEND: u16 = 22;
 const RECESSIVE_BLEND: u16 = 62;
 
-/// Semantic colors carry meaning, not theme identity, so they are named
-/// precisely while colour exists and only fall back to the terminal's own
-/// slots at the sixteen-colour floor.
-const GREEN: (u8, u8, u8) = (0x98, 0xc3, 0x79);
-const YELLOW: (u8, u8, u8) = (0xe5, 0xc0, 0x7b);
-const RED: (u8, u8, u8) = (0xe0, 0x6c, 0x75);
-const CYAN: (u8, u8, u8) = (0x56, 0xb6, 0xc2);
-
-/// A semantic color and the ANSI slot it degrades into.
-#[derive(Clone, Copy)]
-struct Semantic {
-    exact: (u8, u8, u8),
-    ansi: Color,
+/// Whether the client is painting the theme's own surfaces or ones the user
+/// pinned in config.
+fn themed_surfaces(state: &ClientState) -> bool {
+    let theme = theme(state);
+    state.config.ui.background == theme.canvas && state.config.ui.foreground == theme.ink
 }
 
-const SEMANTIC_GREEN: Semantic = Semantic {
-    exact: GREEN,
-    ansi: Color::Green,
-};
-const SEMANTIC_YELLOW: Semantic = Semantic {
-    exact: YELLOW,
-    ansi: Color::Yellow,
-};
-const SEMANTIC_RED: Semantic = Semantic {
-    exact: RED,
-    ansi: Color::Red,
-};
-const SEMANTIC_CYAN: Semantic = Semantic {
-    exact: CYAN,
-    ansi: Color::Cyan,
-};
-
-/// Whether the client is painting its own palette or one the user configured.
-fn default_palette(state: &ClientState) -> bool {
-    state.config.ui.background == CANVAS && state.config.ui.foreground == INK
-}
-
-/// One step on the neutral ramp, as an exact color at full depth and the
-/// terminal's own grey below it.
+/// One step on the neutral ramp: the theme's value when the theme owns the
+/// surfaces, otherwise derived from whatever the user pinned.
 fn neutral(state: &ClientState, token: (u8, u8, u8), blend: u16) -> Style {
-    let exact = if default_palette(state) {
+    let exact = if themed_surfaces(state) {
         token
     } else {
         blend_rgb(
@@ -79,13 +44,27 @@ fn neutral(state: &ClientState, token: (u8, u8, u8), blend: u16) -> Style {
     }
 }
 
-fn semantic(state: &ClientState, color: Semantic) -> Style {
+/// A semantic colour: exact while colour exists, the terminal's own slot at
+/// the sixteen-colour floor.
+fn semantic(state: &ClientState, exact: (u8, u8, u8), slot: Color) -> Style {
     match state.config.ui.color_tier {
         ColorTier::TrueColor | ColorTier::Ansi256 => {
-            Style::default().fg(tier_color(color.exact, state.config.ui.color_tier))
+            Style::default().fg(tier_color(exact, state.config.ui.color_tier))
         }
-        ColorTier::Ansi16 => Style::default().fg(color.ansi),
+        ColorTier::Ansi16 => Style::default().fg(slot),
         ColorTier::NoColor => Style::default(),
+    }
+}
+
+fn slot_color(slot: crate::client_config::AnsiSlot) -> Color {
+    use crate::client_config::AnsiSlot;
+    match slot {
+        AnsiSlot::Magenta => Color::Magenta,
+        AnsiSlot::Blue => Color::Blue,
+        AnsiSlot::Yellow => Color::Yellow,
+        AnsiSlot::Cyan => Color::Cyan,
+        AnsiSlot::Green => Color::Green,
+        AnsiSlot::Red => Color::Red,
     }
 }
 
@@ -97,11 +76,11 @@ pub(super) fn ui_style(state: &ClientState) -> Style {
     )
 }
 
-/// Raised surfaces use the supplied token for the default palette. A custom
-/// terminal palette keeps its configured colors and derives the same 6% tier.
+/// Raised surfaces use the theme's own token. A pinned background keeps its
+/// colour and derives the same 6% tier.
 pub(super) fn panel_style(state: &ClientState) -> Style {
-    let raised = if state.config.ui.background == CANVAS && state.config.ui.foreground == INK {
-        RAISED
+    let raised = if themed_surfaces(state) {
+        theme(state).raised
     } else {
         blend_rgb(state.config.ui.background, state.config.ui.foreground, 6)
     };
@@ -118,7 +97,25 @@ pub(super) fn panel_style(state: &ClientState) -> Style {
 
 /// List entries that are present but not the current one.
 pub(super) fn mid_style(state: &ClientState) -> Style {
-    neutral(state, MID, MID_BLEND)
+    neutral(state, theme(state).mid, MID_BLEND)
+}
+
+/// The accent as a foreground colour, or `None` when this tier and theme have
+/// no hue to spend — a theme with no accent at all, or one whose hue has
+/// nowhere safe to land at the sixteen-colour floor.
+fn accent_color(state: &ClientState) -> Option<Color> {
+    let theme = theme(state);
+    let accent = theme.accent?;
+    match state.config.ui.color_tier {
+        ColorTier::TrueColor | ColorTier::Ansi256 => {
+            Some(tier_color(accent, state.config.ui.color_tier))
+        }
+        ColorTier::Ansi16 => match theme.accent_fallback {
+            crate::client_config::AccentFallback::Slot(slot) => Some(slot_color(slot)),
+            crate::client_config::AccentFallback::Reverse => None,
+        },
+        ColorTier::NoColor => None,
+    }
 }
 
 /// The selected row. The design paints it with the accent and also asks for
@@ -126,27 +123,25 @@ pub(super) fn mid_style(state: &ClientState) -> Style {
 /// an accent fill where colour exists and plain reverse video where it does
 /// not. REVERSED is set in every tier so selection survives the 2-colour floor.
 pub(super) fn selected_style(state: &ClientState) -> Style {
-    match state.config.ui.color_tier {
-        ColorTier::TrueColor => Style::default()
-            .fg(Color::Rgb(PEPPERCORN.0, PEPPERCORN.1, PEPPERCORN.2))
-            .bg(tier_color(state.config.ui.background, ColorTier::TrueColor))
+    match accent_color(state) {
+        Some(accent) => Style::default()
+            .fg(accent)
+            .bg(tier_color(
+                state.config.ui.background,
+                state.config.ui.color_tier,
+            ))
             .add_modifier(Modifier::REVERSED),
-        ColorTier::Ansi256 => Style::default()
-            .fg(Color::Indexed(173))
-            .bg(tier_color(state.config.ui.background, ColorTier::Ansi256))
-            .add_modifier(Modifier::REVERSED),
-        ColorTier::Ansi16 | ColorTier::NoColor => ui_style(state).add_modifier(Modifier::REVERSED),
+        None => ui_style(state).add_modifier(Modifier::REVERSED),
     }
 }
 
+/// The accent, wherever a single glyph or word carries the brand rather than a
+/// state. Without a hue it falls back to bold, which is the only emphasis a
+/// two-colour terminal has.
 pub(super) fn accent_style(state: &ClientState) -> Style {
-    match state.config.ui.color_tier {
-        ColorTier::TrueColor => {
-            Style::default().fg(Color::Rgb(PEPPERCORN.0, PEPPERCORN.1, PEPPERCORN.2))
-        }
-        ColorTier::Ansi256 => Style::default().fg(Color::Indexed(173)),
-        ColorTier::Ansi16 => Style::default().fg(Color::Yellow),
-        ColorTier::NoColor => Style::default().add_modifier(Modifier::BOLD),
+    match accent_color(state) {
+        Some(accent) => Style::default().fg(accent),
+        None => Style::default().add_modifier(Modifier::BOLD),
     }
 }
 
@@ -161,17 +156,17 @@ pub(super) fn anchor_style(state: &ClientState) -> Style {
 /// drops the accent fill for reverse video rather than betting on a yellow
 /// that the user's theme may have redefined into something unreadable.
 pub(super) fn accent_badge_style(state: &ClientState) -> Style {
-    match state.config.ui.color_tier {
-        ColorTier::Ansi16 | ColorTier::NoColor => {
-            Style::default().add_modifier(Modifier::BOLD | Modifier::REVERSED)
-        }
-        tier => Style::default()
-            .fg(tier_color(state.config.ui.background, tier))
-            .bg(match tier {
-                ColorTier::Ansi256 => Color::Indexed(173),
-                _ => Color::Rgb(PEPPERCORN.0, PEPPERCORN.1, PEPPERCORN.2),
-            })
+    // The badge is a filled block, so at the floor it takes reverse video
+    // rather than betting on a slot the user's scheme may have redefined.
+    match (state.config.ui.color_tier, accent_color(state)) {
+        (ColorTier::TrueColor | ColorTier::Ansi256, Some(accent)) => Style::default()
+            .fg(tier_color(
+                state.config.ui.background,
+                state.config.ui.color_tier,
+            ))
+            .bg(accent)
             .add_modifier(Modifier::BOLD),
+        _ => Style::default().add_modifier(Modifier::BOLD | Modifier::REVERSED),
     }
 }
 
@@ -181,15 +176,15 @@ pub(super) fn section_style(state: &ClientState) -> Style {
     if state.config.ui.color_tier == ColorTier::NoColor {
         return Style::default().add_modifier(Modifier::DIM);
     }
-    neutral(state, RECESSIVE, RECESSIVE_BLEND)
+    neutral(state, theme(state).recessive, RECESSIVE_BLEND)
 }
 
 pub(super) fn warning_style(state: &ClientState) -> Style {
-    semantic(state, SEMANTIC_YELLOW)
+    semantic(state, theme(state).yellow, Color::Yellow)
 }
 
 pub(super) fn danger_style(state: &ClientState) -> Style {
-    semantic(state, SEMANTIC_RED)
+    semantic(state, theme(state).red, Color::Red)
 }
 
 /// `glyph word`, or `glyph <detail>` when the caller has something more
@@ -210,10 +205,10 @@ pub(super) fn status_style(state: &ClientState, status: DisplayStatus) -> Style 
         // Idle and unsure are absences, so they take the recessive neutral
         // rather than a semantic colour that would claim they mean something.
         DisplayStatus::Idle | DisplayStatus::Ready | DisplayStatus::Unknown => section_style(state),
-        DisplayStatus::Working => semantic(state, SEMANTIC_CYAN),
-        DisplayStatus::Done => semantic(state, SEMANTIC_GREEN),
-        DisplayStatus::NeedsInput => semantic(state, SEMANTIC_YELLOW),
-        DisplayStatus::Exited => semantic(state, SEMANTIC_RED),
+        DisplayStatus::Working => semantic(state, theme(state).cyan, Color::Cyan),
+        DisplayStatus::Done => semantic(state, theme(state).green, Color::Green),
+        DisplayStatus::NeedsInput => semantic(state, theme(state).yellow, Color::Yellow),
+        DisplayStatus::Exited => semantic(state, theme(state).red, Color::Red),
     }
 }
 
@@ -258,11 +253,17 @@ pub(super) fn list_status_span(
 /// mean the same severity in both columns even though the vocabularies differ.
 pub(super) fn connection_style(state: &ClientState, connection: HostConnection) -> Style {
     match connection {
-        HostConnection::Local | HostConnection::Connected => semantic(state, SEMANTIC_GREEN),
+        HostConnection::Local | HostConnection::Connected => {
+            semantic(state, theme(state).green, Color::Green)
+        }
         HostConnection::Authenticating
         | HostConnection::Reconnecting
-        | HostConnection::NeedsAuthentication => semantic(state, SEMANTIC_YELLOW),
-        HostConnection::HostKeyBlocked | HostConnection::Failed => semantic(state, SEMANTIC_RED),
+        | HostConnection::NeedsAuthentication => {
+            semantic(state, theme(state).yellow, Color::Yellow)
+        }
+        HostConnection::HostKeyBlocked | HostConnection::Failed => {
+            semantic(state, theme(state).red, Color::Red)
+        }
         HostConnection::Disconnected => section_style(state),
     }
 }

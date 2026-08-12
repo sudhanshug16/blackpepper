@@ -44,6 +44,8 @@ pub(super) struct RawUi {
     /// Overrides colour-capability detection when the environment lies or
     /// arrives incomplete.
     pub(super) colors: Option<String>,
+    /// Named palette. See `:theme` for the list.
+    pub(super) theme: Option<String>,
 }
 
 pub(super) fn read_optional(path: Option<&Path>) -> Result<Option<RawConfig>, ConfigError> {
@@ -127,6 +129,17 @@ fn validate_raw(path: &Path, raw: &RawConfig) -> Result<(), ConfigError> {
             message: "ui.colors must be \"auto\", \"truecolor\", \"256\", \"16\", or \"none\""
                 .to_string(),
         });
+    }
+    if let Some(name) = raw.ui.theme.as_deref() {
+        if super::theme::by_name(name).is_none() {
+            return Err(ConfigError::Invalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "ui.theme {name:?} is not a known theme; choose one of {}",
+                    super::theme::names().collect::<Vec<_>>().join(", ")
+                ),
+            });
+        }
     }
     for (label, value) in [
         ("keymap.toggle_mode", raw.keymap.toggle_mode.as_deref()),

@@ -37,6 +37,7 @@ pub fn ghost(input: &str) -> Option<&'static str> {
         ["worktree", "open"] => "<branch|pr:123|url>",
         ["agent", "spawn"] => "<codex|claude|opencode>",
         ["service", "start"] => "<name>",
+        ["theme"] => "<name>",
         _ => return None,
     })
 }
@@ -80,6 +81,8 @@ pub fn candidates(state: &ClientState, input: &str) -> Vec<Candidate> {
         (["host", verb @ ("connect" | "disconnect"), partial], false) => {
             prefixed(hosts(state, verb), &format!("host {verb}"), partial)
         }
+        (["theme"], true) => themes(state),
+        (["theme", partial], false) => prefixed(themes(state), "theme", partial),
         (["workspace", "switch"], true) => workspaces(state),
         (["workspace", "switch", partial], false) => {
             prefixed(workspaces(state), "workspace switch", partial)
@@ -144,6 +147,21 @@ fn forward_cancels(state: &ClientState) -> Vec<Candidate> {
         .map(|forward| Candidate {
             value: format!("forward cancel {}", forward.target().remote_port),
             note: "active on this client".to_owned(),
+        })
+        .collect()
+}
+
+fn themes(state: &ClientState) -> Vec<Candidate> {
+    let current = state.config.ui.theme.name;
+    crate::client_config::theme::THEMES
+        .iter()
+        .map(|theme| Candidate {
+            value: format!("theme {}", theme.name),
+            note: if theme.name == current {
+                format!("current · {}", theme.summary)
+            } else {
+                theme.summary.to_owned()
+            },
         })
         .collect()
 }

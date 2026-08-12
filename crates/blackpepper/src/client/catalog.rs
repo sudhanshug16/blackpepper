@@ -212,6 +212,17 @@ pub fn entries(state: &ClientState) -> Vec<CatalogEntry> {
         ),
         entry(
             CommandGroup::Hosts,
+            ":theme [<name>]",
+            format!(
+                "{} of {} palettes",
+                state.config.ui.theme.name,
+                crate::client_config::theme::THEMES.len()
+            ),
+            true,
+            "",
+        ),
+        entry(
+            CommandGroup::Hosts,
             ":refresh",
             "registries, agents, and ports".to_owned(),
             true,

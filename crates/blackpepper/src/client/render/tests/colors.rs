@@ -18,9 +18,10 @@ fn supplied_truecolor_tokens_are_exact() {
         super::super::style::panel_style(&state).bg,
         Some(Color::Rgb(0x23, 0x24, 0x27))
     );
+    // Brass is the default palette.
     assert_eq!(
         super::super::style::accent_style(&state).fg,
-        Some(Color::Rgb(0xe4, 0x83, 0x4f))
+        Some(Color::Rgb(0xb8, 0xa0, 0x4a))
     );
 }
 
@@ -57,16 +58,30 @@ fn custom_foreground_background_and_derived_surface_are_preserved() {
 #[test]
 fn accent_and_ui_degrade_through_all_color_tiers() {
     let mut state = workspace_state();
+    // Brass has no safe slot at sixteen colours — ANSI yellow already means
+    // "asks" — so it gives up the hue rather than the distinction.
     let cases = [
-        (ColorTier::TrueColor, Some(Color::Rgb(0xe4, 0x83, 0x4f))),
-        (ColorTier::Ansi256, Some(Color::Indexed(173))),
-        (ColorTier::Ansi16, Some(Color::Yellow)),
+        (ColorTier::TrueColor, Some(Color::Rgb(0xb8, 0xa0, 0x4a))),
+        (ColorTier::Ansi256, Some(Color::Indexed(143))),
+        (ColorTier::Ansi16, None),
         (ColorTier::NoColor, None),
     ];
     for (tier, accent) in cases {
         state.config.ui.color_tier = tier;
-        assert_eq!(super::super::style::accent_style(&state).fg, accent);
+        assert_eq!(
+            super::super::style::accent_style(&state).fg,
+            accent,
+            "brass at {tier:?}"
+        );
     }
+    // A theme whose hue does have a free slot keeps it all the way down.
+    state.config.ui.theme = crate::client_config::theme::by_name("violet").unwrap();
+    state.config.ui.color_tier = ColorTier::Ansi16;
+    assert_eq!(
+        super::super::style::accent_style(&state).fg,
+        Some(Color::Magenta)
+    );
+    state.config.ui.theme = crate::client_config::theme::THEMES[0];
 
     state.config.ui.color_tier = ColorTier::Ansi256;
     assert!(matches!(

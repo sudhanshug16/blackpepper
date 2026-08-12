@@ -388,7 +388,7 @@ fn the_palette_is_the_designs_palette() {
     );
     assert_eq!(
         style::accent_style(&state).fg,
-        Some(Color::Rgb(0xe4, 0x83, 0x4f))
+        Some(Color::Rgb(0xb8, 0xa0, 0x4a))
     );
     assert_eq!(
         style::mid_style(&state).fg,
@@ -406,4 +406,64 @@ fn the_palette_is_the_designs_palette() {
         style::danger_style(&state).fg,
         Some(Color::Rgb(0xe0, 0x6c, 0x75))
     );
+}
+
+/// Every palette must paint a complete, exact frame. A theme that renders a
+/// terminal slot somewhere would inherit the user's scheme in that one spot.
+#[test]
+fn every_theme_paints_an_exact_frame() {
+    use ratatui::style::Color;
+    for theme in crate::client_config::theme::THEMES {
+        let mut state = running_state();
+        state.config.ui.theme = theme;
+        state.config.ui.background = theme.canvas;
+        state.config.ui.foreground = theme.ink;
+        let terminal = draw(&mut state, 120, 24);
+        let buffer = terminal.backend().buffer();
+        for row in 0..buffer.area.height {
+            for column in 0..buffer.area.width {
+                let cell = buffer.cell((column, row)).unwrap();
+                for colour in [cell.fg, cell.bg] {
+                    assert!(
+                        matches!(colour, Color::Rgb(..) | Color::Reset),
+                        "theme {} left {colour:?} at ({column},{row})",
+                        theme.name
+                    );
+                }
+            }
+        }
+        // The canvas is the theme's own, so a light theme really is light.
+        assert_eq!(
+            buffer.cell((60, 12)).unwrap().bg,
+            Color::Rgb(theme.canvas.0, theme.canvas.1, theme.canvas.2),
+            "theme {} did not paint its canvas",
+            theme.name
+        );
+    }
+}
+
+/// At the sixteen-colour floor no theme may paint its brand in a colour the
+/// status vocabulary already owns — that is what makes an alert unmissable.
+#[test]
+fn no_theme_confuses_its_brand_with_an_alert_at_the_floor() {
+    use crate::client_config::ColorTier;
+    let mut state = running_state();
+    state.config.ui.color_tier = ColorTier::Ansi16;
+    for theme in crate::client_config::theme::THEMES {
+        state.config.ui.theme = theme;
+        let accent = super::super::style::accent_style(&state).fg;
+        for status in [
+            DisplayStatus::Working,
+            DisplayStatus::NeedsInput,
+            DisplayStatus::Done,
+            DisplayStatus::Exited,
+        ] {
+            let status_colour = super::super::style::status_style(&state, status).fg;
+            assert!(
+                accent.is_none() || accent != status_colour,
+                "theme {} paints its accent the same as {status:?} at sixteen colours",
+                theme.name
+            );
+        }
+    }
 }

@@ -1,6 +1,7 @@
 mod agents;
 mod hosts;
 mod ports;
+mod theme;
 mod workspaces;
 mod worktrees;
 
@@ -68,6 +69,7 @@ fn execute(
             remote_port,
             bind_address,
         } => ports::cancel(state, runtime, remote_port, bind_address)?,
+        ClientCommand::Theme { name } => theme::apply(state, name)?,
         ClientCommand::StatusExplain => agents::explain(state, runtime)?,
         ClientCommand::Approve => worktrees::approve(state, runtime)?,
         ClientCommand::Refresh => {

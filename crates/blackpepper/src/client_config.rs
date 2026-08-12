@@ -2,12 +2,14 @@
 //! message; parse errors never fall back to defaults silently.
 
 mod raw;
+pub mod theme;
 
 use raw::{parse_hex_color, parse_optional_contents, read_optional, RawConfig};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
+pub use theme::{AccentFallback, AnsiSlot, Theme};
 
 const DEFAULT_TOGGLE_MODE: &str = "ctrl+]";
 const DEFAULT_SWITCH_WORKSPACE: &str = "ctrl+n";
@@ -61,6 +63,7 @@ pub struct UiConfig {
     pub foreground: (u8, u8, u8),
     pub color_tier: ColorTier,
     pub glyphs: GlyphSet,
+    pub theme: Theme,
 }
 
 /// Which repertoire the renderer may draw from. The layout, column widths, and
@@ -292,6 +295,12 @@ fn merge(
         .as_ref()
         .map(|raw| raw.hosts.clone())
         .unwrap_or_default();
+    let theme = layers
+        .iter()
+        .rev()
+        .find_map(|layer| layer.as_ref().and_then(|raw| raw.ui.theme.as_deref()))
+        .and_then(theme::by_name)
+        .unwrap_or(theme::THEMES[0]);
     ClientConfig {
         keymap: KeymapConfig {
             toggle_mode: resolve(|raw| raw.keymap.toggle_mode.clone(), DEFAULT_TOGGLE_MODE),
@@ -308,16 +317,12 @@ fn merge(
         startup,
         workspace_env: env,
         ui: UiConfig {
-            background: resolve_color(
-                &layers,
-                |raw| raw.ui.background.as_deref(),
-                (0x1c, 0x1d, 0x1f),
-            ),
-            foreground: resolve_color(
-                &layers,
-                |raw| raw.ui.foreground.as_deref(),
-                (0xe6, 0xe4, 0xe1),
-            ),
+            // Surfaces come from the theme; an explicit background or
+            // foreground still wins, so a user who has already tuned those
+            // keeps them when the default theme changes underneath them.
+            background: resolve_color(&layers, |raw| raw.ui.background.as_deref(), theme.canvas),
+            foreground: resolve_color(&layers, |raw| raw.ui.foreground.as_deref(), theme.ink),
+            theme,
             // An explicit setting outranks detection, including NO_COLOR:
             // it is the escape hatch for a terminal nobody has taught the
             // client about yet.
