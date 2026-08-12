@@ -23,6 +23,7 @@ pub(super) struct RecordingTransport {
 
 impl RecordingTransport {
     pub(super) fn new(root: &Path, data_home: PathBuf, path_directory: &Path) -> Self {
+        write_sha256sum_shim(path_directory);
         Self {
             data_home,
             home: root.join("home"),
@@ -54,6 +55,17 @@ impl RecordingTransport {
                 .get(1)
                 .is_some_and(|script| script.contains("$(uname -s)"))
     }
+}
+
+fn write_sha256sum_shim(directory: &Path) {
+    fs::create_dir_all(directory).unwrap();
+    let path = directory.join("sha256sum");
+    fs::write(
+        &path,
+        "#!/bin/sh\n[ \"$#\" -eq 2 ] && [ \"$1\" = -- ] || exit 64\nshift\nexec shasum -a 256 -- \"$1\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
 }
 
 impl HostTransport for RecordingTransport {

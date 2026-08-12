@@ -6,6 +6,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use super::ssh_cancel::{cancellation_command, wrapped_command};
+#[cfg(target_os = "linux")]
 use uuid::Uuid;
 
 #[test]

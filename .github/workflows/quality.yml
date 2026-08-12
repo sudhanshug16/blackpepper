@@ -96,9 +96,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
-      - name: macOS client quality gates
-        run: |
-          cargo fmt --all -- --check
-          cargo test --workspace
-          cargo clippy --workspace --all-targets -- -D warnings
-          cargo build --locked --workspace --bins
+      - name: macOS formatting
+        run: cargo fmt --all -- --check
+      - name: macOS tests
+        run: cargo test --workspace
+      - name: macOS lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: macOS locked build
+        run: cargo build --locked --workspace --bins

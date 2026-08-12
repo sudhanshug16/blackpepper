@@ -150,11 +150,11 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
     let temp = tempfile::tempdir().unwrap();
     let marker = temp.path().join("ready");
     let script = temp.path().join("ssh-stub");
-    // Keep one process on the PTY after authentication. A shell loop can
-    // briefly leave its `sleep` child holding the slave during teardown,
-    // which makes portable-pty's parent-only kill wait forever on macOS.
+    // Keep one process on the PTY after authentication, then let the test ask
+    // it to exit cleanly. Forcing portable-pty teardown can wait forever on
+    // macOS and would hide whether prompt input and readiness actually worked.
     let script_body = format!(
-        "#!/bin/sh\ncase \" $* \" in\n  *\" -O check \"*) test -f '{}' ; exit $? ;;\n  *\" -O exit \"*) exit 0 ;;\nesac\nprintf 'Password: '\nIFS= read -r answer\ntest \"$answer\" = secret || exit 1\n: > '{}'\nexec sleep 30\n",
+        "#!/bin/sh\ncase \" $* \" in\n  *\" -O check \"*) test -f '{}' ; exit $? ;;\n  *\" -O exit \"*) exit 0 ;;\nesac\nprintf 'Password: '\nIFS= read -r answer\ntest \"$answer\" = secret || exit 1\n: > '{}'\nIFS= read -r command\ntest \"$command\" = quit\n",
         marker.display(),
         marker.display()
     );
@@ -205,6 +205,24 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
     assert_eq!(state, ConnectionState::Ready);
     release_sender.send(()).unwrap();
     reader_thread.join().unwrap();
+
+    transport
+        .master_pty_mut()
+        .unwrap()
+        .write_all(b"quit\n")
+        .unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let exit = loop {
+        if let Some(exit) = transport.master_pty_mut().unwrap().try_wait().unwrap() {
+            break exit;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "SSH stub did not exit within five seconds after cooperative quit"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    assert!(exit.success, "SSH stub rejected the cooperative quit");
     transport.disconnect().unwrap();
 }
 

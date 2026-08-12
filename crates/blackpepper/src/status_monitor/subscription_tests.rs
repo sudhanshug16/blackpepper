@@ -138,10 +138,6 @@ exec sleep 30
     )
     .unwrap();
     let (cancel_tx, cancel_rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        cancel_tx.send(()).unwrap();
-    });
     let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let health_calls = std::sync::Arc::clone(&calls);
     let transitions = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -153,7 +149,11 @@ exec sleep 30
         monitor,
         || 10,
         move |transition| {
-            observed.lock().unwrap().push(transition);
+            let mut observed = observed.lock().unwrap();
+            observed.push(transition);
+            if observed.len() == 2 {
+                cancel_tx.send(()).unwrap();
+            }
             Ok(())
         },
         cancel_rx,

@@ -52,6 +52,11 @@ impl SupervisionFixture {
                 target_path.to_str().unwrap(),
             ],
         );
+        // macOS exposes temporary directories through `/var` while Git reports
+        // their physical `/private/var` paths. Use one canonical identity for
+        // registry rows, fake Worktrunk output, and the supervised command.
+        let survivor_path = fs::canonicalize(survivor_path).unwrap();
+        let target_path = fs::canonicalize(target_path).unwrap();
         let common = fs::canonicalize(survivor_path.join(".git")).unwrap();
         let identity = RepositoryIdentity::local(host_id, common.to_string_lossy()).unwrap();
         let mut survivor = WorkspaceRecord::new(host_id, survivor_path.to_string_lossy());

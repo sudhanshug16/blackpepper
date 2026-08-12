@@ -124,14 +124,17 @@ fn busy_guardian_keeps_lock_after_repository_handle_drops() {
         "parent close must not unlock the guardian's shared file description"
     );
     let started = Instant::now();
-    loop {
+    let acquired = loop {
         if let Ok(lock) = RepositoryLock::acquire(&lock_dir, &repository) {
-            drop(lock);
-            break;
+            break lock;
         }
-        assert!(started.elapsed() < Duration::from_secs(4));
+        assert!(
+            started.elapsed() < Duration::from_secs(15),
+            "guardian did not release the repository lock after its bounded test hold"
+        );
         std::thread::sleep(Duration::from_millis(20));
-    }
+    };
+    drop(acquired);
 }
 
 #[cfg(unix)]

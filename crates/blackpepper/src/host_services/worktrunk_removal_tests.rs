@@ -49,6 +49,11 @@ impl RemovalFixture {
                 target_path.to_str().unwrap(),
             ],
         );
+        // macOS exposes temporary directories through `/var` while Git reports
+        // their physical `/private/var` paths. Keep every side of the fixture
+        // on the same canonical identity, just as production registration does.
+        let survivor_path = std::fs::canonicalize(survivor_path).unwrap();
+        let target_path = std::fs::canonicalize(target_path).unwrap();
 
         let common_dir = std::fs::canonicalize(survivor_path.join(".git")).unwrap();
         let identity = RepositoryIdentity::local(host_id, common_dir.to_string_lossy()).unwrap();
