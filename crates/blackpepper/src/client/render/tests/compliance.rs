@@ -440,7 +440,7 @@ fn the_palette_is_the_designs_palette() {
     );
     assert_eq!(
         style::panel_style(&state).bg,
-        Some(Color::Rgb(0x23, 0x24, 0x27))
+        Some(Color::Rgb(0x38, 0x39, 0x3a))
     );
     assert_eq!(
         style::accent_style(&state).fg,

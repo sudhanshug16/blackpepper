@@ -65,7 +65,7 @@ pub struct Theme {
 /// Shared dark surfaces and status colours. Six of the seven themes differ
 /// only in their accent, so the rest is written once.
 const DARK_CANVAS: (u8, u8, u8) = (0x1c, 0x1d, 0x1f);
-const DARK_RAISED: (u8, u8, u8) = (0x23, 0x24, 0x27);
+const DARK_RAISED: (u8, u8, u8) = (0x38, 0x39, 0x3a);
 const DARK_INK: (u8, u8, u8) = (0xe6, 0xe4, 0xe1);
 const DARK_MID: (u8, u8, u8) = (0xb9, 0xb6, 0xb2);
 const DARK_RECESSIVE: (u8, u8, u8) = (0x6c, 0x6b, 0x68);
@@ -142,7 +142,7 @@ pub const THEMES: [Theme; 7] = [
         name: "violet-light",
         summary: "violet for a light terminal background",
         canvas: (0xfa, 0xf9, 0xf7),
-        raised: (0xec, 0xea, 0xe6),
+        raised: (0xdd, 0xda, 0xd4),
         ink: (0x1c, 0x1d, 0x1f),
         mid: (0x4a, 0x4a, 0x48),
         recessive: (0x6c, 0x6b, 0x68),
@@ -220,6 +220,59 @@ mod tests {
     fn a_theme_without_an_accent_cannot_claim_a_slot() {
         for theme in THEMES.into_iter().filter(|theme| theme.accent.is_none()) {
             assert_eq!(theme.accent_fallback, AccentFallback::Reverse);
+        }
+    }
+
+    /// Relative luminance, for measuring whether two surfaces can actually be
+    /// told apart rather than trusting that a blend percentage looks right.
+    fn luminance((red, green, blue): (u8, u8, u8)) -> f64 {
+        let channel = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.03928 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    }
+
+    fn contrast(left: (u8, u8, u8), right: (u8, u8, u8)) -> f64 {
+        let (high, low) = {
+            let (a, b) = (luminance(left), luminance(right));
+            (a.max(b), a.min(b))
+        };
+        (high + 0.05) / (low + 0.05)
+    }
+
+    /// A panel the eye cannot separate from the canvas is not a panel. The
+    /// design's 6% blend measures 1.09:1, which reads in a large static mock
+    /// and disappears in a terminal — a one-row status bar at that separation
+    /// is invisible. 1.3:1 is the floor where an edge becomes reliable.
+    #[test]
+    fn every_theme_separates_its_raised_surface_from_its_canvas() {
+        for theme in THEMES {
+            let separation = contrast(theme.canvas, theme.raised);
+            assert!(
+                separation >= 1.3,
+                "{} raises by only {separation:.2}:1; the bar and panels vanish",
+                theme.name
+            );
+        }
+    }
+
+    /// Raised must stay a surface, not become text. Too far and the panel
+    /// competes with what is written on it.
+    #[test]
+    fn a_raised_surface_never_reads_as_foreground() {
+        for theme in THEMES {
+            let to_canvas = contrast(theme.canvas, theme.raised);
+            let to_ink = contrast(theme.ink, theme.raised);
+            assert!(
+                to_ink > to_canvas * 2.0,
+                "{} raised sits closer to its ink than to its canvas",
+                theme.name
+            );
         }
     }
 

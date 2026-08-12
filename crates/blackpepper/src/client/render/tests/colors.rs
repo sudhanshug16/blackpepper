@@ -16,7 +16,7 @@ fn supplied_truecolor_tokens_are_exact() {
     );
     assert_eq!(
         super::super::style::panel_style(&state).bg,
-        Some(Color::Rgb(0x23, 0x24, 0x27))
+        Some(Color::Rgb(0x38, 0x39, 0x3a))
     );
     // Brass is the default palette.
     assert_eq!(
