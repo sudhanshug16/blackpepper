@@ -7,17 +7,30 @@ use crate::transport::{
 };
 use std::path::PathBuf;
 
-const MANAGED_ZELLIJ_CONFIG: &[u8] = include_bytes!("../../../../assets/zellij/config.kdl");
+/// A host's own Zellij configuration is read before merging. The cap is
+/// generous for a config file and small enough that a wrong path cannot pull
+/// something huge across an SSH link.
+const MAX_HOST_CONFIG_BYTES: usize = 512 * 1024;
 
 impl ClientRuntime {
-    /// Install the content-addressed appearance used only when the workspace
-    /// host has no effective Zellij configuration of its own. Content identity
-    /// prevents production and development clients from rewriting a config an
-    /// existing Zellij session is actively watching.
+    /// Install the configuration Zellij is launched with: the host's own file
+    /// plus every appearance setting it does not already define.
+    ///
+    /// Zellij autogenerates a config on first run, so "the host has no config"
+    /// is almost never true and cannot be the condition for styling anything.
+    /// Merging per setting means a host that only ever set keybindings keeps
+    /// them and still gets the appearance, while any opinion it did express
+    /// wins. The result is written to a Blackpepper-owned path — the host's
+    /// own file is never modified.
+    ///
+    /// The path carries the merged content's hash, so production and
+    /// development clients cannot rewrite a file an existing Zellij session is
+    /// watching, and identical content is shared rather than rewritten.
     pub(super) fn managed_zellij_config_path(
         &mut self,
         host_id: HostId,
         version: &str,
+        host_config: Option<&str>,
     ) -> Result<String, String> {
         let application_data = if host_id == self.local_host_id {
             SidecarCache::from_xdg()
@@ -29,19 +42,56 @@ impl ClientRuntime {
         } else {
             self.remote_data_home(host_id)?.join("blackpepper")
         };
+        let merged = crate::zellij::appearance::merge(
+            host_config.unwrap_or_default(),
+            crate::zellij::appearance::APPEARANCE,
+        );
+        let contents = merged.into_bytes();
         let path = application_data
             .join("zellij-config")
             .join(version)
-            .join(sha256_bytes(MANAGED_ZELLIJ_CONFIG))
+            .join(sha256_bytes(&contents))
             .join("config.kdl");
         self.install_assets(
             host_id,
             &[ManagedAsset {
                 path: path.clone(),
-                contents: MANAGED_ZELLIJ_CONFIG.to_vec(),
+                contents: contents.clone(),
             }],
         )?;
         text_path(&path)
+    }
+
+    /// Read the host's own Zellij configuration so it can be merged. A missing
+    /// file is not an error: it just means Blackpepper contributes everything.
+    pub(super) fn read_host_zellij_config(
+        &mut self,
+        host_id: HostId,
+        path: &str,
+    ) -> Result<Option<String>, String> {
+        let output = self
+            .transport_mut(host_id)?
+            .exec(&HostCommand::new("sh").args([
+                "-c",
+                "test -f \"$1\" || exit 3; exec cat -- \"$1\"",
+                "blackpepper-zellij-config",
+                path,
+            ]))
+            .map_err(|error| error.to_string())?;
+        if output.status == Some(3) {
+            return Ok(None);
+        }
+        if !output.success {
+            return Err(format!("Could not read Zellij configuration at {path}."));
+        }
+        if output.stdout.len() > MAX_HOST_CONFIG_BYTES {
+            return Err(format!(
+                "Zellij configuration at {path} exceeds {MAX_HOST_CONFIG_BYTES} bytes."
+            ));
+        }
+        String::from_utf8(output.stdout)
+            .map(Some)
+            .map_err(|_| format!("Zellij configuration at {path} is not UTF-8."))
     }
 
     pub(crate) fn exact_binary(

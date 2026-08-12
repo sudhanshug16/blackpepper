@@ -179,20 +179,29 @@ impl ClientRuntime {
         let zellij = ZellijRuntime::for_version(zellij_binary, &session.backend_version)
             .map_err(|error| error.to_string())?;
         let config = self.workspace_config(workspace)?;
-        let user_configuration_present = {
+        let host_configuration_path = {
             let transport = self.transport_mut(workspace.host_id)?;
             zellij
                 .check_version(transport)
                 .map_err(|error| error.to_string())?;
             zellij
-                .user_configuration_present(transport)
+                .user_configuration(transport)
                 .map_err(|error| error.to_string())?
+                .0
         };
-        let zellij = if user_configuration_present {
-            zellij
-        } else {
-            let path =
-                self.managed_zellij_config_path(workspace.host_id, &session.backend_version)?;
+        // The host's own settings are merged in rather than deferred to, so a
+        // config that only sets keybindings still gets Blackpepper's
+        // appearance and keeps every binding it declared.
+        let host_configuration = match host_configuration_path.as_deref() {
+            Some(path) => self.read_host_zellij_config(workspace.host_id, path)?,
+            None => None,
+        };
+        let zellij = {
+            let path = self.managed_zellij_config_path(
+                workspace.host_id,
+                &session.backend_version,
+                host_configuration.as_deref(),
+            )?;
             let zellij = zellij
                 .with_config_file(path)
                 .map_err(|error| error.to_string())?;

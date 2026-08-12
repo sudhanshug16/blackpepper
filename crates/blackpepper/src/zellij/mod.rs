@@ -1,5 +1,6 @@
 //! Pinned Zellij 0.44.3 command surface used by Blackpepper workspaces.
 
+pub mod appearance;
 mod model;
 mod runtime;
 #[cfg(test)]

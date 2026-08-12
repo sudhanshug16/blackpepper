@@ -120,11 +120,21 @@ impl ZellijRuntime {
         &self,
         host: &mut dyn HostTransport,
     ) -> Result<bool, ZellijError> {
+        Ok(self.user_configuration(host)?.1)
+    }
+
+    /// The host's own configuration path, and whether a file exists there.
+    /// Blackpepper merges its appearance into that file rather than replacing
+    /// it, so the path matters even when the file is absent.
+    pub fn user_configuration(
+        &self,
+        host: &mut dyn HostTransport,
+    ) -> Result<(Option<String>, bool), ZellijError> {
         let output = checked(
             host.exec_timeout(&self.check_configuration_command(), METADATA_TIMEOUT)?,
             "check Zellij configuration",
         )?;
-        configuration_present(&output.stdout, &output.stderr)
+        configuration_source(&output.stdout, &output.stderr)
     }
 
     /// Ask Zellij to parse its effective user configuration without writing
@@ -181,6 +191,27 @@ impl ZellijRuntime {
             ])
             .args(arguments)
     }
+}
+
+/// Where the pinned binary looks for the host's own configuration, and
+/// whether a file is actually there. Zellij prints the path whether or not it
+/// exists, so the two facts are reported together.
+pub fn configuration_source(
+    stdout: &[u8],
+    stderr: &[u8],
+) -> Result<(Option<String>, bool), ZellijError> {
+    let present = configuration_present(stdout, stderr)?;
+    let diagnostics = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(stdout),
+        String::from_utf8_lossy(stderr)
+    );
+    let path = diagnostics
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("[LOOKING FOR CONFIG FILE FROM]:"))
+        .map(|value| value.trim().trim_matches('"').to_owned())
+        .filter(|value| !value.is_empty() && value != "Not Found");
+    Ok((path, present))
 }
 
 fn configuration_present(stdout: &[u8], stderr: &[u8]) -> Result<bool, ZellijError> {
