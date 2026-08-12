@@ -37,15 +37,24 @@ with an embedded shell per workspace.
 
 ## Workspace & Task Model
 
-- Workspaces are created with `git worktree` under `./workspaces/<animal>`; avoid nesting under `node_modules/`.
-- Workspace branches start with animal names (e.g., `otter`, `lynx`) and are renamed after the first task is defined.
-- A workspace can run multiple agent tabs; each tab may target a provider.
-- Workspace lifecycle is manual via `:create`, `:destroy`, `:create-pr`, `:open-pr`, `:merge-pr`.
+- A workspace is one registered absolute folder on the local machine or a Linux
+  SSH host. Blackpepper does not choose an animal name or directory for it.
+- Worktrunk owns Git worktree list/create/open/remove. Every mutation is
+  previewed and must be confirmed with the exact-plan `:approve` flow.
+- A workspace can run several Zellij tabs for shells, configured services, and
+  coding agents. Reconnect restores shells/services, never agent conversations.
+- Terminating a workspace ends its Zellij session but keeps the folder;
+  worktree removal is a separate, journaled Worktrunk operation.
 
 ## CLI & Command Mode
 
-- Entry point is `pepper` (no subcommands).
-- Command mode uses `:` prefixes for workspace and PR actions.
+- Production entry point is `bp`; the side-by-side source build is `bp-dev`.
+  Both have no CLI subcommands beyond `--help` and `--version`.
+- Inside the TUI, `:` commands cover hosts, workspaces, Worktrunk, agents,
+  services, ports, status, refresh, help, and quit. V1 has no PR create/merge,
+  branch-rename, or automatic-worktree command surface.
+- Keep host operations that may wait on SSH, helpers, Zellij, Worktrunk,
+  providers, or port probes off the render thread.
 
 ## Build, Test, and Development Commands
 
@@ -68,18 +77,31 @@ with an embedded shell per workspace.
 
 ## Terminal Transparency Principle
 
-- In work mode, Blackpepper is a transparent layer for tmux. Do not implement selection, copy, scrollback search, or other terminal UX that tmux already provides.
-- Handle OSC 52 so tmux copy-mode writes to the system clipboard.
+- In work mode, Blackpepper is a transparent layer for Zellij. Do not replace
+  Zellij selection, copy, scrollback search, tab, or pane behavior.
+- Handle bounded OSC 52 writes so Zellij copy-mode reaches the system or outer
+  browser clipboard; never answer clipboard reads or persist clipboard text.
 
 ## Configuration & Secrets
 
-- Config resolution order: workspace-local `.config/blackpepper/config.toml`, then user-level `~/.config/blackpepper/config.toml`.
+- Config resolution order is user
+  `$XDG_CONFIG_HOME/blackpepper/config.toml`, then
+  `<workspace>/.blackpepper/config.toml`, then the optional ignored
+  `<workspace>/.blackpepper/config.local.toml`; later layers win.
+- Only the user layer may define SSH hosts. Host entries contain an OpenSSH
+  destination alias, not structured hostname/key/jump-host settings.
 - Validate config on startup and fail with actionable errors.
 - Never commit configs or secrets; redact any sensitive values in logs.
 
 ## Logging & State
 
 - Follow XDG locations; store logs under `~/.local/state/blackpepper/`.
+- Production `bp` and development `bp-dev` intentionally share the
+  host/workspace/session registry and lifecycle locks. Keep that V1 storage
+  schema and its persisted JSON backward-compatible with the latest production
+  build; put launch-specific provider state in the channel-specific agent-event
+  database. An incompatible registry model requires an explicit new storage
+  epoch and migration design, not an in-place dev schema bump.
 
 ## Testing Guidelines
 

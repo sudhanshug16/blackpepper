@@ -1,0 +1,103 @@
+name: Quality
+
+on:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: Commit or tag to validate
+        required: false
+        type: string
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
+      - name: Install acceptance dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            iproute2 \
+            netcat-openbsd \
+            openssh-server \
+            shellcheck \
+            tmux
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - name: Rust quality gates
+        run: |
+          cargo fmt --all -- --check
+          cargo test --workspace
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo build --locked --workspace --bins
+      - name: Script quality gates
+        run: |
+          find scripts -type f -name '*.sh' -print0 \
+            | xargs -0 -r -n1 bash -n
+          bash -n docs/install.sh
+          shellcheck -x scripts/*.sh scripts/fixtures/*/*.sh docs/install.sh
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          for source in (
+              Path("scripts/test-macos-ssh-pty-e2e.py"),
+              Path("scripts/fixtures/macos-ssh-pty/pty_client.py"),
+          ):
+              ast.parse(source.read_text(), filename=str(source))
+          PY
+          scripts/test-installer.sh
+          scripts/test-dev-installer.sh
+          scripts/test-web-dev.sh
+      - name: Install isolated development build
+        run: scripts/setup.sh
+      - name: Zellij socket namespace persistence acceptance
+        env:
+          BLACKPEPPER_ZELLIJ_NAMESPACE_E2E_DATA_HOME: ${{ github.workspace }}/target/tui-local-e2e-data
+        run: scripts/test-zellij-socket-namespace-e2e.sh
+      - name: Local TUI acceptance
+        run: scripts/test-tui-local-e2e.sh
+      - name: Production and development coexistence acceptance
+        run: scripts/test-dev-coexistence-e2e.sh
+      - name: Terminal transparency acceptance
+        run: scripts/test-terminal-transparency-e2e.sh
+      - name: Worktrunk edge acceptance
+        run: scripts/test-tui-worktrunk-e2e.sh
+      - name: Agent-status TUI acceptance
+        run: scripts/test-tui-agent-e2e.sh
+      - name: SSH TUI acceptance
+        env:
+          BLACKPEPPER_E2E_BP: ${{ github.workspace }}/target/debug/bp
+          BLACKPEPPER_E2E_ZELLIJ_SEED: ${{ github.workspace }}/target/tui-local-e2e-data/blackpepper/sidecars/zellij/0.44.3/x86_64-unknown-linux-musl
+        run: scripts/test-tui-ssh-e2e.sh
+      - name: SSH ProxyJump and host-key security acceptance
+        env:
+          BLACKPEPPER_E2E_BP: ${{ github.workspace }}/target/debug/bp
+          BLACKPEPPER_E2E_ZELLIJ_SEED: ${{ github.workspace }}/target/tui-local-e2e-data/blackpepper/sidecars/zellij/0.44.3/x86_64-unknown-linux-musl
+        run: scripts/test-tui-ssh-matrix-e2e.sh
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - name: macOS client quality gates
+        run: |
+          cargo fmt --all -- --check
+          cargo test --workspace
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo build --locked --workspace --bins

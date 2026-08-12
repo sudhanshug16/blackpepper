@@ -1,0 +1,9 @@
+Claude wants to run a bash command
+
+  cargo test -p blackpepper
+
+Do you want to proceed?
+❯ 1. Yes
+  2. No
+
+Esc to cancel · Tab to amend

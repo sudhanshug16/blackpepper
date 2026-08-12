@@ -1,0 +1,8 @@
+• You have 812 weighted tokens left
+
+  Allow command?
+
+› 1. Yes, proceed
+  2. No, and tell Codex what to do differently
+
+Press enter to confirm or esc to cancel

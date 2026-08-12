@@ -1,12 +1,17 @@
 [package]
 name = "blackpepper"
-version = "0.1.66"
+version = "0.1.67"
 edition = "2021"
 description = "Terminal orchestrator for TUI coding agents with isolated workspaces."
+license = "MIT"
 
 [[bin]]
 name = "bp"
 path = "src/main.rs"
+
+[[bin]]
+name = "bp-host"
+path = "src/bin/bp-host.rs"
 
 [dependencies]
 crossterm = "0.29.0"
@@ -25,5 +30,15 @@ arboard = "3"
 base64 = "0.22"
 notify-rust = "4"
 tempfile = "3.24.0"
+uuid = { version = "1", features = ["serde", "v4", "v5"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+regex = "1"
+sha2 = "0.10.9"
+shell-words = "1.1.1"
+flate2 = "1.1.2"
+fs2 = "0.4.3"
+tar = "0.4.44"
+ureq = { version = "2.12.1", default-features = false, features = ["tls"] }
+xz2 = "0.1.7"
 
 [dev-dependencies]

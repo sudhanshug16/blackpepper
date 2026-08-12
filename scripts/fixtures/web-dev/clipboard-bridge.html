@@ -1,0 +1,152 @@
+<script data-blackpepper-clipboard-bridge="1">
+(() => {
+  'use strict';
+
+  const MAX_CLIPBOARD_BYTES = 1024 * 1024;
+  const MAX_ENCODED_BYTES = Math.ceil(MAX_CLIPBOARD_BYTES / 3) * 4;
+  const STATUS_ID = 'blackpepper-clipboard-status';
+  let copyGeneration = 0;
+
+  function showStatus(message, retryText) {
+    document.getElementById(STATUS_ID)?.remove();
+    const status = document.createElement('div');
+    status.id = STATUS_ID;
+    status.setAttribute('role', retryText === undefined ? 'status' : 'alert');
+    status.style.cssText = [
+      'position:fixed',
+      'right:12px',
+      'bottom:12px',
+      'z-index:2147483647',
+      'max-width:420px',
+      'padding:10px 12px',
+      'border:1px solid #8b949e',
+      'border-radius:6px',
+      'background:#161b22',
+      'color:#f0f6fc',
+      'font:13px/1.4 system-ui,sans-serif',
+      'box-shadow:0 4px 16px rgba(0,0,0,.45)'
+    ].join(';');
+
+    const label = document.createElement('span');
+    label.textContent = message;
+    status.appendChild(label);
+    if (retryText !== undefined) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Copy';
+      button.style.cssText = [
+        'margin-left:10px',
+        'padding:3px 9px',
+        'border:1px solid #8b949e',
+        'border-radius:4px',
+        'background:#238636',
+        'color:white',
+        'cursor:pointer'
+      ].join(';');
+      button.addEventListener('click', () => writeClipboard(retryText, true));
+      status.appendChild(button);
+    }
+    document.body.appendChild(status);
+    if (retryText === undefined) {
+      window.setTimeout(() => status.remove(), 1600);
+    }
+  }
+
+  function legacyCopy(text) {
+    const input = document.createElement('textarea');
+    input.value = text;
+    input.setAttribute('readonly', '');
+    input.style.cssText = 'position:fixed;left:-10000px;top:0;opacity:0';
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+    let copied = false;
+    try {
+      copied = document.execCommand('copy');
+    } catch (_) {
+      copied = false;
+    }
+    input.remove();
+    window.term?.focus();
+    return copied;
+  }
+
+  async function writeClipboard(text, fromButton) {
+    const generation = ++copyGeneration;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
+      await navigator.clipboard.writeText(text);
+      if (generation === copyGeneration) {
+        showStatus('Copied from Zellij.');
+      }
+      return;
+    } catch (_) {
+      if (fromButton && legacyCopy(text)) {
+        if (generation === copyGeneration) {
+          showStatus('Copied from Zellij.');
+        }
+        return;
+      }
+    }
+
+    if (generation === copyGeneration) {
+      const prefix = fromButton
+        ? 'Browser denied clipboard access.'
+        : 'Browser blocked automatic clipboard access.';
+      showStatus(`${prefix} Grant clipboard permission or click Copy.`, text);
+    }
+  }
+
+  function decodeClipboard(data) {
+    const separator = data.indexOf(';');
+    const target = data.slice(0, separator);
+    if (separator < 0 || (target !== 'c' && target !== 'p' && target !== '')) {
+      return undefined;
+    }
+    const payload = data.slice(separator + 1);
+    if (payload === '?' || payload.length > MAX_ENCODED_BYTES) {
+      return undefined;
+    }
+    try {
+      const binary = atob(payload);
+      if (binary.length > MAX_CLIPBOARD_BYTES) {
+        return undefined;
+      }
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (_) {
+      return undefined;
+    }
+  }
+
+  function install() {
+    if (!window.term) {
+      window.setTimeout(install, 10);
+      return;
+    }
+    try {
+      window.term.parser.registerOscHandler(52, data => {
+        const text = decodeClipboard(data);
+        if (text !== undefined) {
+          void writeClipboard(text, false);
+        }
+        // Clipboard reads, invalid payloads, and writes are all consumed. The
+        // bridge never returns browser clipboard contents to the PTY.
+        return true;
+      });
+      Object.defineProperty(window, '__blackpepperClipboardBridge', {
+        value: Object.freeze({ installed: true, version: 1 }),
+        configurable: false,
+        enumerable: false,
+        writable: false
+      });
+    } catch (_) {
+      showStatus('Blackpepper clipboard bridge could not start; use browser text selection.');
+    }
+  }
+
+  install();
+})();
+</script>

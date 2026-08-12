@@ -1,110 +1,44 @@
-mod animals;
-mod app;
-mod commands;
-mod config;
-mod events;
-mod git;
-mod input;
-mod keymap;
-mod providers;
-mod repo_status;
-mod state;
-mod terminal;
-#[cfg(test)]
-mod test_utils;
-mod tmux;
-mod updater;
-mod workspaces;
+use std::process::ExitCode;
 
-fn main() -> std::io::Result<()> {
-    let mut args = std::env::args();
-    let program = args.next().unwrap_or_else(|| "blackpepper".to_string());
-
-    updater::apply_staged_update();
-
-    let mut rest: Vec<String> = args.collect();
-    if !rest.is_empty() {
-        if rest.first().map(String::as_str) == Some("--help")
-            || rest.first().map(String::as_str) == Some("-h")
-        {
-            println!("Usage: {program} [command]");
-            println!();
-            println!("Commands:");
-            for line in commands::command_help_lines_cli() {
-                println!("  {line}");
-            }
-            return Ok(());
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Blackpepper could not start: {error}");
+            ExitCode::FAILURE
         }
-        if rest.first().map(String::as_str) == Some("--version")
-            || rest.first().map(String::as_str) == Some("-v")
-        {
-            let result = commands::run_command(
-                "version",
-                &[],
-                &commands::CommandContext {
-                    cwd: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-                    repo_root: None,
-                    workspace_root: std::path::PathBuf::from(".blackpepper/workspaces"),
-                    workspace_path: None,
-                    source: commands::CommandSource::Cli,
-                },
-            );
-            println!("{}", result.message);
-            return Ok(());
-        }
-
-        let command = rest.remove(0);
-        let command = command.strip_prefix(':').unwrap_or(&command).to_string();
-        let tokens: Vec<String> = std::iter::once(command).chain(rest).collect();
-        let input = format!(":{}", tokens.join(" "));
-        let parsed = match commands::parse_command(&input) {
-            Ok(parsed) => parsed,
-            Err(err) => {
-                eprintln!("{}", err.error);
-                return Ok(());
-            }
-        };
-        let is_cli_exposed = if parsed.args.is_empty() {
-            commands::COMMANDS.iter().any(|spec| {
-                spec.cli_exposed
-                    && (spec.name == parsed.name
-                        || spec.name.starts_with(&format!("{} ", parsed.name)))
-            })
-        } else {
-            let full = format!("{} {}", parsed.name, parsed.args[0]);
-            commands::COMMANDS
-                .iter()
-                .any(|spec| spec.name == full && spec.cli_exposed)
-        };
-        if !is_cli_exposed {
-            eprintln!("Command not available in CLI: {}", parsed.name);
-            return Ok(());
-        }
-
-        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-        let repo_root = git::resolve_repo_root(&cwd);
-        let config_root = repo_root.as_deref().unwrap_or(&cwd);
-        let config = config::load_config(config_root);
-
-        let result = commands::run_command(
-            parsed.name.as_str(),
-            &parsed.args,
-            &commands::CommandContext {
-                cwd,
-                repo_root,
-                workspace_root: config.workspace.root,
-                workspace_path: None,
-                source: commands::CommandSource::Cli,
-            },
-        );
-        if result.ok {
-            println!("{}", result.message);
-        } else {
-            eprintln!("{}", result.message);
-        }
-        return Ok(());
     }
+}
 
-    let _ = updater::check_for_update();
-    app::run()
+fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let mut arguments = std::env::args();
+    let program = arguments
+        .next()
+        .and_then(|value| {
+            std::path::Path::new(&value)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "bp".to_owned());
+    match arguments.next().as_deref() {
+        Some("--version" | "-V" | "-v") if arguments.next().is_none() => {
+            println!("blackpepper {}", blackpepper::BUILD_ID);
+            Ok(())
+        }
+        Some("--help" | "-h") if arguments.next().is_none() => {
+            println!("Blackpepper {}", blackpepper::BUILD_ID);
+            println!("Remote-first local and SSH agent workspaces backed by Zellij.");
+            println!();
+            println!("Usage: {program}");
+            println!();
+            println!("Commands are entered inside the client. Use :help to list them.");
+            Ok(())
+        }
+        Some(argument) => Err(format!(
+            "unexpected argument {argument:?}; {program} has no command-line subcommands"
+        )
+        .into()),
+        None => blackpepper::client::run(),
+    }
 }

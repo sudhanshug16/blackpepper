@@ -22,6 +22,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Test installer safety
+        run: scripts/test-installer.sh
       - name: Resolve tag
         id: tag
         run: |
@@ -60,16 +62,60 @@ jobs:
           fi
           echo "should_release=false" >> "$GITHUB_OUTPUT"
 
-  build:
-    needs: resolve
+  host-helpers:
+    needs: [resolve, quality]
     if: needs.resolve.outputs.should_release == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+      - name: Install musl toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build static remote helper
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
+        run: cargo build --locked -p blackpepper --release --bin bp-host --target ${{ matrix.target }}
+      - name: Stage remote helper
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          OUT="dist/sidecars/${{ matrix.target }}"
+          mkdir -p "$OUT"
+          install -m 755 "target/${{ matrix.target }}/release/bp-host" "$OUT/bp-host"
+          "$OUT/bp-host" --version | grep -Fx "bp-host ${RELEASE_TAG#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bp-host-${{ matrix.target }}
+          path: dist/sidecars/${{ matrix.target }}/bp-host
+
+  build:
+    needs: [resolve, host-helpers]
+    if: needs.resolve.outputs.should_release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             asset: bp-linux-x86_64.tar.gz
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            asset: bp-linux-arm64.tar.gz
           - os: macos-15-intel
             target: x86_64-apple-darwin
             asset: bp-darwin-x86_64.tar.gz
@@ -79,22 +125,89 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - name: Build
-        run: cargo build -p blackpepper --release --target ${{ matrix.target }}
-      - name: Package
+      - name: Build client and native helper
+        run: cargo build --locked -p blackpepper --release --bins --target ${{ matrix.target }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bp-host-*
+          path: helper-dist
+      - name: Package verified client bundle
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+          RELEASE_ASSET: ${{ matrix.asset }}
+          RELEASE_TARGET: ${{ matrix.target }}
         run: |
-          BIN=bp
-          OUT=dist
-          mkdir -p "$OUT"
-          cp "target/${{ matrix.target }}/release/$BIN" "$OUT/$BIN"
-          tar -czf "$OUT/${{ matrix.asset }}" -C "$OUT" "$BIN"
+          set -euo pipefail
+          PACKAGE="dist/package"
+          mkdir -p "$PACKAGE/sidecars/x86_64-unknown-linux-musl"
+          mkdir -p "$PACKAGE/sidecars/aarch64-unknown-linux-musl"
+          install -m 755 "target/${RELEASE_TARGET}/release/bp" "$PACKAGE/bp"
+          install -m 755 "target/${RELEASE_TARGET}/release/bp-host" "$PACKAGE/bp-host"
+          install -m 755 \
+            helper-dist/bp-host-x86_64-unknown-linux-musl/bp-host \
+            "$PACKAGE/sidecars/x86_64-unknown-linux-musl/bp-host"
+          install -m 755 \
+            helper-dist/bp-host-aarch64-unknown-linux-musl/bp-host \
+            "$PACKAGE/sidecars/aarch64-unknown-linux-musl/bp-host"
+          install -m 644 \
+            crates/blackpepper/assets/agent-status/NOTICE.md \
+            "$PACKAGE/THIRD_PARTY_NOTICES.md"
+          install -m 644 \
+            crates/blackpepper/assets/agent-status/LICENSE-HERDR-APACHE-2.0 \
+            "$PACKAGE/LICENSE-HERDR-APACHE-2.0"
+          install -m 644 LICENSE "$PACKAGE/LICENSE"
+          printf '%s\n' "${RELEASE_TAG#v}" > "$PACKAGE/VERSION"
+
+          EXPECTED_VERSION="${RELEASE_TAG#v}"
+          test "$("$PACKAGE/bp" --version)" = "blackpepper ${EXPECTED_VERSION}"
+          test "$("$PACKAGE/bp-host" --version)" = "bp-host ${EXPECTED_VERSION}"
+
+          checksum() {
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$@"
+            else
+              shasum -a 256 "$@"
+            fi
+          }
+          (
+            cd "$PACKAGE"
+            checksum \
+              LICENSE \
+              LICENSE-HERDR-APACHE-2.0 \
+              THIRD_PARTY_NOTICES.md \
+              VERSION \
+              bp \
+              bp-host \
+              sidecars/aarch64-unknown-linux-musl/bp-host \
+              sidecars/x86_64-unknown-linux-musl/bp-host \
+              > SHA256SUMS
+          )
+          tar -czf "dist/${RELEASE_ASSET}" -C "$PACKAGE" \
+            LICENSE \
+            LICENSE-HERDR-APACHE-2.0 \
+            THIRD_PARTY_NOTICES.md \
+            VERSION \
+            SHA256SUMS \
+            bp \
+            bp-host \
+            sidecars/aarch64-unknown-linux-musl/bp-host \
+            sidecars/x86_64-unknown-linux-musl/bp-host
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
           path: dist/${{ matrix.asset }}
+
+  quality:
+    needs: resolve
+    if: needs.resolve.outputs.should_release == 'true'
+    uses: ./.github/workflows/quality.yml
+    with:
+      checkout-ref: ${{ needs.resolve.outputs.tag }}
 
   release:
     needs: [resolve, build]
@@ -108,6 +221,10 @@ jobs:
         run: |
           mkdir -p release
           find dist -type f -name "*.tar.gz" -exec cp {} release/ \;
+          (
+            cd release
+            sha256sum -- *.tar.gz > SHA256SUMS
+          )
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve.outputs.tag }}

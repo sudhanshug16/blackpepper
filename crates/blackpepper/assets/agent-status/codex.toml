@@ -1,0 +1,39 @@
+# Blocker-only overlay adapted from Herdr's Apache-2.0 codex manifest.
+schema_version = 1
+provider = "codex"
+version = "2026.08.11.1"
+
+[[blockers]]
+id = "title_action_required"
+confidence = "high"
+priority = 1100
+region = { kind = "terminal_title" }
+contains_all = ["Action Required"]
+
+[[blockers]]
+id = "trust_directory"
+confidence = "high"
+priority = 1000
+region = { kind = "top_lines", lines = 20 }
+contains_all = ["Do you trust the contents of this directory?"]
+contains_any = ["Yes, continue", "No, quit"]
+
+[[blockers]]
+id = "confirm_or_cancel"
+confidence = "high"
+priority = 950
+region = { kind = "bottom_lines", lines = 14 }
+contains_any = [
+  "press enter to confirm or esc to cancel",
+  "enter to submit answer",
+  "enter to submit all",
+  "allow command?",
+]
+
+[[blockers]]
+id = "yes_no_prompt"
+confidence = "medium"
+priority = 700
+region = { kind = "bottom_lines", lines = 8 }
+regex_any = ['(?i)(?:\[y/n\]|yes \(y\))']
+not_contains = ["Conversation interrupted"]

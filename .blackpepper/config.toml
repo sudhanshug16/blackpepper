@@ -1,2 +1,3 @@
-[workspace.setup]
-scripts = ["./scripts/setup.sh"]
+# Blackpepper V1 starts one persistent shell automatically. Add `[[startup]]`
+# entries here only for long-running project services that should get their own
+# Zellij tabs; repository setup belongs in Worktrunk's `.config/wt.toml` hooks.

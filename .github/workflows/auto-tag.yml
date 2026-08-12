@@ -8,7 +8,11 @@ permissions:
   contents: write
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
   tag:
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,23 +21,24 @@ jobs:
       - name: Detect version bump
         id: version
         run: |
+          write_output() {
+            printf '%s\n' "$@" >> "$GITHUB_OUTPUT"
+          }
           if ! git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -q "^crates/blackpepper/Cargo.toml$"; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            write_output "changed=false"
             exit 0
           fi
           VERSION=$(sed -nE 's/^version\s*=\s*"([^"]+)".*/\1/p' crates/blackpepper/Cargo.toml | head -n1)
           if [ -z "$VERSION" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            write_output "changed=false"
             exit 0
           fi
           TAG="v$VERSION"
           if git tag -l "$TAG" | grep -q "$TAG"; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            write_output "changed=false"
             exit 0
           fi
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          write_output "changed=true" "version=$VERSION" "tag=$TAG"
       - name: Create tag
         if: steps.version.outputs.changed == 'true'
         run: |

@@ -1,0 +1,20 @@
+[workspace.env]
+BLACKPEPPER_E2E = "workspace-env-ok"
+
+[[startup]]
+name = "fixture"
+command = [
+  "sh",
+  "-c",
+  "printf '%s' \"$BLACKPEPPER_E2E\" > .bp-e2e-service-started; exec sleep 300",
+]
+auto_start = false
+
+[[startup]]
+name = "reboot-fixture"
+command = [
+  "sh",
+  "-c",
+  "printf '%s\\n' \"$BLACKPEPPER_E2E\" >> \"$BLACKPEPPER_E2E_AUTO_LOG_ROOT/$BLACKPEPPER_SERVICE_ID\"; exec sleep 300",
+]
+auto_start = true

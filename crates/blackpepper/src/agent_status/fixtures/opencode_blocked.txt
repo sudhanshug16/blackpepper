@@ -1,0 +1,5 @@
+△ Permission required
+
+  Run cargo test -p blackpepper
+
+↑↓ select · enter confirm · esc dismiss

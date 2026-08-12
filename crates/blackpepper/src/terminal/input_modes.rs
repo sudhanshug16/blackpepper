@@ -1,8 +1,8 @@
 //! Input mode tracking for the host terminal.
 //!
-//! tmux toggles terminal input modes (mouse, application cursor, etc.)
-//! via escape sequences. We mirror those modes onto the host terminal so
-//! tmux can receive mouse events directly.
+//! Zellij toggles terminal input modes (mouse, application cursor, etc.) via
+//! escape sequences. We mirror those modes onto the host terminal so the
+//! attached Zellij client receives mouse events directly.
 
 use vt100::{MouseProtocolEncoding, MouseProtocolMode, Screen};
 
@@ -28,6 +28,15 @@ impl Default for InputModes {
 }
 
 impl InputModes {
+    pub fn manage_interface() -> Self {
+        Self {
+            bracketed_paste: true,
+            mouse_mode: MouseProtocolMode::PressRelease,
+            mouse_encoding: MouseProtocolEncoding::Sgr,
+            ..Self::default()
+        }
+    }
+
     pub fn from_screen(screen: &Screen) -> Self {
         Self {
             application_keypad: screen.application_keypad(),
