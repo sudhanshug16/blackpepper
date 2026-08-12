@@ -50,15 +50,11 @@ matrix_cleanup() {
     done < <(grep -Eo '/tmp/bp-ssh-[^ /]+/c' "$SSH_LOG" | sort -u)
   fi
 
-  if [ -n "${ZELLIJ_SOURCE_BINARY:-}" ]; then
-    kill_zellij_tree \
-      "$TEST_ROOT/client-a/runtime" \
-      "$TEST_ROOT/client-a/data" \
-      "$ZELLIJ_SOURCE_BINARY"
-    kill_zellij_tree \
-      "$TEST_ROOT/remote/runtime" \
-      "$TEST_ROOT/remote/data" \
-      "$ZELLIJ_SOURCE_BINARY"
+  if [ -n "${ZELLIJ_CACHE_RELATIVE:-}" ]; then
+    kill_registered_zellij_sessions \
+      "$TEST_ROOT/client-a/state" "$TEST_ROOT/client-a/data/$ZELLIJ_CACHE_RELATIVE/zellij"
+    kill_registered_zellij_sessions \
+      "$TEST_ROOT/remote/state" "$TEST_ROOT/remote/data/$ZELLIJ_CACHE_RELATIVE/zellij"
   fi
 
   stop_process "${TARGET_PID:-}"
@@ -103,7 +99,7 @@ apply_sshd_config() {
     printf 'LogLevel %s\n' "$log_level"
     printf '%s\n' 'AllowTcpForwarding yes'
     printf '%s\n' 'PermitTunnel no'
-    printf '%s\n' 'AcceptEnv XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_RUNTIME_DIR'
+    printf '%s\n' 'AcceptEnv ZELLIJ_CONFIG_DIR XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_RUNTIME_DIR'
   } > "$destination"
   chmod 0600 "$destination"
 }

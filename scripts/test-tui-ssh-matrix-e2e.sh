@@ -60,11 +60,19 @@ install -d -m 0700 \
   "$TEST_ROOT/sshd" \
   "$TEST_ROOT/bin" \
   "$TEST_ROOT/remote/config" \
+  "$TEST_ROOT/remote/config/zellij" \
+  "$TEST_ROOT/remote/cache" \
   "$TEST_ROOT/remote/data" \
   "$TEST_ROOT/remote/state" \
   "$TEST_ROOT/remote/runtime" \
   "$TEST_ROOT/remote/workspace" \
   "$TEST_ROOT/empty-config"
+
+cat > "$TEST_ROOT/remote/config/zellij/config.kdl" <<'EOF'
+show_startup_tips false
+show_release_notes false
+EOF
+chmod 0600 "$TEST_ROOT/remote/config/zellij/config.kdl"
 
 REMOTE_WORKSPACE="$TEST_ROOT/remote/workspace"
 printf '%s\n' 'blackpepper-proxyjump-ok' > "$REMOTE_WORKSPACE/marker.txt"
@@ -113,8 +121,9 @@ KNOWN_HOSTS="$TEST_ROOT/known_hosts"
   printf '%s\n' '    GlobalKnownHostsFile /dev/null'
   printf '%s\n' '    HashKnownHosts yes'
   printf '%s\n' '    LogLevel ERROR'
-  printf '    SetEnv XDG_CONFIG_HOME=%s XDG_DATA_HOME=%s XDG_STATE_HOME=%s XDG_RUNTIME_DIR=%s\n' \
-    "$TEST_ROOT/remote/config" "$TEST_ROOT/remote/data" \
+  printf '    SetEnv ZELLIJ_CONFIG_DIR=%s XDG_CONFIG_HOME=%s XDG_CACHE_HOME=%s XDG_DATA_HOME=%s XDG_STATE_HOME=%s XDG_RUNTIME_DIR=%s\n' \
+    "$TEST_ROOT/remote/config/zellij" "$TEST_ROOT/remote/config" \
+    "$TEST_ROOT/remote/cache" "$TEST_ROOT/remote/data" \
     "$TEST_ROOT/remote/state" "$TEST_ROOT/remote/runtime"
 } > "$SSH_CONFIG"
 chmod 0600 "$SSH_CONFIG"
@@ -172,9 +181,9 @@ ssh-keygen -F "[127.0.0.1]:$TARGET_PORT" -f "$KNOWN_HOSTS" >/dev/null ||
 KNOWN_HOSTS_BEFORE="$(sha256sum "$KNOWN_HOSTS" | awk '{print $1}')"
 
 send_command ":workspace add $REMOTE_WORKSPACE"
-wait_until 'remote PTY through ProxyJump' 60 screen_has 'WORK'
+wait_until 'remote PTY through ProxyJump' 60 screen_has ' WORK '
 ensure_work
-dismiss_zellij_tip
+wait_for_terminal_ready 'ProxyJump remote shell' 15
 send_literal "printf 'BP_PROXYJUMP_PTY:%s\\n' \"\$PWD\""
 send_enter
 wait_until 'ProxyJump Zellij PTY output' 20 screen_has "BP_PROXYJUMP_PTY:$REMOTE_WORKSPACE"

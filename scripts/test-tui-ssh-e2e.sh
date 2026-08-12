@@ -57,11 +57,19 @@ install -d -m 0700 \
   "$TEST_ROOT/sshd" \
   "$TEST_ROOT/bin" \
   "$TEST_ROOT/remote/config" \
+  "$TEST_ROOT/remote/config/zellij" \
+  "$TEST_ROOT/remote/cache" \
   "$TEST_ROOT/remote/data" \
   "$TEST_ROOT/remote/state" \
   "$TEST_ROOT/remote/runtime" \
   "$TEST_ROOT/remote/workspace" \
   "$TEST_ROOT/empty-config"
+
+cat > "$TEST_ROOT/remote/config/zellij/config.kdl" <<'EOF'
+show_startup_tips false
+show_release_notes false
+EOF
+chmod 0600 "$TEST_ROOT/remote/config/zellij/config.kdl"
 
 REMOTE_WORKSPACE="$TEST_ROOT/remote/workspace"
 printf '%s\n' 'blackpepper-ssh-forward-ok' > "$REMOTE_WORKSPACE/marker.txt"
@@ -92,7 +100,7 @@ StrictModes no
 UseDNS no
 PrintMotd no
 LogLevel VERBOSE
-AcceptEnv XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_RUNTIME_DIR
+AcceptEnv ZELLIJ_CONFIG_DIR XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_RUNTIME_DIR
 EOF
 
 SSH_CONFIG="$TEST_ROOT/ssh_config"
@@ -111,7 +119,7 @@ Host bp-e2e-alias
     GlobalKnownHostsFile /dev/null
     HashKnownHosts yes
     LogLevel ERROR
-    SetEnv XDG_CONFIG_HOME=$TEST_ROOT/remote/config XDG_DATA_HOME=$TEST_ROOT/remote/data XDG_STATE_HOME=$TEST_ROOT/remote/state XDG_RUNTIME_DIR=$TEST_ROOT/remote/runtime
+    SetEnv ZELLIJ_CONFIG_DIR=$TEST_ROOT/remote/config/zellij XDG_CONFIG_HOME=$TEST_ROOT/remote/config XDG_CACHE_HOME=$TEST_ROOT/remote/cache XDG_DATA_HOME=$TEST_ROOT/remote/data XDG_STATE_HOME=$TEST_ROOT/remote/state XDG_RUNTIME_DIR=$TEST_ROOT/remote/runtime
 EOF
 chmod 0600 "$SSH_CONFIG"
 
@@ -164,9 +172,9 @@ ssh-keygen -F "[127.0.0.1]:$SSHD_PORT" -f "$KNOWN_HOSTS" >/dev/null ||
 save_screen client-a-connected
 
 send_command ":workspace add $REMOTE_WORKSPACE"
-wait_until 'remote workspace attach' 60 screen_has 'WORK'
+wait_until 'remote workspace attach' 60 screen_has ' WORK '
 ensure_work
-dismiss_zellij_tip
+wait_for_terminal_ready 'initial remote shell' 15
 send_literal "printf 'BP_REMOTE_PTY_A:%s\\n' \"\$PWD\""
 send_enter
 wait_until 'remote Zellij PTY output' 20 screen_has "BP_REMOTE_PTY_A:$REMOTE_WORKSPACE"
@@ -214,9 +222,9 @@ wait_until 'SSH reconnect' 60 screen_has 'SSH connected; restored'
 [ "$(curl -fsS --max-time 2 "$FORWARD_URL/marker.txt")" = 'blackpepper-ssh-forward-ok' ] ||
   fail 'SSH reconnect did not restore the original local forward port'
 send_command ':workspace switch workspace'
-wait_until 'reattach to persistent remote Zellij session' 60 screen_has 'WORK'
+wait_until 'reattach to persistent remote Zellij session' 60 screen_has ' WORK '
 ensure_work
-dismiss_zellij_tip
+wait_for_terminal_ready 'reattached remote shell' 15
 send_literal "printf 'BP_REMOTE_PTY_REATTACHED\\n'"
 send_enter
 wait_until 'remote PTY after reconnect' 15 screen_has 'BP_REMOTE_PTY_REATTACHED'
@@ -256,9 +264,9 @@ wait_until 'host-side remote workspace discovery' 20 screen_has 'workspace'
 save_screen client-b-discovery
 
 send_command ':workspace switch workspace'
-wait_until 'second-client session attach' 60 screen_has 'WORK'
+wait_until 'second-client session attach' 60 screen_has ' WORK '
 ensure_work
-dismiss_zellij_tip
+wait_for_terminal_ready 'second-client remote shell' 15
 send_literal "printf 'BP_REMOTE_PTY_CLIENT_B\\n'"
 send_enter
 wait_until 'second-client persistent PTY output' 15 screen_has 'BP_REMOTE_PTY_CLIENT_B'

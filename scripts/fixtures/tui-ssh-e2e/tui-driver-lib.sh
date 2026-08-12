@@ -128,7 +128,7 @@ ensure_manage() {
   if screen_has 'MANAGE'; then
     return 0
   fi
-  if screen_has 'WORK'; then
+  if screen_has ' WORK '; then
     tmux -S "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION:0.0" -H 1d
     wait_until 'manage mode' 10 screen_has 'MANAGE'
     return 0
@@ -137,33 +137,30 @@ ensure_manage() {
 }
 
 ensure_work() {
-  if screen_has 'WORK'; then
+  if screen_has ' WORK '; then
     return 0
   fi
   ensure_manage
   tmux -S "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION:0.0" Escape
-  wait_until 'work mode' 10 screen_has 'WORK'
+  wait_until 'work mode' 10 screen_has ' WORK '
 }
 
-dismiss_zellij_tip() {
-  local attempt=0
-
-  # The tip is painted shortly after the PTY first becomes renderable. An
-  # immediate one-shot check races that paint and sends the next shell command
-  # into the modal. Let Zellij settle, then disable tips only in this test's
-  # isolated XDG roots and prove the overlay is gone before driving the shell.
-  sleep 1
-  while [ "$attempt" -lt 3 ]; do
-    attempt=$((attempt + 1))
-    if screen_has 'About Zellij'; then
-      tmux -S "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION:0.0" C-c
-      wait_until 'Zellij first-use tip dismissal' 10 screen_lacks 'About Zellij'
-      sleep 0.2
-      continue
+wait_for_terminal_ready() {
+  local label="$1" timeout="${2:-15}" stable=0
+  local deadline=$((SECONDS + timeout)) popup
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    for popup in 'About Zellij' 'First Run Setup Wizard' 'Release Notes '; do
+      screen_lacks "$popup" || fail "isolated Zellij configuration allowed popup: $popup"
+    done
+    if screen_has ' WORK '; then
+      stable=$((stable + 1))
+      [ "$stable" -ge 10 ] && return 0
+    else
+      stable=0
     fi
-    return 0
+    sleep 0.1
   done
-  fail 'Zellij first-use tip remained visible after dismissal'
+  fail "timed out waiting for $label terminal readiness"
 }
 
 send_command() {

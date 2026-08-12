@@ -20,14 +20,28 @@ fail() {
   exit 1
 }
 
-kill_zellij_tree() {
-  local runtime_root="$1" data_root="$2" binary="$3"
-  [ -x "$binary" ] || return 0
-  env \
-    XDG_RUNTIME_DIR="$runtime_root" \
-    XDG_DATA_HOME="$data_root" \
-    XDG_CONFIG_HOME="$TEST_ROOT/empty-config" \
-    "$binary" kill-all-sessions --yes >/dev/null 2>&1 || true
+kill_registered_zellij_sessions() {
+  local state_root="$1" binary="$2" registry session
+  registry="$state_root/blackpepper/host-registry.sqlite3"
+  [ -x "$binary" ] && [ -f "$registry" ] || return 0
+  while IFS= read -r session; do
+    printf '%s\n' "$session" | grep -Eq \
+      '^bp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || continue
+    ZELLIJ_SOCKET_DIR="/tmp/zellij-$(id -u)" \
+      "$binary" kill-session "$session" >/dev/null 2>&1 || true
+  done < <(python3 - "$registry" 2>/dev/null <<'PY'
+import sqlite3
+import sys
+
+with sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True) as connection:
+    rows = connection.execute(
+        "SELECT DISTINCT backend_session_id FROM sessions "
+        "WHERE backend_json = '{\"kind\":\"zellij\"}'"
+    )
+    for (session,) in rows:
+        print(session)
+PY
+  )
 }
 
 cleanup() {
@@ -57,10 +71,13 @@ cleanup() {
     wait "$LISTENER_PID" >/dev/null 2>&1 || true
   fi
 
-  if [ -n "${ZELLIJ_SOURCE_BINARY:-}" ]; then
-    kill_zellij_tree "$TEST_ROOT/client-a/runtime" "$TEST_ROOT/client-a/data" "$ZELLIJ_SOURCE_BINARY"
-    kill_zellij_tree "$TEST_ROOT/client-b/runtime" "$TEST_ROOT/client-b/data" "$ZELLIJ_SOURCE_BINARY"
-    kill_zellij_tree "$TEST_ROOT/remote/runtime" "$TEST_ROOT/remote/data" "$ZELLIJ_SOURCE_BINARY"
+  if [ -n "${ZELLIJ_CACHE_RELATIVE:-}" ]; then
+    kill_registered_zellij_sessions \
+      "$TEST_ROOT/client-a/state" "$TEST_ROOT/client-a/data/$ZELLIJ_CACHE_RELATIVE/zellij"
+    kill_registered_zellij_sessions \
+      "$TEST_ROOT/client-b/state" "$TEST_ROOT/client-b/data/$ZELLIJ_CACHE_RELATIVE/zellij"
+    kill_registered_zellij_sessions \
+      "$TEST_ROOT/remote/state" "$TEST_ROOT/remote/data/$ZELLIJ_CACHE_RELATIVE/zellij"
   fi
 
   if [ -n "$SSHD_PID" ]; then
