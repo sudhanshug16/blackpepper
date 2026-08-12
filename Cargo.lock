@@ -274,6 +274,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackpepper-dev-watch"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "notify",
+ "signal-hook",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

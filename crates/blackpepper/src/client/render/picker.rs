@@ -10,13 +10,14 @@ use super::glyph::Glyphs;
 use super::style::{
     list_status_text, mid_style, panel_style, section_style, selected_style, status_style,
 };
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::ClientState;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
 
-pub(super) fn render_picker(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
+pub(super) fn render_picker(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     let glyphs = Glyphs::of(state);
     let separator = glyphs.separator();
     let pad = chrome::pad(area.width);
@@ -53,9 +54,11 @@ pub(super) fn render_picker(state: &ClientState, frame: &mut ratatui::Frame, are
     // Reserve the two chrome rows above and the hint row below.
     let visible = usize::from(area.height).saturating_sub(3);
     let offset = selected.saturating_sub(visible.saturating_sub(1));
+    let mut row_actions = Vec::new();
     for (index, (workspace_id, label, host, status)) in
         matches.iter().enumerate().skip(offset).take(visible)
     {
+        let row = lines.len();
         let detail = state.status_elapsed(*workspace_id, *status);
         let right = format!(
             "{host} {separator} {}",
@@ -81,13 +84,40 @@ pub(super) fn render_picker(state: &ClientState, frame: &mut ratatui::Frame, are
                 Span::raw(pad.clone()),
             ]));
         }
+        row_actions.push((row, MouseAction::ChoosePicker(*workspace_id)));
     }
 
-    lines.push(Line::styled(
-        format!("{pad}type to filter {separator} enter attach {separator} esc cancel"),
-        section_style(state),
-    ));
+    let close_label = "[cancel]";
+    let hint =
+        format!("{pad}type to filter {separator} enter attach {separator} esc {close_label}");
+    lines.push(Line::styled(hint.clone(), section_style(state)));
 
+    let hint_row = lines.len().saturating_sub(1) as u16;
     frame.render_widget(Clear, area);
     frame.render_widget(Paragraph::new(lines).style(panel_style(state)), area);
+    state.mouse_targets.push(MouseTarget {
+        area,
+        action: MouseAction::ScrollPicker,
+    });
+    state
+        .mouse_targets
+        .extend(row_actions.into_iter().map(|(row, action)| MouseTarget {
+            area: Rect::new(area.x, area.y.saturating_add(row as u16), area.width, 1),
+            action,
+        }));
+    if hint_row < area.height {
+        let Some(index) = hint.find(close_label) else {
+            return;
+        };
+        state.mouse_targets.push(MouseTarget {
+            area: Rect::new(
+                area.x
+                    .saturating_add(Line::raw(&hint[..index]).width() as u16),
+                area.y.saturating_add(hint_row),
+                close_label.len() as u16,
+                1,
+            ),
+            action: MouseAction::ClosePicker,
+        });
+    }
 }

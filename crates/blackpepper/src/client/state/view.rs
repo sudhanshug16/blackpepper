@@ -1,5 +1,6 @@
 use super::super::ClientCommand;
-use crate::core::WorkspaceId;
+use crate::core::{HostId, WorkspaceId};
+use ratatui::layout::Rect;
 
 #[derive(Debug, Clone)]
 pub struct PendingWorktrunkApproval {
@@ -32,18 +33,72 @@ pub struct HelpView {
     pub scroll: u16,
 }
 
+/// A Blackpepper-owned action associated with a visible screen region.
+///
+/// These targets are rebuilt during every render. That keeps hit testing tied
+/// to what the person can actually see after responsive layout and scrolling,
+/// instead of leaving stale invisible controls behind.
 #[derive(Debug, Clone)]
-pub struct PortClickTarget {
-    pub workspace_id: WorkspaceId,
-    pub target: crate::ports::RemotePortTarget,
-    pub x_start: u16,
-    pub x_end: u16,
-    pub y: u16,
+pub enum MouseAction {
+    SelectHost(HostId),
+    SelectWorkspace(WorkspaceId),
+    AttachSelected,
+    AttachNext,
+    EnterWork,
+    EnterManage,
+    OpenPicker,
+    OpenCommand,
+    CloseCommand,
+    PrefillCommand(String),
+    ChooseCompletion(usize),
+    ChoosePicker(WorkspaceId),
+    ClosePicker,
+    CloseHelp,
+    CloseDetail,
+    Approve,
+    DismissApproval,
+    Quit,
+    CancelHostOperation,
+    ForwardTarget {
+        workspace_id: WorkspaceId,
+        target: crate::ports::RemotePortTarget,
+    },
+    ScrollSidebar,
+    ScrollPicker,
+    ScrollHelp,
+    ScrollDetail,
+    ScrollApproval,
+    ScrollPorts,
 }
 
-impl PortClickTarget {
+impl MouseAction {
+    pub fn is_scroll_target(&self) -> bool {
+        matches!(
+            self,
+            Self::ScrollSidebar
+                | Self::ScrollPicker
+                | Self::ScrollHelp
+                | Self::ScrollDetail
+                | Self::ScrollApproval
+                | Self::ScrollPorts
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MouseTarget {
+    pub area: Rect,
+    pub action: MouseAction,
+}
+
+impl MouseTarget {
     pub fn contains(&self, x: u16, y: u16) -> bool {
-        self.y == y && x >= self.x_start && x < self.x_end
+        self.area.width > 0
+            && self.area.height > 0
+            && x >= self.area.x
+            && x < self.area.x.saturating_add(self.area.width)
+            && y >= self.area.y
+            && y < self.area.y.saturating_add(self.area.height)
     }
 }
 

@@ -188,11 +188,18 @@ fn handle_raw(state: &mut ClientState, runtime: &mut ClientRuntime, bytes: &[u8]
         }
         let interrupted = filtered.contains(&0x03);
         let terminal_area = state.terminal_area;
+        let mut shell_clicked = false;
         if let Some(terminal) = state.active_terminal_mut() {
-            if let Err(error) = terminal.write(&filtered, terminal_area) {
-                state.set_output(error.to_string());
-                state.mode = ClientMode::Manage;
+            match terminal.write(&filtered, terminal_area) {
+                Ok(clicked) => shell_clicked = clicked,
+                Err(error) => {
+                    state.set_output(error.to_string());
+                    state.mode = ClientMode::Manage;
+                }
             }
+        }
+        if shell_clicked {
+            state.mode = ClientMode::Manage;
         }
         if interrupted {
             mark_active_workspace_interrupted(state, runtime);
@@ -215,11 +222,18 @@ fn flush_input(state: &mut ClientState, runtime: &mut ClientRuntime) {
         let bytes = state.input_decoder.flush_work();
         let interrupted = bytes.contains(&0x03);
         let terminal_area = state.terminal_area;
+        let mut shell_clicked = false;
         if let Some(terminal) = state.active_terminal_mut() {
-            if let Err(error) = terminal.write(&bytes, terminal_area) {
-                state.set_output(format!("Terminal input could not be delivered: {error}"));
-                state.mode = ClientMode::Manage;
+            match terminal.write(&bytes, terminal_area) {
+                Ok(clicked) => shell_clicked = clicked,
+                Err(error) => {
+                    state.set_output(format!("Terminal input could not be delivered: {error}"));
+                    state.mode = ClientMode::Manage;
+                }
             }
+        }
+        if shell_clicked {
+            state.mode = ClientMode::Manage;
         }
         if interrupted {
             mark_active_workspace_interrupted(state, runtime);
@@ -355,7 +369,11 @@ fn handle_manage_event(state: &mut ClientState, runtime: &mut ClientRuntime, eve
     match event {
         InputEvent::Key(key) => manage::handle_key(state, runtime, key),
         InputEvent::Mouse(mouse) => manage::handle_mouse(state, runtime, mouse),
-        InputEvent::Paste(value) if state.command_active => state.command_input.push_str(&value),
+        InputEvent::Paste(value) if state.command_active => {
+            state.command_input.push_str(&value);
+            state.command_selection = None;
+            state.command_error = None;
+        }
         _ => {}
     }
 }

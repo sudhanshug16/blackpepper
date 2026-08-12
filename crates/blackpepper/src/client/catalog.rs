@@ -6,8 +6,11 @@
 //! cannot, because a command silently missing from help reads as a command
 //! that does not exist.
 
-use super::{ClientState, DisplayStatus};
-use crate::ports::{ForwardStatus, ProbeCompleteness};
+mod helpers;
+
+use self::helpers::{active_forwards, entry, explain_note};
+use super::ClientState;
+use crate::ports::ProbeCompleteness;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CommandGroup {
@@ -68,9 +71,7 @@ pub fn entries(state: &ClientState) -> Vec<CatalogEntry> {
         Some(snapshot) => format!("{} listeners known", snapshot.listeners.len()),
         None => "no probe on this host yet".to_owned(),
     };
-    let forwardable = listeners
-        .map(|snapshot| snapshot.listeners.len())
-        .unwrap_or_default();
+    let forwardable = super::completion::forward_target_count(state);
 
     let repository = workspace.and_then(|id| {
         state
@@ -85,7 +86,12 @@ pub fn entries(state: &ClientState) -> Vec<CatalogEntry> {
         .as_ref()
         .map(|_| "reviewed plan is waiting".to_owned());
 
-    let hosts = state.config.hosts.len();
+    let hosts = state
+        .snapshot
+        .hosts
+        .iter()
+        .filter(|host| matches!(host.transport, crate::core::HostTransport::Ssh { .. }))
+        .count();
     let connecting = state
         .tree
         .iter()
@@ -99,6 +105,20 @@ pub fn entries(state: &ClientState) -> Vec<CatalogEntry> {
         .map(|host| host.label.clone());
 
     let mut entries = vec![
+        entry(
+            CommandGroup::Workspace,
+            ":workspace switch <name|id>",
+            "attach by name across every host".to_owned(),
+            !state.snapshot.workspaces.is_empty(),
+            "no workspaces registered",
+        ),
+        entry(
+            CommandGroup::Workspace,
+            ":workspace add <path>",
+            "register a folder on the selected host".to_owned(),
+            state.selected_host.is_some(),
+            "select a host first",
+        ),
         entry(
             CommandGroup::Workspace,
             ":agent spawn <provider>",
@@ -137,6 +157,13 @@ pub fn entries(state: &ClientState) -> Vec<CatalogEntry> {
             format!("{} active on this client", active_forwards(state)),
             active_forwards(state) > 0,
             "nothing forwarded from this client",
+        ),
+        entry(
+            CommandGroup::Workspace,
+            ":workspace ungroup",
+            "keep this folder outside repository grouping".to_owned(),
+            has_workspace,
+            "select a workspace first",
         ),
         entry(
             CommandGroup::Workspace,
@@ -235,49 +262,21 @@ pub fn entries(state: &ClientState) -> Vec<CatalogEntry> {
             has_workspace,
             "select a workspace first",
         ),
+        entry(
+            CommandGroup::Hosts,
+            ":help",
+            "commands, context, and key bindings".to_owned(),
+            true,
+            "",
+        ),
+        entry(
+            CommandGroup::Hosts,
+            ":quit",
+            "detach and exit".to_owned(),
+            true,
+            "",
+        ),
     ];
     entries.sort_by_key(|entry| entry.group);
     entries
-}
-
-fn entry(
-    group: CommandGroup,
-    syntax: &'static str,
-    note: String,
-    available: bool,
-    unavailable_reason: &str,
-) -> CatalogEntry {
-    CatalogEntry {
-        group,
-        syntax,
-        note: if available {
-            note
-        } else {
-            unavailable_reason.to_owned()
-        },
-        available,
-    }
-}
-
-fn active_forwards(state: &ClientState) -> usize {
-    state
-        .forwards
-        .iter()
-        .filter(|forward| {
-            matches!(
-                forward.status,
-                ForwardStatus::Active | ForwardStatus::Direct
-            )
-        })
-        .count()
-}
-
-fn explain_note(state: &ClientState, workspace: Option<crate::core::WorkspaceId>) -> String {
-    let Some(workspace) = workspace else {
-        return "agent diagnostics".to_owned();
-    };
-    match state.statuses.get(&workspace).copied() {
-        Some(DisplayStatus::Unknown) => "coverage is partial here".to_owned(),
-        _ => "redacted agent evidence".to_owned(),
-    }
 }

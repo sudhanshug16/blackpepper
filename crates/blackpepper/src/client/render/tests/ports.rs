@@ -27,6 +27,21 @@ fn state_with_ports(count: u16) -> crate::client::ClientState {
     state
 }
 
+fn forward_targets(
+    state: &crate::client::ClientState,
+) -> Vec<(Rect, &crate::ports::RemotePortTarget)> {
+    state
+        .mouse_targets
+        .iter()
+        .filter_map(|target| match &target.action {
+            crate::client::state::MouseAction::ForwardTarget { target: port, .. } => {
+                Some((target.area, port))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
 fn port_rows_name_the_mouse_action_and_build_matching_targets() {
     let mut state = state_with_ports(2);
@@ -47,12 +62,11 @@ fn port_rows_name_the_mouse_action_and_build_matching_targets() {
         rendered.contains("service-0 · 127.0.0.1:4000"),
         "missing detail row in:\n{rendered}"
     );
-    assert_eq!(state.port_click_targets.len(), 2);
-    assert_eq!(state.port_click_targets[0].y, 1);
-    assert_eq!(state.port_click_targets[0].x_start, 0);
-    assert_eq!(state.port_click_targets[0].x_end, 30);
+    let targets = forward_targets(&state);
+    assert_eq!(targets.len(), 2);
+    assert_eq!(targets[0].0, Rect::new(0, 1, 30, 1));
     // The detail row directly under a port is never its own hit target.
-    assert_eq!(state.port_click_targets[1].y, 3);
+    assert_eq!(targets[1].0.y, 3);
 }
 
 #[test]
@@ -65,17 +79,20 @@ fn compact_ports_panel_scrolls_all_listeners_and_rebuilds_click_targets() {
         .unwrap();
     // Two rows per listener means seven visible rows cover four listeners
     // (the seventh row is a detail line, which is not clickable).
-    assert_eq!(state.port_click_targets.len(), 4);
-    assert_eq!(state.port_click_targets[0].target.remote_port, 4_000);
-    assert_eq!(state.port_click_targets[3].target.remote_port, 4_003);
+    let targets = forward_targets(&state);
+    assert_eq!(targets.len(), 4);
+    assert_eq!(targets[0].1.remote_port, 4_000);
+    assert_eq!(targets[3].1.remote_port, 4_003);
 
     state.ports_scroll = 6;
+    state.mouse_targets.clear();
     terminal
         .draw(|frame| super::super::ports::render_ports(&mut state, frame, Rect::new(0, 0, 30, 8)))
         .unwrap();
-    assert_eq!(state.port_click_targets.len(), 4);
-    assert_eq!(state.port_click_targets[0].target.remote_port, 4_003);
-    assert_eq!(state.port_click_targets[3].target.remote_port, 4_006);
+    let targets = forward_targets(&state);
+    assert_eq!(targets.len(), 4);
+    assert_eq!(targets[0].1.remote_port, 4_003);
+    assert_eq!(targets[3].1.remote_port, 4_006);
 }
 
 #[test]

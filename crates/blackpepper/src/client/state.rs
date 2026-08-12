@@ -16,7 +16,8 @@ use std::time::{Duration, Instant};
 
 pub use agent_run::AgentRunView;
 pub use view::{
-    ClientMode, DetailView, HelpView, PendingWorktrunkApproval, PortClickTarget, WorkspacePicker,
+    ClientMode, DetailView, HelpView, MouseAction, MouseTarget, PendingWorktrunkApproval,
+    WorkspacePicker,
 };
 
 pub struct ClientState {
@@ -38,7 +39,8 @@ pub struct ClientState {
     /// remains independently scrollable.
     pub ports_scroll: u16,
     pub ports_area: Option<Rect>,
-    pub port_click_targets: Vec<PortClickTarget>,
+    /// Hit targets for the last rendered frame, ordered back to front.
+    pub mouse_targets: Vec<MouseTarget>,
     pub connected_clients: BTreeMap<WorkspaceId, usize>,
     /// Host-computed repository and tab context, keyed by workspace.
     pub overviews: BTreeMap<WorkspaceId, crate::core::WorkspaceOverview>,
@@ -51,9 +53,11 @@ pub struct ClientState {
     pub command_input: String,
     /// Highlighted completion candidate, as an index into the grounded list
     /// rebuilt on every keystroke. `None` means nothing is highlighted and
-    /// Enter runs exactly what was typed — the distinction Enter needs in
-    /// order not to guess.
+    /// Enter runs exactly what was typed.
     pub command_selection: Option<usize>,
+    /// Inline command error. Parse failures keep the palette open so the input
+    /// can be corrected in place instead of being lost to a footer message.
+    pub command_error: Option<String>,
     /// Open workspace picker, if any.
     pub picker: Option<WorkspacePicker>,
     /// Open grouped help, if any.
@@ -129,7 +133,7 @@ impl ClientState {
             forwards: Vec::new(),
             ports_scroll: 0,
             ports_area: None,
-            port_click_targets: Vec::new(),
+            mouse_targets: Vec::new(),
             connected_clients: BTreeMap::new(),
             overviews: BTreeMap::new(),
             host_operations: BTreeMap::new(),
@@ -138,6 +142,7 @@ impl ClientState {
             command_active: false,
             command_input: String::new(),
             command_selection: None,
+            command_error: None,
             picker: None,
             help: None,
             pending_approval: None,
@@ -723,21 +728,20 @@ mod tests {
     }
 
     #[test]
-    fn port_click_target_keeps_address_when_ports_match() {
+    fn mouse_target_keeps_forward_address_when_ports_match() {
         let workspace_id = WorkspaceId::new();
-        let ipv4 = PortClickTarget {
-            workspace_id,
-            target: crate::ports::RemotePortTarget::from_bind_address("127.0.0.1", 3000).unwrap(),
-            x_start: 1,
-            x_end: 20,
-            y: 4,
-        };
-        let ipv6 = PortClickTarget {
-            target: crate::ports::RemotePortTarget::from_bind_address("::1", 3000).unwrap(),
-            ..ipv4.clone()
+        let ipv4_target =
+            crate::ports::RemotePortTarget::from_bind_address("127.0.0.1", 3000).unwrap();
+        let ipv6_target = crate::ports::RemotePortTarget::from_bind_address("::1", 3000).unwrap();
+        let target = MouseTarget {
+            area: Rect::new(1, 4, 19, 1),
+            action: MouseAction::ForwardTarget {
+                workspace_id,
+                target: ipv4_target.clone(),
+            },
         };
 
-        assert!(ipv4.contains(5, 4));
-        assert_ne!(ipv4.target, ipv6.target);
+        assert!(target.contains(5, 4));
+        assert_ne!(ipv4_target, ipv6_target);
     }
 }

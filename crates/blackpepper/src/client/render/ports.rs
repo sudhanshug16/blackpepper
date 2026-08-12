@@ -1,6 +1,7 @@
 use super::chrome;
 use super::glyph::Glyphs;
 use super::style::{danger_style, panel_style, section_style, warning_style};
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::ClientState;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
@@ -9,7 +10,6 @@ use ratatui::widgets::Paragraph;
 
 pub(super) fn render_ports(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     state.ports_area = Some(area);
-    state.port_click_targets.clear();
     let (lines, targets) = port_lines(state, area.width);
     let visible_rows = area.height.saturating_sub(1) as usize;
     let max_scroll = lines.len().saturating_sub(visible_rows);
@@ -18,25 +18,28 @@ pub(super) fn render_ports(state: &mut ClientState, frame: &mut ratatui::Frame, 
         .min(usize::from(u16::MAX)) as u16;
     let scroll = usize::from(state.ports_scroll);
 
-    for (index, target) in targets.into_iter().enumerate() {
-        let Some((workspace_id, target)) = target else {
+    state.mouse_targets.push(MouseTarget {
+        area,
+        action: MouseAction::ScrollPorts,
+    });
+    for (index, action) in targets.into_iter().enumerate() {
+        let Some(action) = action else {
             continue;
         };
         if index < scroll || index >= scroll.saturating_add(visible_rows) {
             continue;
         }
-        state
-            .port_click_targets
-            .push(crate::client::state::PortClickTarget {
-                workspace_id,
-                target,
-                x_start: area.x,
-                x_end: area.x.saturating_add(area.width),
-                y: area
-                    .y
+        state.mouse_targets.push(MouseTarget {
+            area: Rect::new(
+                area.x,
+                area.y
                     .saturating_add(1)
                     .saturating_add((index - scroll) as u16),
-            });
+                area.width,
+                1,
+            ),
+            action,
+        });
     }
 
     let rows = Layout::default()
@@ -68,9 +71,9 @@ pub(super) fn render_ports(state: &mut ClientState, frame: &mut ratatui::Frame, 
     );
 }
 
-type ClickTarget = Option<(crate::core::WorkspaceId, crate::ports::RemotePortTarget)>;
+type RowAction = Option<MouseAction>;
 
-fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<ClickTarget>) {
+fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<RowAction>) {
     let glyphs = Glyphs::of(state);
     let mut lines = Vec::new();
     let mut targets = Vec::new();
@@ -108,34 +111,49 @@ fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<Click
                     active_workspace == Some(forward.workspace_id) && forward.target() == *target
                 })
             });
+            let forward_action = (!ambiguous)
+                .then(|| active_workspace.zip(target.clone()))
+                .flatten()
+                .map(|(workspace_id, target)| MouseAction::ForwardTarget {
+                    workspace_id,
+                    target,
+                });
             let process = listener.process.as_deref().unwrap_or("unknown");
             let (action, action_style, clickable) = if let Some(forward) = forward {
                 match &forward.status {
                     crate::ports::ForwardStatus::Direct => (
                         format!("{} {}", glyphs.arrow(), forward.local_address.port()),
                         Style::default(),
-                        None,
+                        forward_action.clone(),
                     ),
                     crate::ports::ForwardStatus::Active => (
                         format!("{} {}", glyphs.arrow(), forward.local_address.port()),
                         Style::default(),
-                        None,
+                        forward_action.clone(),
                     ),
-                    crate::ports::ForwardStatus::Reconnecting => {
-                        ("reconnecting".to_owned(), warning_style(state), None)
-                    }
-                    crate::ports::ForwardStatus::Cancelling => {
-                        ("cancelling".to_owned(), section_style(state), None)
-                    }
-                    crate::ports::ForwardStatus::PortConflict => {
-                        ("conflict".to_owned(), danger_style(state), None)
-                    }
+                    crate::ports::ForwardStatus::Reconnecting => (
+                        "reconnecting".to_owned(),
+                        warning_style(state),
+                        forward_action.clone(),
+                    ),
+                    crate::ports::ForwardStatus::Cancelling => (
+                        "cancelling".to_owned(),
+                        section_style(state),
+                        forward_action.clone(),
+                    ),
+                    crate::ports::ForwardStatus::PortConflict => (
+                        "conflict".to_owned(),
+                        danger_style(state),
+                        forward_action.clone(),
+                    ),
                     // The reason is fitted to the panel below, so it
                     // ellipsizes inside the column instead of clipping at the
                     // terminal edge.
-                    crate::ports::ForwardStatus::Failed(reason) => {
-                        (format!("failed: {reason}"), danger_style(state), None)
-                    }
+                    crate::ports::ForwardStatus::Failed(reason) => (
+                        format!("failed: {reason}"),
+                        danger_style(state),
+                        forward_action.clone(),
+                    ),
                 }
             } else if ambiguous {
                 ("ambiguous".to_owned(), danger_style(state), None)
@@ -148,7 +166,7 @@ fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<Click
                 (
                     ":forward · click".to_owned(),
                     section_style(state),
-                    active_workspace.zip(target),
+                    forward_action,
                 )
             };
 
@@ -196,7 +214,10 @@ fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<Click
                 format!("{pad}:ports --all-host"),
                 section_style(state),
             ));
-            targets.extend([None, None]);
+            targets.extend([
+                None,
+                Some(MouseAction::PrefillCommand(":ports --all-host".to_owned())),
+            ]);
             all_host_hint_shown = true;
         }
     }
@@ -206,7 +227,10 @@ fn port_lines(state: &ClientState, width: u16) -> (Vec<Line<'static>>, Vec<Click
             format!("{pad}:ports --all-host"),
             section_style(state),
         ));
-        targets.extend([None, None]);
+        targets.extend([
+            None,
+            Some(MouseAction::PrefillCommand(":ports --all-host".to_owned())),
+        ]);
     }
     debug_assert_eq!(lines.len(), targets.len());
     (lines, targets)

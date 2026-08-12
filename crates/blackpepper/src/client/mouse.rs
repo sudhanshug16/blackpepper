@@ -4,114 +4,12 @@
 //! Zellij's PTY expects positions relative to the terminal panel. Keyboard and
 //! paste bytes remain opaque.
 
-use ratatui::layout::Rect;
+mod protocol;
+
+pub(super) use protocol::MouseInputProtocol;
 use vt100::MouseProtocolEncoding;
 
 const MAX_MOUSE_SEQUENCE: usize = 64;
-
-#[derive(Default)]
-pub(super) struct MouseInputProtocol {
-    pending: Vec<u8>,
-    drag_active: bool,
-}
-
-impl MouseInputProtocol {
-    pub(super) fn process(
-        &mut self,
-        bytes: &[u8],
-        area: Option<Rect>,
-        encoding: MouseProtocolEncoding,
-    ) -> Vec<u8> {
-        let mut input = std::mem::take(&mut self.pending);
-        input.extend_from_slice(bytes);
-        let mut output = Vec::with_capacity(input.len());
-        let mut index = 0;
-        while index < input.len() {
-            let remainder = &input[index..];
-            if remainder.starts_with(b"\x1b[<") {
-                match sgr_sequence(remainder) {
-                    Sequence::Complete { length, event } => {
-                        self.write_event(&mut output, event, area, MouseFormat::Sgr);
-                        index += length;
-                    }
-                    Sequence::Partial => {
-                        self.pending.extend_from_slice(remainder);
-                        break;
-                    }
-                    Sequence::Invalid => {
-                        output.push(input[index]);
-                        index += 1;
-                    }
-                }
-            } else if remainder.starts_with(b"\x1b[M") {
-                match legacy_sequence(remainder, encoding) {
-                    Sequence::Complete { length, event } => {
-                        self.write_event(&mut output, event, area, MouseFormat::Legacy(encoding));
-                        index += length;
-                    }
-                    Sequence::Partial => {
-                        self.pending.extend_from_slice(remainder);
-                        break;
-                    }
-                    Sequence::Invalid => {
-                        output.push(input[index]);
-                        index += 1;
-                    }
-                }
-            } else {
-                output.push(input[index]);
-                index += 1;
-            }
-        }
-        output
-    }
-
-    fn write_event(
-        &mut self,
-        output: &mut Vec<u8>,
-        mut event: MouseEvent,
-        area: Option<Rect>,
-        format: MouseFormat,
-    ) {
-        let Some(area) = area else {
-            event.encode(output, format);
-            return;
-        };
-        if area.width == 0 || area.height == 0 {
-            self.drag_active = false;
-            return;
-        }
-        let inside = event.x > area.x
-            && event.x <= area.x.saturating_add(area.width)
-            && event.y > area.y
-            && event.y <= area.y.saturating_add(area.height);
-        let is_release = event.release || event.code & 3 == 3;
-        let is_motion = event.code & 32 != 0;
-        let is_wheel = event.code & 64 != 0;
-        let should_forward = inside || self.drag_active && (is_motion || is_release);
-        if !should_forward {
-            if !is_motion && !is_wheel {
-                self.drag_active = false;
-            }
-            return;
-        }
-
-        event.x = event
-            .x
-            .clamp(area.x.saturating_add(1), area.x.saturating_add(area.width))
-            - area.x;
-        event.y = event
-            .y
-            .clamp(area.y.saturating_add(1), area.y.saturating_add(area.height))
-            - area.y;
-        if is_release {
-            self.drag_active = false;
-        } else if !is_motion && !is_wheel {
-            self.drag_active = true;
-        }
-        event.encode(output, format);
-    }
-}
 
 #[derive(Clone, Copy)]
 struct MouseEvent {

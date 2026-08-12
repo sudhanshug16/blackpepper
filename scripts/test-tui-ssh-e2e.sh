@@ -158,7 +158,7 @@ send_command ':host connect lab'
 wait_until 'first-use host-key prompt' 15 screen_has 'Are you sure you want to continue connecting'
 screen_has 'OpenSSH owns authentication' ||
   fail 'authentication surface did not identify OpenSSH as the authority'
-screen_has 'Blackpepper does not store credentials' ||
+screen_has 'Blackpepper stores no credentials' ||
   fail 'authentication surface omitted the credential-storage boundary'
 HOST_FINGERPRINT="$(ssh-keygen -lf "$TEST_ROOT/sshd/host-key.pub" -E sha256 | awk '{print $2}')"
 screen_has "$HOST_FINGERPRINT" || fail 'SSH host-key prompt omitted the server fingerprint'

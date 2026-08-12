@@ -475,9 +475,7 @@ fn native_configuration_detection_distinguishes_absence_from_user_intent() {
     let mut configured = ScriptedTransport::new([success(
         "[LOOKING FOR CONFIG FILE FROM]: /home/me/.config/zellij/config.kdl\n[CONFIG FILE]: Well defined.\n",
     )]);
-    assert!(runtime
-        .user_configuration_present(&mut configured)
-        .unwrap());
+    assert!(runtime.user_configuration_present(&mut configured).unwrap());
 
     // An explicit config directory is user intent even when its config.kdl is
     // missing and pinned Zellij falls back to its built-in defaults.

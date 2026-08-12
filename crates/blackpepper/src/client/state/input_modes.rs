@@ -8,7 +8,8 @@ impl ClientState {
             ClientMode::Work => self
                 .active_terminal_mut()
                 .map(|terminal| terminal.input_modes())
-                .unwrap_or_default(),
+                .unwrap_or_default()
+                .with_shell_pointer_capture(),
             // OpenSSH owns authentication input. It must receive ordinary
             // terminal bytes, never mouse/application modes inherited from a
             // previously attached Zellij client.

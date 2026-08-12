@@ -191,10 +191,8 @@ impl ClientRuntime {
         let zellij = if user_configuration_present {
             zellij
         } else {
-            let path = self.managed_zellij_config_path(
-                workspace.host_id,
-                &session.backend_version,
-            )?;
+            let path =
+                self.managed_zellij_config_path(workspace.host_id, &session.backend_version)?;
             zellij
                 .with_config_file(path)
                 .map_err(|error| error.to_string())?

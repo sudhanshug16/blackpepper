@@ -1,10 +1,38 @@
 use super::*;
 use crate::client::runtime::HostOperationContext;
 use crate::core::RegistrySnapshot;
+use crate::transport::{ProcessSpec, PtyProcess};
+use portable_pty::PtySize;
 use ratatui::layout::Rect;
+use ratatui::{backend::TestBackend, Terminal};
 use std::sync::mpsc;
 use std::time::Duration;
 use termwiz::input::{MouseButtons, MouseEvent};
+
+fn attached_fixture() -> (tempfile::TempDir, ClientRuntime, ClientState) {
+    let root = tempfile::tempdir().unwrap();
+    let workspace_root = root.path().join("workspace");
+    std::fs::create_dir(&workspace_root).unwrap();
+    let mut runtime = ClientRuntime::test_fixture(root.path());
+    let host_id = runtime.local_host_id();
+    let workspace_id = runtime
+        .register_workspace(host_id, &workspace_root)
+        .unwrap();
+    let (event_tx, _event_rx) = mpsc::channel();
+    let mut state = ClientState::new(
+        crate::client_config::load_contents(None, None, None).unwrap(),
+        runtime.snapshot().unwrap(),
+        event_tx,
+    );
+    state.selected_workspace = Some(workspace_id);
+    let process = PtyProcess::spawn(
+        &ProcessSpec::new("sh").args(["-c", "exec sleep 30"]),
+        PtySize::default(),
+    )
+    .unwrap();
+    apply_attachment(&mut state, workspace_id, process, 1).unwrap();
+    (root, runtime, state)
+}
 
 #[test]
 fn escape_cancels_selected_host_operation_and_keeps_event_loop_responsive() {
@@ -79,6 +107,10 @@ fn mouse_wheel_scrolls_only_inside_the_ports_panel() {
         event_tx,
     );
     state.ports_area = Some(Rect::new(10, 5, 20, 8));
+    state.mouse_targets.push(crate::client::state::MouseTarget {
+        area: Rect::new(10, 5, 20, 8),
+        action: crate::client::state::MouseAction::ScrollPorts,
+    });
     state.ports_scroll = 3;
 
     handle_mouse(
@@ -158,9 +190,117 @@ fn escape_dismisses_an_approval_without_starting_a_mutation() {
     assert!(state.host_operations.is_empty());
 }
 
-/// Arrow keys then Enter must run the highlighted candidate. Running the typed
-/// text instead is how `:` plus an arrow ended up at the parser as a bare
-/// colon.
+#[test]
+fn clicking_the_manage_session_enters_work_mode() {
+    let (_root, mut runtime, mut state) = attached_fixture();
+    state.mode = ClientMode::Manage;
+    let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
+    terminal
+        .draw(|frame| crate::client::render(&mut state, frame))
+        .unwrap();
+    let area = state.terminal_area.expect("rendered session area");
+
+    handle_mouse(
+        &mut state,
+        &mut runtime,
+        MouseEvent {
+            x: area.x + 1,
+            y: area.y + 1,
+            mouse_buttons: MouseButtons::LEFT,
+            modifiers: Modifiers::NONE,
+        },
+    );
+
+    assert_eq!(state.mode, ClientMode::Work);
+}
+
+#[test]
+fn clicking_the_work_footer_enters_manage_without_forwarding_the_click() {
+    let (_root, mut runtime, mut state) = attached_fixture();
+    let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
+    terminal
+        .draw(|frame| crate::client::render(&mut state, frame))
+        .unwrap();
+
+    super::super::handle_raw(&mut state, &mut runtime, b"\x1b[<0;5;24M");
+
+    assert_eq!(state.mode, ClientMode::Manage);
+}
+
+#[test]
+fn clicking_a_command_candidate_advances_to_its_first_argument() {
+    let root = tempfile::tempdir().unwrap();
+    let mut runtime = ClientRuntime::test_fixture(root.path());
+    let (event_tx, _event_rx) = mpsc::channel();
+    let mut state = ClientState::new(
+        crate::client_config::load_contents(None, None, None).unwrap(),
+        runtime.snapshot().unwrap(),
+        event_tx,
+    );
+    state.command_active = true;
+    state.command_input = ":host".to_owned();
+    let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
+    terminal
+        .draw(|frame| crate::client::render(&mut state, frame))
+        .unwrap();
+    let target = state
+        .mouse_targets
+        .iter()
+        .find(|target| {
+            matches!(
+                target.action,
+                crate::client::state::MouseAction::ChooseCompletion(0)
+            )
+        })
+        .expect("first command candidate")
+        .area;
+
+    handle_mouse(
+        &mut state,
+        &mut runtime,
+        MouseEvent {
+            x: target.x + 1,
+            y: target.y + 1,
+            mouse_buttons: MouseButtons::LEFT,
+            modifiers: Modifiers::NONE,
+        },
+    );
+
+    assert_eq!(state.command_input, ":host add ");
+}
+
+#[test]
+fn incomplete_command_stays_open_with_specific_usage() {
+    let root = tempfile::tempdir().unwrap();
+    let mut runtime = ClientRuntime::test_fixture(root.path());
+    let (event_tx, _event_rx) = mpsc::channel();
+    let mut state = ClientState::new(
+        crate::client_config::load_contents(None, None, None).unwrap(),
+        runtime.snapshot().unwrap(),
+        event_tx,
+    );
+    state.command_active = true;
+    state.command_input = ":host add ".to_owned();
+
+    handle_key(
+        &mut state,
+        &mut runtime,
+        KeyEvent {
+            key: KeyCode::Enter,
+            modifiers: Modifiers::NONE,
+        },
+    );
+
+    assert!(state.command_active);
+    assert_eq!(state.command_input, ":host add ");
+    assert!(state
+        .command_error
+        .as_deref()
+        .is_some_and(|error| error.starts_with("Usage: :host add")));
+}
+
+/// Arrow keys then Enter run the highlighted candidate, while typing or
+/// stepping above the first row returns to the exact text on screen.
 #[cfg(test)]
 mod completion_selection {
     use super::*;
@@ -185,7 +325,6 @@ mod completion_selection {
             },
             event_tx,
         );
-        // The temp dir must outlive the runtime, so leak it for the test.
         std::mem::forget(root);
         (state, runtime)
     }
@@ -206,32 +345,19 @@ mod completion_selection {
         assert_eq!(state.command_selection, Some(0));
         super::handle_key(&mut state, &mut runtime, key(KeyCode::Enter));
 
-        // `:theme` wants no argument, so it ran and the bar closed.
         assert!(!state.command_active);
         let output = state.output.clone().unwrap_or_default();
-        assert!(
-            !output.contains("begin with ':'") && !output.contains("Unknown"),
-            "highlighted candidate was not run: {output}"
-        );
+        assert!(!output.contains("begin with ':'") && !output.contains("Unknown"));
     }
 
     #[test]
-    fn completing_onto_a_command_that_wants_an_argument_keeps_the_bar_open() {
+    fn completing_a_command_that_wants_an_argument_keeps_the_bar_open() {
         let (mut state, mut runtime) = fixture();
-        // The first Hosts candidate is `:host add <name> <ssh-alias>`.
         typed(&mut state, &mut runtime, "hos");
         super::handle_key(&mut state, &mut runtime, key(KeyCode::DownArrow));
         super::handle_key(&mut state, &mut runtime, key(KeyCode::Enter));
-
-        assert!(
-            state.command_active,
-            "the bar closed while an argument was still missing"
-        );
-        assert!(
-            state.command_input.ends_with(' '),
-            "expected a trailing space to type into, got {:?}",
-            state.command_input
-        );
+        assert!(state.command_active);
+        assert!(state.command_input.ends_with(' '));
     }
 
     #[test]

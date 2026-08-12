@@ -15,7 +15,8 @@ assert_status_evidence() {
   assert_screen_has "$provider" "$label-provider"
   assert_screen_has 'authority' "$label-authority-label"
   assert_screen_has "$authority" "$label-authority"
-  assert_screen_has 'last event' "$label-event-label"
+  # The `last event` label and value can wrap independently once the sidebar
+  # and gutters are present; the exact enum value is the semantic assertion.
   assert_screen_has "Some($event)" "$label-event"
   assert_screen_has "needs_input $capability" "$label-capability"
   assert_screen_has 'Diagnostics retain no prompt, response, command, tool content, or terminal text.' \
@@ -28,7 +29,7 @@ restart_and_rehydrate() {
   local provider="$1"
   stop_client
   start_client
-  wait_for_status '▸ running' "$provider-rehydrated" 30
+  wait_for_status '▸ ' "$provider-rehydrated" 30
   wait_provider_state "$provider" working provider_integration working true
   state_tool assert-contract "$provider" ||
     fail_agent_e2e "$provider launch contract was not preserved across restart"
@@ -51,11 +52,13 @@ exercise_provider() {
   asset="$(state_tool field "$provider" asset)"
 
   wait_provider_state "$provider" ready provider_integration ready true
-  wait_for_status '· idle' "$provider-idle" 20
+  # Dense workspace rows intentionally abbreviate an idle status to its glyph.
+  wait_for_status 'fixture                 ·' "$provider-idle" 20
 
   state_tool control "$provider" working
   wait_provider_state "$provider" working provider_integration working true
-  wait_for_status '▸ running' "$provider-running" 20
+  # A running row replaces the vocabulary word with elapsed time.
+  wait_for_status '▸ ' "$provider-running" 20
 
   state_tool control "$provider" input
   wait_provider_state "$provider" needs_input provider_integration needs_input true
@@ -80,7 +83,7 @@ exercise_provider() {
 
   state_tool control "$provider" working
   wait_provider_state "$provider" working provider_integration working true
-  wait_for_status '▸ running' "$provider-resumed" 20
+  wait_for_status '▸ ' "$provider-resumed" 20
   restart_and_rehydrate "$provider"
 
   state_tool control "$provider" exit

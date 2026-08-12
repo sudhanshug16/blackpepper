@@ -3,6 +3,7 @@ mod focus;
 use super::chrome;
 use super::glyph::Glyphs;
 use super::style::{accent_style, section_style, ui_style};
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::{ClientMode, ClientState};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Modifier;
@@ -37,6 +38,13 @@ pub(super) fn render_terminal(state: &mut ClientState, frame: &mut ratatui::Fram
         render_session_label(state, frame, rows[0]);
         rows[1]
     };
+    if state.mode == ClientMode::Manage {
+        let action = match state.active_workspace {
+            Some(active) if state.terminals.contains_key(&active) => MouseAction::EnterWork,
+            _ => MouseAction::AttachSelected,
+        };
+        state.mouse_targets.push(MouseTarget { area: body, action });
+    }
     render_session_body(state, frame, body);
 }
 
@@ -80,12 +88,20 @@ fn render_session_body(state: &mut ClientState, frame: &mut ratatui::Frame, area
     let Some(active) = state.active_workspace else {
         state.terminal_area = Some(area);
         let body = chrome::inner(area);
-        frame.render_widget(
-            Paragraph::new(first_run_lines(state, body))
-                .style(ui_style(state))
-                .wrap(Wrap { trim: false }),
-            body,
-        );
+        let (lines, actions) = first_run_lines(state, body);
+        for (row, action) in actions.into_iter().enumerate() {
+            let Some(action) = action else {
+                continue;
+            };
+            if row >= usize::from(body.height) {
+                break;
+            }
+            state.mouse_targets.push(MouseTarget {
+                area: Rect::new(body.x, body.y.saturating_add(row as u16), body.width, 1),
+                action,
+            });
+        }
+        frame.render_widget(Paragraph::new(lines).style(ui_style(state)), body);
         return;
     };
     let Some(terminal) = state.terminals.get_mut(&active) else {
@@ -112,8 +128,12 @@ fn render_session_body(state: &mut ClientState, frame: &mut ratatui::Frame, area
 /// The mark, what this folder is, and what you can do about it. The version
 /// lives in the header's right slot, so repeating it here would spend two rows
 /// on something already on screen.
-fn first_run_lines(state: &ClientState, area: Rect) -> Vec<Line<'static>> {
+fn first_run_lines(
+    state: &ClientState,
+    area: Rect,
+) -> (Vec<Line<'static>>, Vec<Option<MouseAction>>) {
     let mut lines = Vec::new();
+    let mut actions = Vec::new();
     if area.width >= 12 && area.height >= 9 {
         lines.extend([
             Line::styled("█", accent_style(state).add_modifier(Modifier::BOLD)),
@@ -122,49 +142,71 @@ fn first_run_lines(state: &ClientState, area: Rect) -> Vec<Line<'static>> {
             Line::styled("     █", accent_style(state).add_modifier(Modifier::BOLD)),
             Line::raw(""),
         ]);
+        actions.extend([None, None, None, None, None]);
     }
     let registered = state
         .selected_workspace
         .and_then(|id| state.snapshot.workspaces.iter().find(|item| item.id == id));
-    let hints: Vec<(&str, String)> = match registered {
+    let hints: Vec<(&str, String, MouseAction)> = match registered {
         Some(workspace) => {
             lines.push(Line::raw(format!("{} is registered.", workspace.root_path)));
             lines.push(Line::raw(""));
+            actions.extend([None, None]);
             vec![
-                ("enter", "open this workspace".to_owned()),
-                (":host add", "work on a linux ssh host".to_owned()),
+                (
+                    "enter",
+                    "open this workspace".to_owned(),
+                    MouseAction::AttachSelected,
+                ),
+                (
+                    ":host add",
+                    "work on a linux ssh host".to_owned(),
+                    MouseAction::PrefillCommand(":host add ".to_owned()),
+                ),
                 (
                     ":agent spawn",
                     format!(
                         "codex {sep} claude {sep} opencode",
                         sep = Glyphs::of(state).separator()
                     ),
+                    MouseAction::PrefillCommand(":agent spawn ".to_owned()),
                 ),
             ]
         }
         None => {
             lines.push(Line::raw("No workspace is registered here."));
             lines.push(Line::raw(""));
+            actions.extend([None, None]);
             vec![
-                (":workspace add", "register a folder".to_owned()),
-                (":host add", "work on a linux ssh host".to_owned()),
+                (
+                    ":workspace add",
+                    "register a folder".to_owned(),
+                    MouseAction::PrefillCommand(":workspace add ".to_owned()),
+                ),
+                (
+                    ":host add",
+                    "work on a linux ssh host".to_owned(),
+                    MouseAction::PrefillCommand(":host add ".to_owned()),
+                ),
             ]
         }
     };
     // One key column, so the descriptions form a single readable edge. It
     // collapses to the natural key width when the pane cannot afford 16.
-    let widest = hints.iter().map(|(key, _)| key.len()).max().unwrap_or(0);
+    let widest = hints.iter().map(|(key, _, _)| key.len()).max().unwrap_or(0);
     let column = (widest + 2).min(16);
-    for (key, description) in hints {
+    for (key, description, action) in hints {
         let padding = column.saturating_sub(key.len()).max(1);
         if column + description.chars().count() > usize::from(area.width) {
             lines.push(Line::raw(key.to_owned()));
+            actions.push(Some(action));
             continue;
         }
         lines.push(Line::from(vec![
             Span::raw(format!("{key}{}", " ".repeat(padding))),
             Span::styled(description, section_style(state)),
         ]));
+        actions.push(Some(action));
     }
-    lines
+    (lines, actions)
 }

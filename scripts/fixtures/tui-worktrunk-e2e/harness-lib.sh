@@ -5,7 +5,7 @@
 
 LAST_CAPTURE=''
 BLACKPEPPER_MANAGE_MARKER=' MANAGE '
-BLACKPEPPER_TERMINAL_ANCHOR='bp  blackpepper'
+BLACKPEPPER_TERMINAL_ANCHOR='bp  '
 
 fail_worktrunk_e2e() {
   local message="$1"
@@ -90,7 +90,7 @@ worktrunk_capture_is_manage() {
 }
 
 worktrunk_capture_is_terminal() {
-  grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" "$LAST_CAPTURE" &&
+  tail -n 1 "$LAST_CAPTURE" | grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" &&
     ! grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE" &&
     ! grep -Fq -- ' AUTHENTICATE ' "$LAST_CAPTURE"
 }

@@ -13,7 +13,10 @@ fn work_mode_gives_zellij_every_cell_except_one_status_row() {
 
     assert_eq!(state.terminal_area, Some(Rect::new(0, 0, 180, 51)));
     assert!(state.ports_area.is_none());
-    assert!(state.port_click_targets.is_empty());
+    assert!(state.mouse_targets.iter().all(|target| matches!(
+        target.action,
+        crate::client::state::MouseAction::EnterManage
+    )));
     let rendered = buffer_text(&terminal);
     assert!(rendered.contains("bp  blackpepper"));
     assert!(!rendered.contains(" MANAGE "));
@@ -45,6 +48,63 @@ fn work_footer_at_62_columns_keeps_status_and_manage_for_a_long_workspace_name()
         footer.contains('…'),
         "workspace was not truncated: {footer:?}"
     );
+}
+
+#[test]
+fn short_command_palette_registers_only_visible_candidate_rows() {
+    let mut state = workspace_state();
+    state.command_active = true;
+    state.command_input = ":".to_owned();
+    state.command_selection = Some(7);
+
+    draw(&mut state, 62, 6);
+
+    let candidates = state
+        .mouse_targets
+        .iter()
+        .filter(|target| {
+            matches!(
+                target.action,
+                crate::client::state::MouseAction::ChooseCompletion(_)
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(candidates.len(), 3);
+    assert!(matches!(
+        candidates[0].action,
+        crate::client::state::MouseAction::ChooseCompletion(5)
+    ));
+    assert!(matches!(
+        candidates[1].action,
+        crate::client::state::MouseAction::ChooseCompletion(6)
+    ));
+    assert!(matches!(
+        candidates[2].action,
+        crate::client::state::MouseAction::ChooseCompletion(7)
+    ));
+    assert!(candidates
+        .iter()
+        .all(|target| target.area.y.saturating_add(target.area.height) <= 5));
+}
+
+#[test]
+fn clipped_attention_text_has_no_invisible_footer_action() {
+    let mut state = workspace_state();
+    let workspace_id = state.selected_workspace.unwrap();
+    state
+        .statuses
+        .insert(workspace_id, DisplayStatus::NeedsInput);
+    state.rebuild_tree();
+
+    let terminal = draw(&mut state, 20, 24);
+    assert!(!row_text(&terminal, 23).contains("asks"));
+    assert!(!state.mouse_targets.iter().any(|target| {
+        target.area.y == 23
+            && matches!(
+                target.action,
+                crate::client::state::MouseAction::SelectWorkspace(_)
+            )
+    }));
 }
 
 #[test]

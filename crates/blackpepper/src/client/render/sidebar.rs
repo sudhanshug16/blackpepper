@@ -4,19 +4,21 @@ use super::style::{
     accent_style, connection_style, danger_style, list_status_span, list_status_text, mid_style,
     panel_style, section_style, selected_style,
 };
+use crate::client::state::{MouseAction, MouseTarget};
 use crate::client::{ClientState, HostConnection};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-pub(super) fn render_sidebar(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
+pub(super) fn render_sidebar(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
     let glyphs = Glyphs::of(state);
     // The panel keeps its full rect so `panel_style` paints the gutter cells;
     // each line carries its own inset instead.
     let pad = chrome::pad(area.width);
     let inner = chrome::inner_width(area.width);
     let mut lines = vec![Line::styled(format!("{pad}HOSTS"), section_style(state))];
+    let mut row_actions = Vec::new();
     let mut selected_last_line = None;
     for (index, host) in state.tree.iter().enumerate() {
         // One blank row between hosts, so a long tree reads as groups rather
@@ -34,6 +36,7 @@ pub(super) fn render_sidebar(state: &ClientState, frame: &mut ratatui::Frame, ar
         } else {
             Style::default()
         };
+        let host_row = lines.len();
         lines.push(Line::from(vec![
             Span::raw(pad.clone()),
             Span::styled(
@@ -46,6 +49,7 @@ pub(super) fn render_sidebar(state: &ClientState, frame: &mut ratatui::Frame, ar
             Span::styled(connection, section_style(state)),
             Span::raw(pad.clone()),
         ]));
+        row_actions.push((host_row, MouseAction::SelectHost(host.id)));
         if let Some((_, operation)) = state.host_operations.get(&host.id) {
             lines.push(Line::from(vec![
                 Span::raw(format!("{pad}  ")),
@@ -74,6 +78,7 @@ pub(super) fn render_sidebar(state: &ClientState, frame: &mut ratatui::Frame, ar
                 let detail = state.status_elapsed(workspace.id, workspace.status);
                 let status = list_status_text(state, workspace.status, detail.as_deref());
                 let (label, padding) = aligned_label(glyphs, &workspace.label, &status, 3, inner);
+                let workspace_row = lines.len();
                 if selected {
                     // One span across the whole row: the design bleeds the
                     // selection through the gutter to both panel edges.
@@ -95,6 +100,7 @@ pub(super) fn render_sidebar(state: &ClientState, frame: &mut ratatui::Frame, ar
                         Span::raw(pad.clone()),
                     ]));
                 }
+                row_actions.push((workspace_row, MouseAction::SelectWorkspace(workspace.id)));
                 // Setup failure is durable workspace state, not an agent
                 // status. Give it a full semantic row so neither meaning is
                 // clipped inside the fixed 32-column navigation surface.
@@ -114,10 +120,22 @@ pub(super) fn render_sidebar(state: &ClientState, frame: &mut ratatui::Frame, ar
         }
     }
     if state.tree.is_empty() {
+        let workspace_row = lines.len() + 1;
+        let host_row = lines.len() + 2;
         lines.extend([
             Line::raw(format!("{pad}No workspaces registered.")),
             Line::raw(format!("{pad}:workspace add <path>")),
             Line::raw(format!("{pad}:host add <name> <alias>")),
+        ]);
+        row_actions.extend([
+            (
+                workspace_row,
+                MouseAction::PrefillCommand(":workspace add ".to_owned()),
+            ),
+            (
+                host_row,
+                MouseAction::PrefillCommand(":host add ".to_owned()),
+            ),
         ]);
     }
     let visible_rows = area.height as usize;
@@ -125,6 +143,19 @@ pub(super) fn render_sidebar(state: &ClientState, frame: &mut ratatui::Frame, ar
         .map(|line| line.saturating_sub(visible_rows.saturating_sub(1)))
         .unwrap_or_default()
         .min(u16::MAX as usize) as u16;
+    state.mouse_targets.push(MouseTarget {
+        area,
+        action: MouseAction::ScrollSidebar,
+    });
+    state
+        .mouse_targets
+        .extend(row_actions.into_iter().filter_map(|(line, action)| {
+            let visible = line.checked_sub(usize::from(scroll))?;
+            (visible < usize::from(area.height)).then_some(MouseTarget {
+                area: Rect::new(area.x, area.y.saturating_add(visible as u16), area.width, 1),
+                action,
+            })
+        }));
     frame.render_widget(
         Paragraph::new(lines)
             .style(panel_style(state))

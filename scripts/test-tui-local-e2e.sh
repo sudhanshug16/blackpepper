@@ -184,9 +184,13 @@ run_tui_command ':host import'
 wait_for_screen 'SSH import preview' host-import 10
 assert_screen_has 'e2e-host → e2e-host' host-import-alias
 run_tui_command ':definitely-not-a-command'
-wait_for_screen 'Unknown Blackpepper command' invalid-command 5
+wait_for_screen 'Unknown command: :definitely-not-a-command' invalid-command 5
+send_escape
+wait_for_screen_absent ':definitely-not-a-command' invalid-command-closed 5
 run_tui_command ':help'
 wait_for_screen ':host add <name> <ssh-alias>' help 5
+send_escape
+wait_for_screen_absent ':host add <name> <ssh-alias>' help-closed 5
 run_tui_command ':refresh'
 wait_for_screen 'Refreshed 0 connected remote host(s)' refresh 15
 run_tui_command ':status explain'
@@ -270,6 +274,8 @@ run_shell_command "printf \"\\nBP_E2E_SWITCH:%s\\n\" \"\$PWD\""
 wait_for_screen "BP_E2E_SWITCH:$PRIMARY" chord-switch-primary 10
 send_hex 1c
 wait_for_screen ' MANAGE ' workspace-overlay 10
+tmux_e2e send-keys -t "$TMUX_SESSION:0.0" Down
+sleep 0.2
 send_enter
 wait_for_terminal_mode workspace-overlay-attach 15
 dismiss_zellij_popups

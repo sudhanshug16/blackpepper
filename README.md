@@ -40,6 +40,29 @@ lifecycle locks, while provider-event stores stay channel-specific. A local
 development bundle contains only its native helper. Use a published release
 for macOS-to-Linux or cross-architecture helper bootstrap.
 
+For a source-watching development loop, run this from the project or workspace
+you want Blackpepper to open:
+
+```bash
+/path/to/blackpepper/scripts/dev-watch.sh
+```
+
+This is a temporary source-run loop rather than in-process hot module loading.
+The supervisor is a separate Rust crate; Python and `scripts/setup.sh` are not
+involved. It compiles `bp` and `bp-host` directly, stages immutable run bundles
+only under `target/`, and never changes `~/.local/bin`, the installed `bp-dev`,
+or its retained pre-production bundles. The source run has its own singleton
+and provider-event database, so an installed `bp-dev` may keep running; all
+channels still share the real workspace registry and lifecycle locks.
+
+A compile failure leaves the current source-run TUI attached and records the
+error in `target/blackpepper-dev-watch.log`; a successful build gracefully
+detaches it and launches the new target-local bundle. Zellij sessions survive
+the relaunch, but transient Manage-mode selection, palette text, and scroll
+positions reset. Quit Blackpepper normally to stop the watch loop. Target-local
+client executables are removed after they stop; their compact matching helpers
+remain available for exact provider-hook paths until `target/` is cleaned.
+
 ## First use
 
 Open a local project:
@@ -131,11 +154,23 @@ Blackpepper does not retry the mutation.
 | `:` | Enter a Blackpepper command |
 | `Esc` | Cancel/close the current Blackpepper surface or return to the terminal |
 | `q` | Quit from Manage mode; Zellij sessions keep running |
+| Click a workspace | Select it |
+| Click the Manage-mode session | Enter terminal mode (or attach when detached) |
+| Click the terminal-mode status row | Return to Manage mode |
+| Click a command/help/picker row | Complete or choose that row |
+| Mouse wheel | Scroll or move the panel under the pointer |
 
 Terminal mode gives Zellij the window except for one status row. Other input
 passes through unchanged, including Zellij panes, tabs, scrollback search,
 selection, and copy. Blackpepper accepts bounded OSC 52 clipboard writes,
 never answers clipboard reads, and does not persist clipboard text.
+
+The `:` prompt is a progressive command palette. Type any part of a command
+path, use `↑`/`↓` to choose, and press `Tab` or click to complete it. The palette
+then names the next argument and offers observed hosts, workspaces, services,
+providers, listeners, and active forwards where available. Values containing
+spaces are quoted automatically. An incomplete or invalid command stays open
+with its usage so it can be corrected in place.
 
 ## Commands
 
@@ -257,6 +292,7 @@ cargo test --workspace
 cargo fmt
 cargo clippy --workspace -- -D warnings
 scripts/test-dev-installer.sh
+cargo test -p blackpepper-dev-watch
 scripts/test-terminal-transparency-e2e.sh
 ```
 

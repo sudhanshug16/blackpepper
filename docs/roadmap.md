@@ -17,8 +17,11 @@ not a shipped-runtime screenshot.
   and `? unsure` vocabulary without changing provider/storage protocol states.
 - [x] Cover exact/default and custom surface tokens plus truecolor, 256-color,
   16-color, and `NO_COLOR` behavior with renderer/config unit tests.
-- [ ] Implement state-grounded command argument completion; never offer an
+- [x] Implement state-grounded command argument completion; never offer an
   argument the current parser/action cannot execute.
+- [ ] Add pointer-driven PTY acceptance that injects real terminal mouse input
+  and proves Manage session → Work, Work status row → Manage, and clickable
+  command, argument, help, picker, port, and workspace rows.
 - [ ] Complete representative live PTY and visual acceptance on supported
   macOS and Linux clients before describing v2 as cross-platform accepted.
 
@@ -66,6 +69,9 @@ not a shipped-runtime screenshot.
   cancellation.
 - [x] Side-by-side `bp-dev` installer with private exact-build helper bundles;
   development never replaces or remotely reuses production `bp`/`bp-host`.
+- [x] Rust source-watching development loop that keeps the current TUI alive
+  during background builds and gracefully relaunches only after staging a
+  valid immutable source bundle under `target/`; it never installs `bp-dev`.
 - [x] Loopback-only, one-client browser development PTY using checksum-pinned
   ttyd, per-launch authentication, an immutable `bp-dev` bundle path, and no
   release-install impact.

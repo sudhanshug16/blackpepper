@@ -22,6 +22,23 @@ fn first_run_uses_the_four_row_terminal_mark_when_space_permits() {
             "missing {key} hint in:\n{rendered}"
         );
     }
+    for command in [":workspace add ", ":host add "] {
+        let targets = state
+            .mouse_targets
+            .iter()
+            .filter(|target| {
+                matches!(
+                    &target.action,
+                    crate::client::state::MouseAction::PrefillCommand(value) if value == command
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            targets.iter().any(|target| target.area.x < 32)
+                && targets.iter().any(|target| target.area.x >= 32),
+            "{command:?} is not clickable in both visible first-run surfaces"
+        );
+    }
 }
 
 #[test]
@@ -63,6 +80,23 @@ fn narrow_approval_shows_repository_exact_plan_hooks_and_approve() {
     for old_heading in ["WORKTRUNK MUTATION", "PROJECT COMMANDS", "APPROVAL"] {
         assert!(!rendered.contains(old_heading));
     }
+    let approve = state
+        .mouse_targets
+        .iter()
+        .find(|target| matches!(target.action, crate::client::state::MouseAction::Approve))
+        .expect("visible approval action");
+    let dismiss = state
+        .mouse_targets
+        .iter()
+        .find(|target| {
+            matches!(
+                target.action,
+                crate::client::state::MouseAction::DismissApproval
+            )
+        })
+        .expect("visible approval dismissal");
+    assert_eq!(approve.area.y, dismiss.area.y);
+    assert_eq!(approve.area.height, 1);
 }
 
 #[test]
@@ -105,4 +139,8 @@ fn narrow_detail_remains_visible_beside_the_workspace_selector() {
     assert!(rendered.contains("AGENT STATUS EVIDENCE"));
     assert!(rendered.contains("codex ? unsure"));
     assert!(rendered.contains(" MANAGE "));
+    assert!(state.mouse_targets.iter().any(|target| matches!(
+        target.action,
+        crate::client::state::MouseAction::CloseDetail
+    )));
 }

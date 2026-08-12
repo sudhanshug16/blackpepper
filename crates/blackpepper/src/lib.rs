@@ -10,12 +10,18 @@ pub const BUILD_ID: &str = match option_env!("BLACKPEPPER_BUILD_ID") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-/// Development installers compile with an explicit build identity. They use
-/// their own client singleton and provider event store while sharing the
-/// stable workspace/session registry and host-side lifecycle locks, so `bp`
-/// can safely host work on Blackpepper while one `bp-dev` client exercises the
-/// checkout.
+/// Non-production builds compile with an explicit build identity. Installed
+/// `bp-dev` and temporary source-watch builds use separate client singletons
+/// and provider event stores while sharing the stable workspace/session
+/// registry and host-side lifecycle locks.
 pub const IS_DEVELOPMENT_BUILD: bool = option_env!("BLACKPEPPER_BUILD_ID").is_some();
+
+/// Temporary source-watch builds are never installed as `bp-dev`.
+///
+/// The extra compile-time marker gives that short-lived channel its own
+/// singleton and provider event database without allowing a runtime
+/// environment variable to bypass the one-client-per-channel invariant.
+pub const IS_SOURCE_WATCH_BUILD: bool = option_env!("BLACKPEPPER_SOURCE_WATCH_BUILD").is_some();
 
 pub mod agent_status;
 pub mod client;
