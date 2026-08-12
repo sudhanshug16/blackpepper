@@ -193,15 +193,16 @@ impl ClientRuntime {
         } else {
             let path =
                 self.managed_zellij_config_path(workspace.host_id, &session.backend_version)?;
-            zellij
+            let zellij = zellij
                 .with_config_file(path)
-                .map_err(|error| error.to_string())?
+                .map_err(|error| error.to_string())?;
+            zellij
+                .check_configuration(self.transport_mut(workspace.host_id)?)
+                .map_err(|error| error.to_string())?;
+            zellij
         };
         let (zellij, session_exists) = {
             let transport = self.transport_mut(workspace.host_id)?;
-            zellij
-                .check_configuration(transport)
-                .map_err(|error| error.to_string())?;
             zellij
                 .resolve_session_namespace(transport, &session.backend_session_id)
                 .map_err(|error| error.to_string())?

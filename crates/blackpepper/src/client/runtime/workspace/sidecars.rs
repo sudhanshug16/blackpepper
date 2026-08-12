@@ -2,16 +2,18 @@ use super::super::{text_path, ClientRuntime};
 use crate::core::HostId;
 use crate::providers::runtime::ManagedAsset;
 use crate::transport::{
-    install_remote_in_data_home, release_asset, HostCommand, HttpDownloader, ManagedTool,
-    SidecarCache, SidecarTarget, TransportError,
+    install_remote_in_data_home, release_asset, sha256_bytes, HostCommand, HttpDownloader,
+    ManagedTool, SidecarCache, SidecarTarget, TransportError,
 };
 use std::path::PathBuf;
 
 const MANAGED_ZELLIJ_CONFIG: &[u8] = include_bytes!("../../../../assets/zellij/config.kdl");
 
 impl ClientRuntime {
-    /// Install the immutable, version-scoped appearance used only when the
-    /// workspace host has no effective Zellij configuration of its own.
+    /// Install the content-addressed appearance used only when the workspace
+    /// host has no effective Zellij configuration of its own. Content identity
+    /// prevents production and development clients from rewriting a config an
+    /// existing Zellij session is actively watching.
     pub(super) fn managed_zellij_config_path(
         &mut self,
         host_id: HostId,
@@ -30,6 +32,7 @@ impl ClientRuntime {
         let path = application_data
             .join("zellij-config")
             .join(version)
+            .join(sha256_bytes(MANAGED_ZELLIJ_CONFIG))
             .join("config.kdl");
         self.install_assets(
             host_id,

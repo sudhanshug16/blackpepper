@@ -90,6 +90,29 @@ fn resolver_adopts_an_inherited_native_legacy_namespace() {
 }
 
 #[test]
+fn namespace_resolution_preserves_the_selected_configuration() {
+    let runtime = ZellijRuntime::new("/opt/zellij")
+        .unwrap()
+        .with_config_file("/var/lib/blackpepper/zellij/config.kdl")
+        .unwrap();
+    let mut host = ScriptedTransport::new([
+        metadata("1003", "", "", "", ""),
+        missing_socket(),
+        missing_socket(),
+    ]);
+
+    let (resolved, active) = runtime
+        .resolve_session_namespace(&mut host, "repo-main")
+        .unwrap();
+
+    assert!(!active);
+    assert_eq!(
+        resolved.config_file.as_deref(),
+        Some("/var/lib/blackpepper/zellij/config.kdl")
+    );
+}
+
+#[test]
 fn resolver_adopts_the_hosts_legacy_temp_directory() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let mut host = ScriptedTransport::new([

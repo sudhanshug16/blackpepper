@@ -485,6 +485,14 @@ fn native_configuration_detection_distinguishes_absence_from_user_intent() {
     assert!(runtime
         .user_configuration_present(&mut explicit_directory)
         .unwrap());
+
+    let mut unfamiliar = ScriptedTransport::new([success("configuration okay\n")]);
+    let error = runtime
+        .user_configuration_present(&mut unfamiliar)
+        .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("unfamiliar configuration diagnostics"));
 }
 
 #[test]
