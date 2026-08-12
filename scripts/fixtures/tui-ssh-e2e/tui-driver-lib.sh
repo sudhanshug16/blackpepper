@@ -3,6 +3,9 @@
 # Tmux/PTY driver and fixture assertions for test-tui-ssh-e2e.sh. The caller
 # provides the isolated XDG roots and exact Blackpepper/Zellij binaries.
 
+BLACKPEPPER_MANAGE_MARKER=' MANAGE '
+BLACKPEPPER_TERMINAL_ANCHOR='bp  blackpepper'
+
 seed_zellij_cache() {
   local destination="$1/$ZELLIJ_CACHE_RELATIVE"
   install -d -m 0700 "$destination"
@@ -95,6 +98,16 @@ screen_lacks() {
   ! screen_has "$1"
 }
 
+screen_is_manage() {
+  screen_has "$BLACKPEPPER_MANAGE_MARKER"
+}
+
+screen_is_terminal() {
+  screen_has "$BLACKPEPPER_TERMINAL_ANCHOR" &&
+    screen_lacks "$BLACKPEPPER_MANAGE_MARKER" &&
+    screen_lacks ' AUTHENTICATE '
+}
+
 start_client() {
   local label="$1" client="$TEST_ROOT/$1" command
   TMUX_SESSION="$label"
@@ -105,8 +118,11 @@ start_client() {
     "$client/config" "$client/data" "$client/state" "$client/runtime" \
     "$SSH_CONFIG" "$SSH_LOG" "$BP_BINARY" "$TEST_ROOT/run-client"
   tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 150 -y 42 -c "$client/cwd" "$command"
-  wait_until "$label startup screen" 30 screen_has 'Hosts / Workspaces'
-  wait_until "$label manage mode" 10 screen_has 'MANAGE'
+  wait_until "$label startup screen" 30 screen_has "$BLACKPEPPER_TERMINAL_ANCHOR"
+  wait_until "$label hosts surface" 10 screen_has 'HOSTS'
+  wait_until "$label session surface" 10 screen_has 'SESSION'
+  wait_until "$label ports surface" 10 screen_has 'PORTS'
+  wait_until "$label manage mode" 10 screen_is_manage
 }
 
 stop_client() {
@@ -125,24 +141,24 @@ send_enter() {
 }
 
 ensure_manage() {
-  if screen_has 'MANAGE'; then
+  if screen_is_manage; then
     return 0
   fi
-  if screen_has ' WORK '; then
+  if screen_is_terminal; then
     tmux -S "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION:0.0" -H 1d
-    wait_until 'manage mode' 10 screen_has 'MANAGE'
+    wait_until 'manage mode' 10 screen_is_manage
     return 0
   fi
-  fail 'Blackpepper is neither in work nor manage mode'
+  fail 'Blackpepper is neither in terminal nor manage mode'
 }
 
 ensure_work() {
-  if screen_has ' WORK '; then
+  if screen_is_terminal; then
     return 0
   fi
   ensure_manage
   tmux -S "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION:0.0" Escape
-  wait_until 'work mode' 10 screen_has ' WORK '
+  wait_until 'terminal mode' 10 screen_is_terminal
 }
 
 wait_for_terminal_ready() {
@@ -152,7 +168,7 @@ wait_for_terminal_ready() {
     for popup in 'About Zellij' 'First Run Setup Wizard' 'Release Notes '; do
       screen_lacks "$popup" || fail "isolated Zellij configuration allowed popup: $popup"
     done
-    if screen_has ' WORK '; then
+    if screen_is_terminal; then
       stable=$((stable + 1))
       [ "$stable" -ge 10 ] && return 0
     else

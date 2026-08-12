@@ -2,6 +2,9 @@
 
 - [Architecture](../ARCHITECTURE.md) — runtime boundaries, data flow, safety
   invariants, and persistence.
+- [V2 terminal design system](design-system-v2.md) — borderless layout,
+  terminal mark, color tiers, public status words, acceptance anchors, and the
+  remaining live visual-acceptance gap.
 - [Remote-first V1 migration](remote-first-v1.md) — the accepted move from tmux
   and hand-rolled worktrees to Zellij, Worktrunk, OpenSSH, and host registries.
 - [V1 roadmap](roadmap.md) — what is wired, what still blocks a complete V1,

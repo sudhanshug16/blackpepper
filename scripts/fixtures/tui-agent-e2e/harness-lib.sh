@@ -3,6 +3,8 @@
 # PTY/TUI lifecycle helpers. The caller provides all uppercase path globals.
 
 LAST_CAPTURE=''
+BLACKPEPPER_MANAGE_MARKER=' MANAGE '
+BLACKPEPPER_TERMINAL_ANCHOR='bp  blackpepper'
 
 cleanup_agent_e2e() {
   local status=$?
@@ -61,15 +63,13 @@ wait_for_screen() {
 }
 
 wait_for_status() {
-  local expression="$1" label="$2" seconds="${3:-20}"
+  local marker="$1" label="$2" seconds="${3:-20}"
   for _attempt in $(seq 1 $((seconds * 10))); do
     capture_screen "$label" >/dev/null
-    # Connected-client text can clip the narrow workspace row. Repository and
-    # host rollups keep the same status visible at the right edge.
-    grep -Eq -- "[[:space:]]${expression}[[:space:]]*│" "$LAST_CAPTURE" && return 0
+    grep -Fq -- "$marker" "$LAST_CAPTURE" && return 0
     sleep 0.1
   done
-  fail_agent_e2e "timed out waiting for workspace status: $expression"
+  fail_agent_e2e "timed out waiting for public workspace status: $marker"
 }
 
 assert_screen_has() {
@@ -103,18 +103,40 @@ send_hex() {
   tmux -S "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION:0.0" -H "$1"
 }
 
+capture_is_manage() {
+  grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE"
+}
+
+capture_is_terminal() {
+  grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" "$LAST_CAPTURE" &&
+    ! grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE" &&
+    ! grep -Fq -- ' AUTHENTICATE ' "$LAST_CAPTURE"
+}
+
+wait_for_terminal_mode() {
+  local label="$1" seconds="${2:-20}"
+  for _attempt in $(seq 1 $((seconds * 10))); do
+    capture_screen "$label" >/dev/null
+    capture_is_terminal && return 0
+    tmux -S "$TMUX_SOCKET" has-session -t "$TMUX_SESSION" 2>/dev/null ||
+      fail_agent_e2e 'TUI exited while waiting for the Blackpepper terminal status row'
+    sleep 0.1
+  done
+  fail_agent_e2e 'timed out waiting for the Blackpepper terminal status row'
+}
+
 ensure_manage() {
   capture_screen mode-check >/dev/null
-  grep -Fq ' MANAGE ' "$LAST_CAPTURE" && return 0
+  capture_is_manage && return 0
   send_hex 1d
-  wait_for_screen ' MANAGE ' manage-mode 5
+  wait_for_screen "$BLACKPEPPER_MANAGE_MARKER" manage-mode 5
 }
 
 ensure_work() {
   capture_screen mode-check >/dev/null
-  grep -Fq ' WORK ' "$LAST_CAPTURE" && return 0
+  capture_is_terminal && return 0
   send_hex 1d
-  wait_for_screen ' WORK ' work-mode 5
+  wait_for_terminal_mode terminal-mode 5
 }
 
 run_tui_command() {
@@ -142,15 +164,18 @@ dismiss_zellij_popups() {
 start_client() {
   tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 170 -y 46 \
     -c "$WORKSPACE" "$BP_BINARY"
-  wait_for_screen 'Blackpepper' startup 60
+  wait_for_screen 'bp  blackpepper' startup 60
+  wait_for_screen 'HOSTS' startup-hosts 30
+  wait_for_screen 'SESSION' startup-session 30
+  wait_for_screen 'PORTS' startup-ports 30
   wait_for_screen 'fixture' startup-workspace 30
 }
 
 attach_workspace() {
   capture_screen attach-check >/dev/null
-  if ! grep -Fq ' WORK ' "$LAST_CAPTURE"; then
+  if ! capture_is_terminal; then
     send_enter
-    wait_for_screen ' WORK ' attached 30
+    wait_for_terminal_mode attached 30
   fi
   dismiss_zellij_popups
 }

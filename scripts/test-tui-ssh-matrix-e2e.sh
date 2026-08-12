@@ -181,7 +181,7 @@ ssh-keygen -F "[127.0.0.1]:$TARGET_PORT" -f "$KNOWN_HOSTS" >/dev/null ||
 KNOWN_HOSTS_BEFORE="$(sha256sum "$KNOWN_HOSTS" | awk '{print $1}')"
 
 send_command ":workspace add $REMOTE_WORKSPACE"
-wait_until 'remote PTY through ProxyJump' 60 screen_has ' WORK '
+wait_until 'remote PTY through ProxyJump' 60 screen_is_terminal
 ensure_work
 wait_for_terminal_ready 'ProxyJump remote shell' 15
 send_literal "printf 'BP_PROXYJUMP_PTY:%s\\n' \"\$PWD\""

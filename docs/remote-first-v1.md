@@ -30,6 +30,11 @@ This replaces the tmux-centric design and the hand-written worktree/port/PR
 surface. V1 does not use a Zellij plugin or Ghostty. A plugin can be considered
 later only for client-private focus and richer integration.
 
+The [v2 terminal design system](design-system-v2.md) is a presentation layer
+over this same decision. Its borderless surfaces and public status words do not
+add parser commands, move authority out of OpenSSH/Zellij/Worktrunk, or turn the
+design-board examples into runtime claims.
+
 ## Why
 
 The primary workspace may now be a home-lab VM rather than the laptop running

@@ -150,8 +150,11 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
     let temp = tempfile::tempdir().unwrap();
     let marker = temp.path().join("ready");
     let script = temp.path().join("ssh-stub");
+    // Keep one process on the PTY after authentication. A shell loop can
+    // briefly leave its `sleep` child holding the slave during teardown,
+    // which makes portable-pty's parent-only kill wait forever on macOS.
     let script_body = format!(
-        "#!/bin/sh\ncase \" $* \" in\n  *\" -O check \"*) test -f '{}' ; exit $? ;;\n  *\" -O exit \"*) exit 0 ;;\nesac\nprintf 'Password: '\nIFS= read -r answer\ntest \"$answer\" = secret || exit 1\n: > '{}'\nwhile :; do sleep 1; done\n",
+        "#!/bin/sh\ncase \" $* \" in\n  *\" -O check \"*) test -f '{}' ; exit $? ;;\n  *\" -O exit \"*) exit 0 ;;\nesac\nprintf 'Password: '\nIFS= read -r answer\ntest \"$answer\" = secret || exit 1\n: > '{}'\nexec sleep 30\n",
         marker.display(),
         marker.display()
     );
@@ -168,8 +171,21 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
 
     let mut reader = transport.master_pty_mut().unwrap().take_reader().unwrap();
     assert!(transport.master_pty_mut().unwrap().take_reader().is_err());
-    let mut prompt = [0u8; 10];
-    reader.read_exact(&mut prompt).unwrap();
+    let (prompt_sender, prompt_receiver) = std::sync::mpsc::sync_channel(1);
+    let (release_sender, release_receiver) = std::sync::mpsc::channel();
+    let reader_thread = std::thread::spawn(move || {
+        let mut prompt = [0u8; 10];
+        let result = reader.read_exact(&mut prompt).map(|()| prompt);
+        let prompt_was_read = result.is_ok();
+        let _ = prompt_sender.send(result);
+        if prompt_was_read {
+            let _ = release_receiver.recv();
+        }
+    });
+    let prompt = prompt_receiver
+        .recv_timeout(Duration::from_secs(5))
+        .expect("timed out waiting for the SSH prompt")
+        .unwrap();
     assert_eq!(&prompt, b"Password: ");
     transport
         .master_pty_mut()
@@ -187,6 +203,8 @@ fn master_reader_handoff_keeps_prompt_input_and_readiness_polling_working() {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert_eq!(state, ConnectionState::Ready);
+    release_sender.send(()).unwrap();
+    reader_thread.join().unwrap();
     transport.disconnect().unwrap();
 }
 

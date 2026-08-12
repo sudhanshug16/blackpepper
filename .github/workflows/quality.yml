@@ -58,6 +58,7 @@ jobs:
           scripts/test-installer.sh
           scripts/test-dev-installer.sh
           scripts/test-web-dev.sh
+          scripts/test-website.sh
       - name: Install isolated development build
         run: scripts/setup.sh
       - name: Zellij socket namespace persistence acceptance
@@ -87,7 +88,7 @@ jobs:
 
   macos:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:

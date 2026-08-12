@@ -306,7 +306,7 @@ valid_backend_session "$BACKEND_SESSION" ||
 assert_single_canonical_namespace first-startup 150
 
 send_enter
-wait_for_screen ' WORK ' first-attached 30
+wait_for_terminal_mode first-attached 30
 dismiss_zellij_popups
 run_shell_command "export BP_NAMESPACE_TOKEN='$NAMESPACE_TOKEN'; printf '\\nBP_NAMESPACE_FIRST:%s\\n' \"\$BP_NAMESPACE_TOKEN\""
 wait_for_screen "BP_NAMESPACE_FIRST:$NAMESPACE_TOKEN" first-shell-token 15
@@ -324,7 +324,7 @@ tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 150 -y 46 \
 wait_for_screen 'workspace' second-workspace 60
 assert_single_canonical_namespace second-startup
 send_enter
-wait_for_screen ' WORK ' second-attached 30
+wait_for_terminal_mode second-attached 30
 dismiss_zellij_popups
 run_shell_command "printf '\\nBP_NAMESPACE_SECOND:%s\\n' \"\$BP_NAMESPACE_TOKEN\""
 wait_for_screen "BP_NAMESPACE_SECOND:$NAMESPACE_TOKEN" persistent-shell-token 15

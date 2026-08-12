@@ -41,6 +41,8 @@ The test uses `TERM=xterm-ghostty` and `COLORTERM=truecolor` across the actual
 macOS OpenSSH PTY boundary. It verifies:
 
 - startup and workspace attachment;
+- transition from the borderless Manage surfaces to Blackpepper's owned
+  `bp  blackpepper` terminal status row (there is no literal `WORK` badge);
 - terminal-mode setup, including SGR mouse input;
 - ordinary shell input and the inherited terminal identity;
 - outer and embedded PTY resize propagation;

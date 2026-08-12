@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sudhanshug16.github.io/blackpepper/sitemap.xml

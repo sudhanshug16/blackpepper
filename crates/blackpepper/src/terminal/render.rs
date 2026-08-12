@@ -83,8 +83,15 @@ pub fn render_lines(parser: &Parser, rows: u16, cols: u16) -> Vec<Line<'static>>
 /// Convert vt100 cell attributes to ratatui Style.
 fn style_for_cell(cell: &vt100::Cell) -> Style {
     let mut style = Style::default();
-    style = style.fg(map_color(cell.fgcolor()));
-    style = style.bg(map_color(cell.bgcolor()));
+    // Leave terminal defaults unset so the configured Blackpepper foreground
+    // and background on the parent Paragraph can flow into Zellij content.
+    // Explicit child colors still override that inherited palette.
+    if let Some(color) = map_color(cell.fgcolor()) {
+        style = style.fg(color);
+    }
+    if let Some(color) = map_color(cell.bgcolor()) {
+        style = style.bg(color);
+    }
 
     if cell.bold() {
         style = style.add_modifier(Modifier::BOLD);
@@ -106,11 +113,11 @@ fn style_for_cell(cell: &vt100::Cell) -> Style {
 }
 
 /// Map vt100 colors to ratatui colors.
-fn map_color(color: VtColor) -> Color {
+fn map_color(color: VtColor) -> Option<Color> {
     match color {
-        VtColor::Default => Color::Reset,
-        VtColor::Idx(idx) => Color::Indexed(idx),
-        VtColor::Rgb(r, g, b) => Color::Rgb(r, g, b),
+        VtColor::Default => None,
+        VtColor::Idx(idx) => Some(Color::Indexed(idx)),
+        VtColor::Rgb(r, g, b) => Some(Color::Rgb(r, g, b)),
     }
 }
 
@@ -138,4 +145,40 @@ fn push_span(
     spans.push(Span::styled(std::mem::take(current_text), *current_style));
     *current_style = style;
     current_text.push_str(&content);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::widgets::Paragraph;
+    use ratatui::Terminal;
+
+    #[test]
+    fn configured_defaults_reach_terminal_cells_but_explicit_ansi_still_wins() {
+        let mut parser = Parser::new(1, 2, 0);
+        parser.process(b"\x1b[?25ld\x1b[31;44mr");
+        let lines = render_lines(&parser, 1, 2);
+        let mut terminal = Terminal::new(TestBackend::new(2, 1)).unwrap();
+        let configured = Style::default()
+            .fg(Color::Rgb(0xdd, 0xee, 0xff))
+            .bg(Color::Rgb(0x11, 0x22, 0x33));
+
+        terminal
+            .draw(|frame| {
+                frame.render_widget(Paragraph::new(lines).style(configured), frame.area());
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let default_cell = buffer.cell((0, 0)).unwrap();
+        assert_eq!(default_cell.symbol(), "d");
+        assert_eq!(default_cell.fg, Color::Rgb(0xdd, 0xee, 0xff));
+        assert_eq!(default_cell.bg, Color::Rgb(0x11, 0x22, 0x33));
+
+        let explicit_cell = buffer.cell((1, 0)).unwrap();
+        assert_eq!(explicit_cell.symbol(), "r");
+        assert_eq!(explicit_cell.fg, Color::Indexed(1));
+        assert_eq!(explicit_cell.bg, Color::Indexed(4));
+    }
 }

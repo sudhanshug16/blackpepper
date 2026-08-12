@@ -125,18 +125,18 @@ fn format_run(run: &AgentRunView) -> String {
         .unwrap_or_default();
     let detail = match &run.snapshot {
         Some(snapshot) => format!(
-            "{} {:?}, health {:?}, needs_input {}, sequence {:?}, observed {:?}{authority}{failure}{blocker}",
+            "{} {}, health {:?}, needs_input {}, sequence {:?}, observed {:?}{authority}{failure}{blocker}",
             run.provider,
-            run.display_status(),
+            run.display_status().public_text(),
             snapshot.integration_health,
             run.displayed_needs_input_capability(),
             snapshot.last_event_sequence,
             snapshot.last_event_at_ms
         ),
         None => format!(
-            "{} {:?}, needs_input {}{authority}{failure}{blocker}",
+            "{} {}, needs_input {}{authority}{failure}{blocker}",
             run.provider,
-            run.display_status(),
+            run.display_status().public_text(),
             run.displayed_needs_input_capability()
         ),
     };
@@ -243,4 +243,36 @@ pub(super) fn start_service(
         .insert(host_id, (token, label.clone()));
     state.set_output(format!("{label}… Press Esc in Manage mode to cancel."));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_explain_uses_the_public_vocabulary_not_internal_debug_names() {
+        let run = AgentRunView {
+            run_id: crate::core::AgentRunId::new(),
+            pane_id: crate::core::PaneId::new(),
+            tab_id: 1,
+            provider: Provider::Codex,
+            zellij_pane_id: "1".to_owned(),
+            needs_input_capability: "partial".to_owned(),
+            snapshot: None,
+            explain: None,
+            snapshot_error: None,
+            seen_completion_revision: 0,
+            blocker: None,
+            blocker_watcher_instance: None,
+            blocker_sequence: 0,
+            blocker_observed_at_ms: None,
+            interrupted_after_sequence: None,
+        };
+
+        let rendered = format_run(&run);
+        assert!(rendered.contains("codex ? unsure"));
+        for internal in ["Unknown", "Ready", "Working", "NeedsInput"] {
+            assert!(!rendered.contains(internal));
+        }
+    }
 }

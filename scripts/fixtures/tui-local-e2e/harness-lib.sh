@@ -4,6 +4,8 @@
 # lifecycle state and provides TMUX_SOCKET, TMUX_SESSION, and ARTIFACTS.
 
 LAST_CAPTURE=''
+# shellcheck source=scripts/fixtures/tui-local-e2e/ui-markers-lib.sh
+source "$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/ui-markers-lib.sh"
 
 cleanup_e2e() {
   local status=$?
@@ -134,20 +136,20 @@ send_hex() {
 
 ensure_manage_mode() {
   capture_screen mode-check
-  if grep -Fq ' MANAGE ' "$LAST_CAPTURE"; then
+  if capture_is_manage_mode; then
     return 0
   fi
   send_hex 1d
-  wait_for_screen ' MANAGE ' mode-manage 5
+  wait_for_screen "$BLACKPEPPER_MANAGE_MARKER" mode-manage 5
 }
 
 ensure_work_mode() {
   capture_screen mode-check
-  if grep -Fq ' WORK ' "$LAST_CAPTURE"; then
+  if capture_is_terminal_mode; then
     return 0
   fi
   send_hex 1d
-  wait_for_screen ' WORK ' mode-work 5
+  wait_for_terminal_mode mode-terminal 5
 }
 
 dismiss_zellij_popups() {

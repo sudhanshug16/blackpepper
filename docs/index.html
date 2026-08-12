@@ -3,91 +3,227 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>blackpepper</title>
-    <style>
-      :root {
-        color-scheme: light;
-        --bg: #f7f2e8;
-        --ink: #1f1b16;
-        --muted: #6e6256;
-        --accent: #d08b2f;
-      }
-      body {
-        margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
-        background: radial-gradient(circle at 20% 20%, #fff7e4, #f5eee1 50%, #efe3d0 100%);
-        color: var(--ink);
-      }
-      main {
-        max-width: 860px;
-        margin: 0 auto;
-        padding: 80px 24px 120px;
-      }
-      h1 {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-      }
-      .logo {
-        font-family: "Fira Code", "Cascadia Code", "Source Code Pro", monospace;
-        font-size: clamp(1.2rem, 2.4vw, 1.7rem);
-        line-height: 1.1;
-        color: var(--ink);
-        margin: 0 0 24px;
-        white-space: pre;
-      }
-      p {
-        font-size: 1.1rem;
-        line-height: 1.6;
-        color: var(--muted);
-        margin: 0 0 24px;
-      }
-      .cta {
-        border: 1px solid rgba(31, 27, 22, 0.1);
-        background: rgba(255, 255, 255, 0.6);
-        padding: 18px 22px;
-        border-radius: 12px;
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
-      }
-      code {
-        display: block;
-        background: #201a14;
-        color: #f5efe5;
-        padding: 16px;
-        border-radius: 10px;
-        font-family: "Fira Code", "Cascadia Code", "Source Code Pro", monospace;
-        font-size: 0.95rem;
-        overflow-x: auto;
-      }
-      a {
-        color: var(--accent);
-        text-decoration: none;
-      }
-    </style>
+    <title>Blackpepper — terminal workspaces for coding agents</title>
+    <meta
+      name="description"
+      content="One terminal UI for local folders and Linux SSH hosts. Zellij keeps the work alive where it runs."
+    />
+    <meta name="theme-color" content="#1c1d1f" />
+    <link rel="canonical" href="https://sudhanshug16.github.io/blackpepper/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Blackpepper" />
+    <meta property="og:title" content="Blackpepper — stay in the work" />
+    <meta
+      property="og:description"
+      content="One terminal UI for local folders and Linux SSH hosts. Zellij keeps the work alive where it runs."
+    />
+    <meta property="og:url" content="https://sudhanshug16.github.io/blackpepper/" />
+    <meta
+      property="og:image"
+      content="https://sudhanshug16.github.io/blackpepper/assets/social-card.png"
+    />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Blackpepper terminal mark and product summary" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Blackpepper — stay in the work" />
+    <meta
+      name="twitter:description"
+      content="One terminal UI for local folders and Linux SSH hosts. Zellij keeps the work alive where it runs."
+    />
+    <meta
+      name="twitter:image"
+      content="https://sudhanshug16.github.io/blackpepper/assets/social-card.png"
+    />
+    <meta name="twitter:image:alt" content="Blackpepper terminal mark and product summary" />
+
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script src="assets/site.js" defer></script>
   </head>
   <body>
-    <main>
-      <h1>blackpepper</h1>
-      <pre class="logo">                _     _  _       
-|_  |  _  _  | |_) _ |_)|_) _  __
-|_) | (_|(_  |<|  (/_|  |  (/_ | </pre>
-      <p>
-        Terminal orchestration for TUI coding agents. One UI, multiple providers, shared
-        workspaces, and fast context switching.
-      </p>
-      <div class="cta">
-        <strong>Install in one line</strong>
-        <code>curl -fsSL https://sudhanshug16.github.io/blackpepper/install.sh | bash</code>
+    <a class="skip-link" href="#main">skip to content</a>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="#top" aria-label="Blackpepper home">
+          <img src="assets/favicon-32.png" width="24" height="24" alt="" />
+          <span><b>black</b>pepper</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <div class="section-links">
+            <a href="#workflow">workflow</a>
+            <a href="#capabilities">capabilities</a>
+            <a href="#commands">commands</a>
+          </div>
+          <a class="header-cta" href="#install">install</a>
+        </nav>
       </div>
-      <p>
-        Docs and source: <a href="https://github.com/sudhanshug16/blackpepper">github.com/sudhanshug16/blackpepper</a>
-      </p>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <pre class="terminal-mark" aria-hidden="true">█
+█▀▄  █▀▄
+█▄▀  █▄▀
+     █</pre>
+            <p class="eyebrow">remote-first terminal workspace</p>
+            <h1>Stay in the work.<br />Wherever it runs.</h1>
+            <p class="hero-summary">
+              One terminal UI for local folders and Linux SSH hosts. Zellij keeps shells,
+              services, and agent tabs alive on the machine where the work runs.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-action" href="#install">install blackpepper</a>
+              <a href="https://github.com/sudhanshug16/blackpepper">read the source</a>
+            </div>
+          </div>
+
+          <div
+            class="terminal-preview"
+            role="img"
+            aria-label="Borderless Blackpepper manage view with workspaces, a Zellij session, and ports"
+            data-product-version="0.1.70"
+          >
+            <div class="terminal-head">
+              <b>bp</b><span class="term-title">blackpepper</span>
+              <span class="term-context">devbox:/home/dev/blackpepper</span>
+              <span class="term-version">v0.1.70</span>
+            </div>
+            <div class="terminal-grid">
+              <div class="terminal-tree">
+                <span class="term-label">HOSTS</span>
+                <p><span class="online">●</span> devbox <small>local</small></p>
+                <p class="indent muted">folder</p>
+                <p class="selected">blackpepper <span>▸ running</span></p>
+                <p class="indent muted">projects/example</p>
+                <p class="indent">example <span>· idle</span></p>
+              </div>
+              <div class="terminal-session">
+                <span class="term-label">SESSION</span>
+                <div class="terminal-output">
+                  <p>$ cargo test -p blackpepper</p>
+                  <p class="muted">&nbsp;&nbsp;&nbsp;Compiling blackpepper</p>
+                  <p><span class="done">✓</span> render tests passed</p>
+                  <p><span class="done">✓</span> transport tests passed</p>
+                  <p class="muted">test result: ok</p>
+                </div>
+                <p class="agent-line"><span class="running">▸</span> codex <span>running</span></p>
+              </div>
+              <div class="terminal-ports">
+                <span class="term-label">PORTS</span>
+                <p>3000 <span>→ 3000</span></p>
+                <small>node · client loopback</small>
+                <p>5432 <span class="muted">click to forward</span></p>
+                <small>postgres</small>
+              </div>
+            </div>
+            <div class="terminal-foot">
+              <b>MANAGE</b><span>↑↓ select · enter attach · : command · q quit</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section raised-section" id="workflow">
+        <div class="wrap">
+          <p class="eyebrow">workflow</p>
+          <h2>Leave the terminal. Keep the work.</h2>
+          <ol class="workflow-list">
+            <li><b>01</b><strong>Open a folder</strong><span>Run <code>bp</code>. The current folder becomes a workspace.</span></li>
+            <li><b>02</b><strong>Attach</strong><span>Enter opens its Zellij session on the machine that owns the folder.</span></li>
+            <li><b>03</b><strong>Work</strong><span>Run shells, configured services, Codex, Claude Code, or OpenCode in tabs.</span></li>
+            <li><b>04</b><strong>Return</strong><span>Detach and reattach later. Blackpepper never claims to resume agent conversations.</span></li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section" id="capabilities">
+        <div class="wrap">
+          <p class="eyebrow">capabilities</p>
+          <h2>One clear layer over tools you already trust.</h2>
+          <div class="capability-grid">
+            <article><span>01</span><h3>Local + SSH</h3><p>The same workspace view for local folders and folders on Linux OpenSSH hosts.</p></article>
+            <article><span>02</span><h3>Persistent sessions</h3><p>Zellij keeps the session alive where it runs; quitting Blackpepper leaves it running.</p></article>
+            <article><span>03</span><h3>Coding agents</h3><p>Spawn Codex, Claude Code, and OpenCode in explicit, workspace-scoped tabs.</p></article>
+            <article><span>04</span><h3>Safe worktrees</h3><p>Worktrunk mutations show the exact command and project hooks before <code>:approve</code>.</p></article>
+            <article><span>05</span><h3>Truthful status</h3><p><code>· idle</code> <code>▸ running</code> <code>! asks</code> <code>✓ done</code> <code>× exited</code> <code>? unsure</code></p></article>
+            <article><span>06</span><h3>Loopback forwarding</h3><p>Discover listeners and forward one exact socket to this client's loopback interface.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section raised-section" id="commands">
+        <div class="wrap commands-layout">
+          <div>
+            <p class="eyebrow">commands</p>
+            <h2>Everything explicit.</h2>
+            <p class="section-copy">Commands run inside the TUI. Use Left and Right Arrow to browse these website command groups.</p>
+          </div>
+          <div class="command-browser">
+            <div class="tab-list" role="tablist" aria-label="Command groups">
+              <button id="tab-workspaces" role="tab" aria-controls="panel-workspaces" aria-selected="true" tabindex="0">workspaces</button>
+              <button id="tab-agents" role="tab" aria-controls="panel-agents" aria-selected="false" tabindex="-1">agents</button>
+              <button id="tab-network" role="tab" aria-controls="panel-network" aria-selected="false" tabindex="-1">network</button>
+              <button id="tab-client" role="tab" aria-controls="panel-client" aria-selected="false" tabindex="-1">client</button>
+            </div>
+            <div id="panel-workspaces" class="tab-panel" role="tabpanel" aria-labelledby="tab-workspaces">
+              <p><code data-command=":workspace add &lt;path&gt;">:workspace add &lt;path&gt;</code><span>register a folder</span></p>
+              <p><code data-command=":workspace switch &lt;name|id&gt;">:workspace switch &lt;name|id&gt;</code><span>attach to a workspace</span></p>
+              <p><code data-command=":worktree create &lt;branch&gt; [--base &lt;ref&gt;]">:worktree create &lt;branch&gt; [--base &lt;ref&gt;]</code><span>preview creation</span></p>
+              <p><code data-command=":worktree remove">:worktree remove</code><span>preview removal</span></p>
+            </div>
+            <div id="panel-agents" class="tab-panel" role="tabpanel" aria-labelledby="tab-agents" hidden>
+              <p><code data-command=":agent spawn &lt;codex|claude|opencode&gt;">:agent spawn &lt;codex|claude|opencode&gt;</code><span>start an agent tab</span></p>
+              <p><code data-command=":service start &lt;name&gt;">:service start &lt;name&gt;</code><span>start a configured service</span></p>
+              <p><code data-command=":status explain">:status explain</code><span>show redacted evidence</span></p>
+              <p><code data-command=":refresh">:refresh</code><span>refresh live state</span></p>
+            </div>
+            <div id="panel-network" class="tab-panel" role="tabpanel" aria-labelledby="tab-network" hidden>
+              <p><code data-command=":host add &lt;name&gt; &lt;ssh-alias&gt;">:host add &lt;name&gt; &lt;ssh-alias&gt;</code><span>register an OpenSSH alias</span></p>
+              <p><code data-command=":host connect &lt;name&gt;">:host connect &lt;name&gt;</code><span>connect interactively</span></p>
+              <p><code data-command=":ports [--all-host]">:ports [--all-host]</code><span>discover listeners</span></p>
+              <p><code data-command=":forward &lt;port|address:port&gt;">:forward &lt;port|address:port&gt;</code><span>forward one exact listener</span></p>
+            </div>
+            <div id="panel-client" class="tab-panel" role="tabpanel" aria-labelledby="tab-client" hidden>
+              <p><code data-command=":approve">:approve</code><span>run the exact reviewed plan</span></p>
+              <p><code data-command=":help">:help</code><span>show the command reference</span></p>
+              <p><code data-command=":quit">:quit</code><span>detach and exit</span></p>
+              <p><code data-command=":workspace terminate">:workspace terminate</code><span>end the session, keep the folder</span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section install-section" id="install">
+        <div class="wrap install-grid">
+          <div>
+            <p class="eyebrow">install</p>
+            <h2>Start in the folder you already have.</h2>
+            <p class="section-copy">Clients run on macOS or Linux, x86_64 or arm64. SSH workspace hosts run Linux. System OpenSSH is required.</p>
+          </div>
+          <div class="install-command">
+            <span>release installer</span>
+            <code id="install-code">curl -fsSL https://sudhanshug16.github.io/blackpepper/install.sh | bash</code>
+            <button type="button" id="copy-install" aria-describedby="copy-status">copy</button>
+            <small id="copy-status" aria-live="polite">checksum-verifies the release bundle</small>
+          </div>
+        </div>
+      </section>
     </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <span><b>bp</b> blackpepper</span>
+        <div><a href="https://github.com/sudhanshug16/blackpepper">source</a><a href="README.md">docs</a><a href="roadmap.md">roadmap</a></div>
+      </div>
+    </footer>
   </body>
 </html>

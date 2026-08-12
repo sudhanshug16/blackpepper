@@ -172,24 +172,26 @@ fn approval_review(
     command: &str,
     projects: &[crate::worktrunk::WorktrunkProjectCommand],
 ) -> String {
-    let mut sections = vec![format!("WORKTRUNK MUTATION\n{command}")];
+    let mut sections = vec![format!("mutation\n{command}")];
     if projects.is_empty() {
-        sections.push("PROJECT COMMANDS\nNone require approval.".to_string());
+        sections.push("unapproved project hooks\nnone".to_string());
     } else {
-        sections.extend(projects.iter().map(|project| {
-            let name = project
-                .name
-                .as_deref()
-                .map(|name| format!(" / {name}"))
-                .unwrap_or_default();
-            format!(
-                "PROJECT COMMAND — {}{name}\n{}",
-                project.phase, project.template
-            )
-        }));
+        let hooks = projects
+            .iter()
+            .map(|project| {
+                let name = project
+                    .name
+                    .as_deref()
+                    .map(|name| format!(" / {name}"))
+                    .unwrap_or_default();
+                format!("{}{name}: {}", project.phase, project.template)
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        sections.push(format!("unapproved project hooks\n{hooks}"));
     }
     sections.push(
-        "Run :approve to approve exactly this plan. Any change invalidates it; Blackpepper never adds force or hook-skipping flags."
+        "approval binds to this exact Worktrunk command and project hook plan.\n:approve  run · esc dismiss · ↑↓ scroll\nAny change invalidates this approval; Blackpepper never adds force or hook-skipping flags."
             .to_string(),
     );
     sections.join("\n\n")
@@ -284,3 +286,6 @@ fn schedule_mutation(
     state.set_output(format!("{label}… Press Esc in Manage mode to cancel; Blackpepper will never retry an uncertain mutation."));
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

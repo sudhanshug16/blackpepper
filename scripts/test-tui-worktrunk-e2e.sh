@@ -94,7 +94,11 @@ export LC_ALL='C.UTF-8'
 
 tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 180 -y 52 \
   -c "$PRIMARY" "$BP_BIN"
-wait_for_worktrunk_screen ' MANAGE ' startup 60
+wait_for_worktrunk_screen 'bp  blackpepper' startup 60
+wait_for_worktrunk_screen ' MANAGE ' startup-manage 10
+assert_worktrunk_screen_has 'HOSTS' startup-hosts
+assert_worktrunk_screen_has 'SESSION' startup-session
+assert_worktrunk_screen_has 'PORTS' startup-ports
 wait_for_worktrunk_screen 'primary' primary-startup 60
 for _attempt in $(seq 1 200); do
   ZELLIJ_BIN="$(find "$E2E_DATA_HOME/blackpepper/sidecars/zellij/0.44.3" \
@@ -107,9 +111,12 @@ done
   fail_worktrunk_e2e 'managed Zellij version is not exact'
 
 run_worktrunk_tui_command ':worktree open open-me'
-wait_for_worktrunk_screen 'WORKTRUNK MUTATION' open-review 60
+wait_for_worktrunk_screen ':approve' open-review 60
+assert_worktrunk_screen_has 'repository' open-repository
+assert_worktrunk_screen_has 'mutation' open-mutation
 assert_worktrunk_screen_has 'switch open-me' open-selector
-assert_worktrunk_screen_has 'PROJECT COMMAND' open-project-command
+assert_worktrunk_screen_has 'project hooks' open-project-hooks
+assert_worktrunk_screen_has ':approve' open-approve
 assert_worktrunk_screen_lacks '--force' open-no-force
 run_worktrunk_tui_command ':approve'
 wait_for_worktrunk_screen "Registered worktree $OPEN_PATH with a persistent shell." open-done 60
@@ -118,19 +125,25 @@ wait_for_worktrunk_file "$TEST_ROOT/setup-open-me.ran" 15
 dismiss_worktrunk_zellij_popups
 
 run_worktrunk_tui_command ':workspace switch primary'
-wait_for_worktrunk_screen ' WORK ' primary-again 30
+wait_for_worktrunk_terminal_mode primary-again 30
 dismiss_worktrunk_zellij_popups
 run_worktrunk_tui_command ':worktree create setup-fails --base main'
-wait_for_worktrunk_screen 'WORKTRUNK MUTATION' setup-review 30
+wait_for_worktrunk_screen ':approve' setup-review 30
+assert_worktrunk_screen_has 'repository' setup-repository
+assert_worktrunk_screen_has 'mutation' setup-mutation
+assert_worktrunk_screen_has 'project hooks' setup-project-hooks
+assert_worktrunk_screen_has ':approve' setup-approve
 assert_worktrunk_screen_has '--create setup-fails' setup-create-command
 run_worktrunk_tui_command ':approve'
 wait_for_worktrunk_screen 'exists but setup failed:' setup-visible 60
 wait_for_worktrunk_file "$TEST_ROOT/setup-setup-fails.ran" 15
 [ -d "$SETUP_FAILED_PATH" ] || fail_worktrunk_e2e 'failed setup hid or deleted its worktree'
-assert_worktrunk_screen_has 'setup-fails setup-fail' setup-sidebar
+assert_worktrunk_screen_has 'setup-fails' setup-sidebar-workspace
+assert_worktrunk_screen_has '⚠ setup failed' setup-sidebar-failure
 run_worktrunk_tui_command ':refresh'
 wait_for_worktrunk_screen 'Refreshed 0 connected remote host(s)' setup-refresh 20
-assert_worktrunk_screen_has 'setup-fails setup-fail' setup-persistent
+assert_worktrunk_screen_has 'setup-fails' setup-persistent-workspace
+assert_worktrunk_screen_has '⚠ setup failed' setup-persistent-failure
 run_worktrunk_tui_command ':quit'
 wait_for_worktrunk_session_exit 20
 
@@ -161,7 +174,7 @@ git -C "$LOST_SURVIVOR" add README.md .config/wt.toml
 git -C "$LOST_SURVIVOR" commit --quiet -m 'test: initialize removal fixture'
 git -C "$LOST_SURVIVOR" worktree add --quiet -b lost-remove "$LOST_TARGET"
 
-timeout 120 python3 "$FIXTURES/host-driver.py" \
+PYTHONDONTWRITEBYTECODE=1 timeout 120 python3 "$FIXTURES/host-driver.py" \
   "$BP_HOST" "$WT_BIN" "$SETUP_FAILED_PATH" "$LOCK_REPO" "$LOCK_MARKER" \
   "$LOCK_RELEASE" "$LOST_SURVIVOR" "$LOST_TARGET" "$LOST_MARKER"
 

@@ -1,0 +1,24 @@
+{
+  "name": "Blackpepper",
+  "short_name": "bp",
+  "description": "Terminal workspaces for local folders and Linux SSH hosts.",
+  "start_url": "/blackpepper/",
+  "scope": "/blackpepper/",
+  "display": "standalone",
+  "background_color": "#1c1d1f",
+  "theme_color": "#1c1d1f",
+  "icons": [
+    {
+      "src": "assets/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

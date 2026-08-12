@@ -11,7 +11,7 @@ wait_provider_state() {
 assert_status_evidence() {
   local provider="$1" authority="$2" event="$3" capability="$4" label="$5"
   run_tui_command ':status explain'
-  wait_for_screen 'Agent status evidence' "$label" 20
+  wait_for_screen 'AGENT STATUS EVIDENCE' "$label" 20
   assert_screen_has "$provider" "$label-provider"
   assert_screen_has 'authority' "$label-authority-label"
   assert_screen_has "$authority" "$label-authority"
@@ -28,7 +28,7 @@ restart_and_rehydrate() {
   local provider="$1"
   stop_client
   start_client
-  wait_for_status 'working' "$provider-rehydrated" 30
+  wait_for_status '▸ running' "$provider-rehydrated" 30
   wait_provider_state "$provider" working provider_integration working true
   state_tool assert-contract "$provider" ||
     fail_agent_e2e "$provider launch contract was not preserved across restart"
@@ -51,19 +51,19 @@ exercise_provider() {
   asset="$(state_tool field "$provider" asset)"
 
   wait_provider_state "$provider" ready provider_integration ready true
-  wait_for_status 'ready' "$provider-ready" 20
+  wait_for_status '· idle' "$provider-idle" 20
 
   state_tool control "$provider" working
   wait_provider_state "$provider" working provider_integration working true
-  wait_for_status 'working' "$provider-working" 20
+  wait_for_status '▸ running' "$provider-running" 20
 
   state_tool control "$provider" input
   wait_provider_state "$provider" needs_input provider_integration needs_input true
-  wait_for_status 'input' "$provider-needs-input" 20
+  wait_for_status '! asks' "$provider-asks" 20
 
   state_tool control "$provider" "done"
   wait_provider_state "$provider" "done" provider_integration turn_completed true
-  wait_for_status 'done' "$provider-done" 20
+  wait_for_status '✓ done' "$provider-done" 20
   assert_status_evidence "$provider" ProviderIntegration TurnCompleted "$capability" \
     "$provider-done-evidence"
   state_tool assert-redacted "$E2E_SECRET" ||
@@ -72,22 +72,22 @@ exercise_provider() {
   ensure_work
   send_hex 03
   wait_provider_state "$provider" unknown process_supervisor state_unknown true
-  wait_for_screen 'agent status unknown' "$provider-interrupted" 20
+  wait_for_screen '? unsure' "$provider-interrupted" 20
   ensure_manage
-  wait_for_status '\?' "$provider-interrupted-manage" 20
+  wait_for_status '? unsure' "$provider-interrupted-manage" 20
   assert_status_evidence "$provider" ProcessSupervisor StateUnknown "$capability" \
     "$provider-interrupted-evidence"
 
   state_tool control "$provider" working
   wait_provider_state "$provider" working provider_integration working true
-  wait_for_status 'working' "$provider-resumed" 20
+  wait_for_status '▸ running' "$provider-resumed" 20
   restart_and_rehydrate "$provider"
 
   state_tool control "$provider" exit
   wait_provider_state "$provider" exited process_supervisor exited false
-  wait_for_screen 'agent exited' "$provider-exited" 30
+  wait_for_screen '× exited' "$provider-exited" 30
   ensure_manage
-  wait_for_status 'exited' "$provider-exited-manage" 20
+  wait_for_status '× exited' "$provider-exited-manage" 20
   wait_for_asset_absent "$asset"
   state_tool assert-redacted "$E2E_SECRET" ||
     fail_agent_e2e "$provider cleanup left sensitive state"

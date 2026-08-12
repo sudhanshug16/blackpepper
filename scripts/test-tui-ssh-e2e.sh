@@ -156,6 +156,10 @@ send_command ':host add lab bp-e2e-alias'
 wait_until 'host registration' 10 screen_has 'Added SSH host lab'
 send_command ':host connect lab'
 wait_until 'first-use host-key prompt' 15 screen_has 'Are you sure you want to continue connecting'
+screen_has 'OpenSSH owns authentication' ||
+  fail 'authentication surface did not identify OpenSSH as the authority'
+screen_has 'Blackpepper does not store credentials' ||
+  fail 'authentication surface omitted the credential-storage boundary'
 HOST_FINGERPRINT="$(ssh-keygen -lf "$TEST_ROOT/sshd/host-key.pub" -E sha256 | awk '{print $2}')"
 screen_has "$HOST_FINGERPRINT" || fail 'SSH host-key prompt omitted the server fingerprint'
 [ ! -e "$KNOWN_HOSTS" ] || fail 'known_hosts changed before the prompt was confirmed'
@@ -172,7 +176,7 @@ ssh-keygen -F "[127.0.0.1]:$SSHD_PORT" -f "$KNOWN_HOSTS" >/dev/null ||
 save_screen client-a-connected
 
 send_command ":workspace add $REMOTE_WORKSPACE"
-wait_until 'remote workspace attach' 60 screen_has ' WORK '
+wait_until 'remote workspace attach' 60 screen_is_terminal
 ensure_work
 wait_for_terminal_ready 'initial remote shell' 15
 send_literal "printf 'BP_REMOTE_PTY_A:%s\\n' \"\$PWD\""
@@ -222,7 +226,7 @@ wait_until 'SSH reconnect' 60 screen_has 'SSH connected; restored'
 [ "$(curl -fsS --max-time 2 "$FORWARD_URL/marker.txt")" = 'blackpepper-ssh-forward-ok' ] ||
   fail 'SSH reconnect did not restore the original local forward port'
 send_command ':workspace switch workspace'
-wait_until 'reattach to persistent remote Zellij session' 60 screen_has ' WORK '
+wait_until 'reattach to persistent remote Zellij session' 60 screen_is_terminal
 ensure_work
 wait_for_terminal_ready 'reattached remote shell' 15
 send_literal "printf 'BP_REMOTE_PTY_REATTACHED\\n'"
@@ -264,7 +268,7 @@ wait_until 'host-side remote workspace discovery' 20 screen_has 'workspace'
 save_screen client-b-discovery
 
 send_command ':workspace switch workspace'
-wait_until 'second-client session attach' 60 screen_has ' WORK '
+wait_until 'second-client session attach' 60 screen_is_terminal
 ensure_work
 wait_for_terminal_ready 'second-client remote shell' 15
 send_literal "printf 'BP_REMOTE_PTY_CLIENT_B\\n'"

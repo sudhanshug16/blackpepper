@@ -78,14 +78,19 @@ def size_after(
 
 
 def run_acceptance(client: PtyClient, timeout: float) -> None:
-    client.wait_for(b"Blackpepper", 0, timeout)
+    # `bp` and `blackpepper` have different styles, so SGR bytes may separate
+    # the two spans in the raw stream. The wordmark itself is one stable span.
+    client.wait_for(b"blackpepper", 0, timeout)
+    client.wait_for(b"HOSTS", 0, timeout)
+    client.wait_for(b"SESSION", 0, timeout)
+    client.wait_for(b"PORTS", 0, timeout)
     client.wait_for(b"workspace", 0, timeout)
     if b"\x1b[?1000h" not in client.output or b"\x1b[?1006h" not in client.output:
         raise AcceptanceFailure("Blackpepper did not enable SGR mouse input on the outer PTY")
 
     start = client.mark()
     client.send(b"\r")
-    client.wait_for(b" WORK ", start, timeout)
+    client.wait_for(b"blackpepper", start, timeout)
     time.sleep(0.4)
     client.read(0)
 
@@ -155,7 +160,7 @@ def run_acceptance(client: PtyClient, timeout: float) -> None:
 
     start = client.mark()
     client.send(b"\x1d")
-    client.wait_for(b": commands", start, timeout)
+    client.wait_for(b" MANAGE ", start, timeout)
 
     start = client.mark()
     client.send(b":definitely-not-a-command\r")

@@ -129,7 +129,10 @@ install -d -m 0700 "$BLACKPEPPER_E2E_AUTO_LOG_ROOT"
 
 tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 180 -y 52 \
   -c "$PRIMARY" "$BP_DEV"
-wait_for_screen 'Blackpepper' startup 60
+wait_for_screen 'bp  blackpepper' startup 60
+assert_screen_has 'HOSTS' startup-hosts
+assert_screen_has 'SESSION' startup-session
+assert_screen_has 'PORTS' startup-ports
 wait_for_screen 'primary' startup-primary 60
 assert_screen_has 'acme/e2e' startup-grouping
 assert_screen_lacks 'os error 2' startup-no-enoent
@@ -158,7 +161,7 @@ grep -Fq 'Blackpepper is already running as PID' "$ARTIFACTS/singleton.txt" ||
   fail_e2e 'singleton rejection did not report the owner PID'
 
 send_enter
-wait_for_screen ' WORK ' attached-work 15
+wait_for_terminal_mode attached-terminal 15
 wait_for_zellij_client_count "$BACKEND_SESSION" 1 15
 for _attempt in $(seq 1 100); do
   AUTO_SERVICE_LOG="$(find "$AUTO_SERVICE_LOG_ROOT" -type f -print -quit 2>/dev/null || true)"
@@ -235,7 +238,7 @@ if [ -z "$WT_BIN" ] || [ "$($WT_BIN --version)" != 'wt v0.72.0' ]; then
 fi
 
 run_tui_command ":workspace add $PEER"
-wait_for_screen ' WORK ' peer-attached 20
+wait_for_terminal_mode peer-attached 20
 dismiss_zellij_popups
 ensure_manage_mode
 assert_screen_has 'primary' grouped-primary
@@ -261,20 +264,24 @@ wait_for_screen 'Refreshed 0 connected remote host(s)' ungroup-refresh 15
 assert_screen_has 'folder' ungroup-persistent
 
 send_hex 0e
-wait_for_screen ' WORK ' chord-switch-work 15
+wait_for_terminal_mode chord-switch-terminal 15
 dismiss_zellij_popups
 run_shell_command "printf \"\\nBP_E2E_SWITCH:%s\\n\" \"\$PWD\""
 wait_for_screen "BP_E2E_SWITCH:$PRIMARY" chord-switch-primary 10
 send_hex 1c
 wait_for_screen ' MANAGE ' workspace-overlay 10
 send_enter
-wait_for_screen ' WORK ' workspace-overlay-attach 15
+wait_for_terminal_mode workspace-overlay-attach 15
 dismiss_zellij_popups
 run_shell_command "printf \"\\nBP_E2E_OVERLAY:%s\\n\" \"\$PWD\""
 wait_for_screen "BP_E2E_OVERLAY:$PEER" workspace-overlay-peer 10
 
 run_tui_command ':worktree create e2e-created --base main'
-wait_for_screen 'WORKTRUNK MUTATION' worktree-create-review 30
+wait_for_screen ':approve' worktree-create-review 30
+assert_screen_has 'repository' worktree-create-repository
+assert_screen_has 'mutation' worktree-create-mutation
+assert_screen_has 'project hooks' worktree-create-hooks
+assert_screen_has ':approve' worktree-create-approve
 assert_screen_has '--create e2e-created' worktree-create-command
 assert_screen_lacks '--force' worktree-create-no-force
 assert_screen_lacks '--clobber' worktree-create-no-clobber
@@ -285,7 +292,11 @@ wait_for_screen "Registered worktree $CREATED" worktree-create-approved 45
 assert_screen_has 'e2e-created' worktree-created-tree
 
 run_tui_command ':worktree remove'
-wait_for_screen 'WORKTRUNK MUTATION' worktree-remove-review 30
+wait_for_screen ':approve' worktree-remove-review 30
+assert_screen_has 'repository' worktree-remove-repository
+assert_screen_has 'mutation' worktree-remove-mutation
+assert_screen_has 'project hooks' worktree-remove-hooks
+assert_screen_has ':approve' worktree-remove-approve
 assert_screen_lacks '--force' worktree-remove-no-force
 assert_screen_lacks '--force-delete' worktree-remove-no-force-delete
 run_tui_command ':approve'
@@ -304,7 +315,7 @@ ZELLIJ_AFTER_REBOOT="$(ZELLIJ_SOCKET_DIR="$ZELLIJ_SOCKET_ROOT" "$ZELLIJ_BIN" \
 
 tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 180 -y 52 \
   -c "$PRIMARY" "$BP_DEV"
-wait_for_screen 'Blackpepper' reboot-startup 60
+wait_for_screen 'bp  blackpepper' reboot-startup 60
 wait_for_screen 'primary' reboot-primary 60
 wait_for_file_lines "$AUTO_SERVICE_LOG" 'workspace-env-ok' 2 20
 wait_for_file_lines "$PEER_AUTO_SERVICE_LOG" 'workspace-env-ok' 2 20
@@ -312,18 +323,18 @@ sleep 0.5
 wait_for_file_lines "$AUTO_SERVICE_LOG" 'workspace-env-ok' 2 1
 wait_for_file_lines "$PEER_AUTO_SERVICE_LOG" 'workspace-env-ok' 2 1
 send_enter
-wait_for_screen ' WORK ' reboot-attached 20
+wait_for_terminal_mode reboot-attached 20
 dismiss_zellij_popups
 run_shell_command "printf \"\\nBP_E2E_REBOOT_SHELL:%s\\n\" \"\$BLACKPEPPER_E2E\""
 wait_for_screen 'BP_E2E_REBOOT_SHELL:workspace-env-ok' reboot-shell-env 10
 
 run_tui_command ':workspace switch primary'
-wait_for_screen ' WORK ' primary-before-terminate 20
+wait_for_terminal_mode primary-before-terminate 20
 dismiss_zellij_popups
 run_tui_command ':workspace terminate'
 wait_for_screen 'Zellij session terminated; the workspace folder was kept.' primary-terminated 20
 run_tui_command ':workspace switch peer'
-wait_for_screen ' WORK ' peer-before-terminate 20
+wait_for_terminal_mode peer-before-terminate 20
 dismiss_zellij_popups
 run_tui_command ':workspace terminate'
 wait_for_screen 'Zellij session terminated; the workspace folder was kept.' peer-terminated 20

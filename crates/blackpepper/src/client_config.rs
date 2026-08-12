@@ -55,10 +55,40 @@ pub struct StartupCommand {
     pub auto_start: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UiConfig {
     pub background: (u8, u8, u8),
     pub foreground: (u8, u8, u8),
+    pub color_tier: ColorTier,
+}
+
+/// Terminal paint capability. Layout and public status words never vary by
+/// this tier, so losing color cannot hide state or move controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorTier {
+    TrueColor,
+    Ansi256,
+    Ansi16,
+    NoColor,
+}
+
+impl ColorTier {
+    fn from_environment() -> Self {
+        if std::env::var_os("NO_COLOR").is_some() {
+            return Self::NoColor;
+        }
+        if std::env::var("COLORTERM").is_ok_and(|value| {
+            let value = value.to_ascii_lowercase();
+            value.contains("truecolor") || value.contains("24bit")
+        }) {
+            return Self::TrueColor;
+        }
+        if std::env::var("TERM").is_ok_and(|value| value.to_ascii_lowercase().contains("256color"))
+        {
+            return Self::Ansi256;
+        }
+        Self::Ansi16
+    }
 }
 
 #[derive(Debug)]
@@ -169,8 +199,17 @@ fn merge(
         startup,
         workspace_env: env,
         ui: UiConfig {
-            background: resolve_color(&layers, |raw| raw.ui.background.as_deref(), (51, 51, 51)),
-            foreground: resolve_color(&layers, |raw| raw.ui.foreground.as_deref(), (255, 255, 255)),
+            background: resolve_color(
+                &layers,
+                |raw| raw.ui.background.as_deref(),
+                (0x1c, 0x1d, 0x1f),
+            ),
+            foreground: resolve_color(
+                &layers,
+                |raw| raw.ui.foreground.as_deref(),
+                (0xe6, 0xe4, 0xe1),
+            ),
+            color_tier: ColorTier::from_environment(),
         },
     }
 }

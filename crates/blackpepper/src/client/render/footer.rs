@@ -1,67 +1,144 @@
-use super::style::ui_style;
-use crate::client::{ClientMode, ClientState};
+use super::style::{accent_badge_style, accent_style, panel_style, status_span, warning_style};
+use crate::client::{ClientMode, ClientState, DisplayStatus};
 use crate::ports::{ForwardStatus, ProbeCompleteness};
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 pub(super) fn render_footer(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
-    let mode = match state.mode {
-        ClientMode::Work => Span::styled(" WORK ", Style::default().fg(Color::DarkGray)),
-        ClientMode::Manage => Span::styled(
-            " MANAGE ",
-            Style::default().bg(Color::Magenta).fg(Color::Black),
-        ),
-        ClientMode::Authenticate => Span::styled(
-            " AUTHENTICATE ",
-            Style::default().bg(Color::Yellow).fg(Color::Black),
-        ),
-    };
-    let lines = if state.mode == ClientMode::Work {
-        vec![work_footer(state, mode)]
+    let line = if state.mode == ClientMode::Work {
+        work_footer(state, area.width)
     } else if state.command_active {
-        vec![
-            Line::from(vec![
-                Span::styled(&state.command_input, Style::default().fg(Color::White)),
-                Span::styled(" ", Style::default().bg(Color::White)),
-            ]),
-            Line::raw(" Enter run  Esc cancel"),
-        ]
-    } else if let Some(output) = state.visible_output() {
-        vec![
-            Line::from(vec![mode, Span::raw(" "), Span::raw(output)]),
-            Line::raw(default_footer_hint(state)),
-        ]
+        command_footer(state)
     } else {
-        vec![Line::from(vec![
-            mode,
-            Span::raw(default_footer_hint(state)),
-        ])]
+        let mode = mode_badge(state);
+        if let Some(output) = state.visible_output() {
+            Line::from(vec![mode, Span::raw("  "), Span::raw(output.to_owned())])
+        } else {
+            Line::from(vec![mode, Span::raw(default_footer_hint(state))])
+        }
     };
-    frame.render_widget(Paragraph::new(lines).style(ui_style(state)), area);
+    frame.render_widget(Paragraph::new(line).style(panel_style(state)), area);
 }
 
-fn work_footer(state: &ClientState, mode: Span<'static>) -> Line<'static> {
-    let manage = format!("  {} Manage", state.config.keymap.toggle_mode);
-    let mut spans = vec![mode, Span::raw(manage)];
+fn mode_badge(state: &ClientState) -> Span<'static> {
+    let label = match state.mode {
+        ClientMode::Work => "",
+        ClientMode::Manage => " MANAGE ",
+        ClientMode::Authenticate => " AUTHENTICATE ",
+    };
+    Span::styled(label, accent_badge_style(state))
+}
+
+fn command_footer(state: &ClientState) -> Line<'static> {
+    let input = state.command_input.strip_prefix(':').unwrap_or_default();
+    Line::from(vec![
+        mode_badge(state),
+        Span::raw("  "),
+        Span::styled(":", accent_style(state)),
+        Span::raw(input.to_owned()),
+        Span::styled(
+            " ",
+            Style::default().add_modifier(ratatui::style::Modifier::REVERSED),
+        ),
+        Span::raw("  · enter run · esc cancel"),
+    ])
+}
+
+fn work_footer(state: &ClientState, width: u16) -> Line<'static> {
+    let mut spans = vec![
+        Span::styled("bp", accent_style(state)),
+        Span::raw("  blackpepper"),
+    ];
     if let Some(output) = state.visible_output() {
         spans.push(Span::raw("  ·  "));
         spans.push(Span::raw(output.to_owned()));
         return Line::from(spans);
     }
+    if let Some(workspace_id) = state.active_workspace {
+        let workspace = state
+            .snapshot
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.id == workspace_id)
+            .and_then(|workspace| {
+                workspace.display_name.clone().or_else(|| {
+                    std::path::Path::new(&workspace.root_path)
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                })
+            })
+            .unwrap_or_else(|| "workspace".to_owned());
+        let status = state
+            .statuses
+            .get(&workspace_id)
+            .copied()
+            .unwrap_or(DisplayStatus::Idle);
+        let manage = format!("  ·  {} manage", state.config.keymap.toggle_mode);
+        let fixed_width = Line::from(spans.clone()).width()
+            + 4
+            + Line::raw(status.public_text()).width()
+            + Line::raw(&manage).width();
+        let workspace =
+            truncate_to_width(&workspace, usize::from(width).saturating_sub(fixed_width));
+        spans.push(Span::raw(format!("  {workspace}  ")));
+        spans.push(status_span(state, status));
+        spans.push(Span::raw(manage));
+    } else {
+        spans.push(Span::raw(format!(
+            "  ·  {} manage",
+            state.config.keymap.toggle_mode
+        )));
+    }
     let attention = work_attention(state);
     if !attention.is_empty() {
-        spans.push(Span::styled(
-            format!("  ·  ⚠ {}", attention.join(" · ")),
-            Style::default().fg(Color::Yellow),
-        ));
+        push_if_fits(
+            &mut spans,
+            Span::styled(
+                format!(" · {}", attention.join(" · ")),
+                warning_style(state),
+            ),
+            width,
+        );
     }
-    spans.push(Span::raw(format!(
-        "  ·  {} Next  ·  {} List",
-        state.config.keymap.switch_workspace, state.config.keymap.workspace_overlay,
-    )));
+    push_if_fits(
+        &mut spans,
+        Span::raw(format!(" · {} next", state.config.keymap.switch_workspace)),
+        width,
+    );
+    push_if_fits(
+        &mut spans,
+        Span::raw(format!(" · {} list", state.config.keymap.workspace_overlay)),
+        width,
+    );
     Line::from(spans)
+}
+
+fn push_if_fits(spans: &mut Vec<Span<'static>>, span: Span<'static>, width: u16) {
+    let current = Line::from(spans.clone()).width();
+    if current + span.width() <= usize::from(width) {
+        spans.push(span);
+    }
+}
+
+fn truncate_to_width(value: &str, width: usize) -> String {
+    if Line::raw(value).width() <= width {
+        return value.to_owned();
+    }
+    if width == 0 {
+        return String::new();
+    }
+    let mut output = String::new();
+    for character in value.chars() {
+        let candidate = format!("{output}{character}…");
+        if Line::raw(&candidate).width() > width {
+            break;
+        }
+        output.push(character);
+    }
+    output.push('…');
+    output
 }
 
 pub(super) fn work_attention(state: &ClientState) -> Vec<String> {
@@ -69,15 +146,6 @@ pub(super) fn work_attention(state: &ClientState) -> Vec<String> {
         return Vec::new();
     };
     let mut attention = Vec::new();
-    match state.statuses.get(&workspace_id).copied() {
-        Some(crate::client::DisplayStatus::NeedsInput) => attention.push("input needed".to_owned()),
-        Some(crate::client::DisplayStatus::Done) => attention.push("agent done".to_owned()),
-        Some(crate::client::DisplayStatus::Unknown) => {
-            attention.push("agent status unknown".to_owned())
-        }
-        Some(crate::client::DisplayStatus::Exited) => attention.push("agent exited".to_owned()),
-        _ => {}
-    }
     if let Some(clients) = state
         .connected_clients
         .get(&workspace_id)
@@ -108,15 +176,15 @@ pub(super) fn work_attention(state: &ClientState) -> Vec<String> {
 pub(super) fn default_footer_hint(state: &ClientState) -> String {
     match state.mode {
         ClientMode::Work => format!(
-            "  {} Manage  {} Next  {} List",
+            "  {} manage · {} next · {} list",
             state.config.keymap.toggle_mode,
             state.config.keymap.switch_workspace,
             state.config.keymap.workspace_overlay,
         ),
         ClientMode::Manage if !state.host_operations.is_empty() => {
-            "  Esc cancel selected-host operation  : commands  q quit".to_owned()
+            "  esc cancel host work · : command · q quit".to_owned()
         }
-        ClientMode::Manage => "  : commands  ↑↓ select  Enter attach  q quit".to_owned(),
-        ClientMode::Authenticate => "  Respond to the SSH prompt; Ctrl+C cancels".to_owned(),
+        ClientMode::Manage => "  ↑↓ select · enter attach · : command · q quit".to_owned(),
+        ClientMode::Authenticate => "  OpenSSH prompt · Ctrl+C cancel".to_owned(),
     }
 }

@@ -4,6 +4,8 @@
 # owns every path and PID so a failed run can be retained without hidden state.
 
 LAST_CAPTURE=''
+BLACKPEPPER_MANAGE_MARKER=' MANAGE '
+BLACKPEPPER_TERMINAL_ANCHOR='bp  blackpepper'
 
 fail_worktrunk_e2e() {
   local message="$1"
@@ -83,6 +85,29 @@ assert_worktrunk_screen_lacks() {
   fi
 }
 
+worktrunk_capture_is_manage() {
+  grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE"
+}
+
+worktrunk_capture_is_terminal() {
+  grep -Fq -- "$BLACKPEPPER_TERMINAL_ANCHOR" "$LAST_CAPTURE" &&
+    ! grep -Fq -- "$BLACKPEPPER_MANAGE_MARKER" "$LAST_CAPTURE" &&
+    ! grep -Fq -- ' AUTHENTICATE ' "$LAST_CAPTURE"
+}
+
+wait_for_worktrunk_terminal_mode() {
+  local label="$1" timeout_seconds="${2:-20}"
+  local deadline=$((SECONDS + timeout_seconds))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    capture_worktrunk_screen "$label"
+    worktrunk_capture_is_terminal && return 0
+    session_is_live ||
+      fail_worktrunk_e2e 'TUI exited while waiting for the Blackpepper terminal status row'
+    sleep 0.1
+  done
+  fail_worktrunk_e2e 'timed out waiting for the Blackpepper terminal status row'
+}
+
 send_worktrunk_literal() {
   tmux_worktrunk send-keys -t "$TMUX_SESSION:0.0" -l -- "$1"
 }
@@ -93,11 +118,11 @@ send_worktrunk_hex() {
 
 ensure_worktrunk_manage_mode() {
   capture_worktrunk_screen mode-check
-  if grep -Fq ' MANAGE ' "$LAST_CAPTURE"; then
+  if worktrunk_capture_is_manage; then
     return 0
   fi
   send_worktrunk_hex 1d
-  wait_for_worktrunk_screen ' MANAGE ' manage-mode 5
+  wait_for_worktrunk_screen "$BLACKPEPPER_MANAGE_MARKER" manage-mode 5
 }
 
 run_worktrunk_tui_command() {

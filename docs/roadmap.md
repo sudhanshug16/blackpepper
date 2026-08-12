@@ -3,6 +3,25 @@
 This is an implementation checklist, not a release promise. Checked items have
 a code path and targeted tests; they may still need end-to-end acceptance.
 
+## V2 terminal renderer
+
+The [v2 terminal design system](design-system-v2.md) changes presentation, not
+the V1 runtime or parser surface. The supplied design board is reference work,
+not a shipped-runtime screenshot.
+
+- [x] Record the exact terminal mark, borderless layout rules, single-accent
+  palette, public status vocabulary, and semantic acceptance anchors.
+- [x] Ship borderless `HOSTS` / `SESSION` / `PORTS` surfaces with one stable
+  `bp  blackpepper` anchor across Manage and terminal views.
+- [x] Ship the public `· idle`, `▸ running`, `! asks`, `✓ done`, `× exited`,
+  and `? unsure` vocabulary without changing provider/storage protocol states.
+- [x] Cover exact/default and custom surface tokens plus truecolor, 256-color,
+  16-color, and `NO_COLOR` behavior with renderer/config unit tests.
+- [ ] Implement state-grounded command argument completion; never offer an
+  argument the current parser/action cannot execute.
+- [ ] Complete representative live PTY and visual acceptance on supported
+  macOS and Linux clients before describing v2 as cross-platform accepted.
+
 ## Wired
 
 - [x] Stable host, workspace, repository, session, pane, and agent-run IDs.

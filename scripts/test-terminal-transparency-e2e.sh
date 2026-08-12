@@ -75,7 +75,7 @@ tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 150 -y 46 \
   -c "$PRIMARY" "$BP_DEV"
 tmux_e2e set-option -g set-clipboard on
 tmux_e2e set-option -as terminal-features ',xterm-256color:clipboard'
-wait_for_screen 'Blackpepper' startup 60
+wait_for_screen 'bp  blackpepper' startup 60
 wait_for_screen 'workspace' workspace 60
 
 for _attempt in $(seq 1 600); do
@@ -87,9 +87,9 @@ done
 [ -n "$ZELLIJ_BIN" ] || fail_e2e 'managed Zellij 0.44.3 was not installed'
 
 send_enter
-wait_for_screen ' WORK ' attached 20
-assert_screen_lacks 'Hosts / Workspaces' work-hides-sidebar
-assert_screen_lacks ' Ports ' work-hides-ports
+wait_for_terminal_mode attached 20
+assert_screen_lacks 'HOSTS' terminal-hides-hosts
+assert_screen_lacks 'PORTS' terminal-hides-ports
 dismiss_zellij_popups
 run_shell_command "BP_TERMINAL_SIZE_LOG='$SIZE_LOG' python3 '$TERMINAL_FIXTURE'"
 wait_for_screen 'BP_TERMINAL_READY' fixture-ready 15
@@ -134,4 +134,4 @@ wait_for_screen 'BP_TERMINAL_DONE' fixture-done 10
 run_tui_command ':quit'
 wait_for_session_exit 15
 
-printf 'PASS: focused Work canvas, native Zellij scroll/search, resize, and clipboard handoff\n'
+printf 'PASS: focused terminal canvas, native Zellij scroll/search, resize, and clipboard handoff\n'
