@@ -337,3 +337,73 @@ fn every_public_status_keeps_one_glyph_and_one_word() {
         );
     }
 }
+
+/// At full colour depth the client names every colour exactly. A named ANSI
+/// slot here would be filled in by the user's terminal theme, which is how the
+/// palette drifted from the design the first time.
+#[test]
+fn full_colour_depth_never_defers_to_a_terminal_slot() {
+    use ratatui::style::Color;
+    let mut state = running_state();
+    state
+        .statuses
+        .insert(state.selected_workspace.unwrap(), DisplayStatus::NeedsInput);
+    state.host_operations.insert(
+        state.snapshot.hosts[0].id,
+        (uuid::Uuid::new_v4(), "connecting".to_owned()),
+    );
+    state.rebuild_tree();
+    let terminal = draw(&mut state, 120, 24);
+    let buffer = terminal.backend().buffer();
+    for row in 0..buffer.area.height {
+        for column in 0..buffer.area.width {
+            let cell = buffer.cell((column, row)).unwrap();
+            for (role, colour) in [("fg", cell.fg), ("bg", cell.bg)] {
+                assert!(
+                    matches!(colour, Color::Rgb(..) | Color::Reset),
+                    "cell ({column},{row}) {role} is {colour:?}, a slot the terminal theme fills in"
+                );
+            }
+        }
+    }
+}
+
+/// The design's palette, cell for cell.
+#[test]
+fn the_palette_is_the_designs_palette() {
+    use ratatui::style::Color;
+    let state = workspace_state();
+    use super::super::style;
+    assert_eq!(
+        style::ui_style(&state).bg,
+        Some(Color::Rgb(0x1c, 0x1d, 0x1f))
+    );
+    assert_eq!(
+        style::ui_style(&state).fg,
+        Some(Color::Rgb(0xe6, 0xe4, 0xe1))
+    );
+    assert_eq!(
+        style::panel_style(&state).bg,
+        Some(Color::Rgb(0x23, 0x24, 0x27))
+    );
+    assert_eq!(
+        style::accent_style(&state).fg,
+        Some(Color::Rgb(0xe4, 0x83, 0x4f))
+    );
+    assert_eq!(
+        style::mid_style(&state).fg,
+        Some(Color::Rgb(0xb9, 0xb6, 0xb2))
+    );
+    assert_eq!(
+        style::section_style(&state).fg,
+        Some(Color::Rgb(0x6c, 0x6b, 0x68))
+    );
+    assert_eq!(
+        style::warning_style(&state).fg,
+        Some(Color::Rgb(0xe5, 0xc0, 0x7b))
+    );
+    assert_eq!(
+        style::danger_style(&state).fg,
+        Some(Color::Rgb(0xe0, 0x6c, 0x75))
+    );
+}

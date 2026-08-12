@@ -92,22 +92,80 @@ fn accent_and_ui_degrade_through_all_color_tiers() {
         .contains(Modifier::BOLD));
 }
 
+/// At full colour depth every status names its colour exactly, so the client
+/// looks the same whatever the terminal theme is.
 #[test]
-fn every_public_status_has_a_glyph_word_and_semantic_color() {
+fn every_public_status_has_a_glyph_word_and_an_exact_color() {
     let state = workspace_state();
     let cases = [
-        (DisplayStatus::Idle, "· idle", Color::DarkGray),
-        (DisplayStatus::Working, "▸ running", Color::Cyan),
-        (DisplayStatus::NeedsInput, "! asks", Color::Yellow),
-        (DisplayStatus::Done, "✓ done", Color::Green),
-        (DisplayStatus::Exited, "× exited", Color::Red),
-        (DisplayStatus::Unknown, "? unsure", Color::DarkGray),
+        (DisplayStatus::Idle, "· idle", Color::Rgb(0x6c, 0x6b, 0x68)),
+        (
+            DisplayStatus::Working,
+            "▸ running",
+            Color::Rgb(0x56, 0xb6, 0xc2),
+        ),
+        (
+            DisplayStatus::NeedsInput,
+            "! asks",
+            Color::Rgb(0xe5, 0xc0, 0x7b),
+        ),
+        (DisplayStatus::Done, "✓ done", Color::Rgb(0x98, 0xc3, 0x79)),
+        (
+            DisplayStatus::Exited,
+            "× exited",
+            Color::Rgb(0xe0, 0x6c, 0x75),
+        ),
+        (
+            DisplayStatus::Unknown,
+            "? unsure",
+            Color::Rgb(0x6c, 0x6b, 0x68),
+        ),
     ];
     for (status, expected, color) in cases {
         let span = super::super::style::status_span(&state, status, None);
         assert_eq!(span.content.as_ref(), expected);
         assert_eq!(span.style.fg, Some(color));
     }
+}
+
+/// Only at the sixteen-colour floor does the client hand its palette over to
+/// the terminal's own slots.
+#[test]
+fn the_sixteen_color_floor_falls_back_to_the_terminals_own_slots() {
+    let mut state = workspace_state();
+    state.config.ui.color_tier = ColorTier::Ansi16;
+    let cases = [
+        (DisplayStatus::Working, Color::Cyan),
+        (DisplayStatus::NeedsInput, Color::Yellow),
+        (DisplayStatus::Done, Color::Green),
+        (DisplayStatus::Exited, Color::Red),
+        (DisplayStatus::Idle, Color::Gray),
+    ];
+    for (status, color) in cases {
+        assert_eq!(
+            super::super::style::status_span(&state, status, None)
+                .style
+                .fg,
+            Some(color),
+            "{status:?} did not degrade to a named slot"
+        );
+    }
+}
+
+/// The neutral ramp is derived, so a configured palette keeps its own hue
+/// instead of being overpainted with the design's greys.
+#[test]
+fn a_custom_palette_derives_its_own_neutrals() {
+    let mut state = workspace_state();
+    state.config.ui.foreground = (0xff, 0xff, 0xff);
+    state.config.ui.background = (0x00, 0x00, 0x40);
+    let Some(Color::Rgb(red, green, blue)) = super::super::style::section_style(&state).fg else {
+        panic!("recessive neutral lost its exact colour");
+    };
+    assert!(
+        red == green && blue > red,
+        "derived neutral dropped the palette's blue cast: {red},{green},{blue}"
+    );
 }
 
 #[test]

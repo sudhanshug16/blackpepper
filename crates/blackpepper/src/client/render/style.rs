@@ -9,6 +9,86 @@ pub(super) const CANVAS: (u8, u8, u8) = (0x1c, 0x1d, 0x1f);
 pub(super) const RAISED: (u8, u8, u8) = (0x23, 0x24, 0x27);
 pub(super) const INK: (u8, u8, u8) = (0xe6, 0xe4, 0xe1);
 
+/// The neutral ramp between `INK` and `CANVAS`. The design's third grey,
+/// `#8b8a87`, styles its own page captions and the mocked terminal body, so it
+/// is deliberately absent here — the client draws neither.
+const MID: (u8, u8, u8) = (0xb9, 0xb6, 0xb2);
+const RECESSIVE: (u8, u8, u8) = (0x6c, 0x6b, 0x68);
+
+/// How far each neutral sits from the foreground, as a percentage blend toward
+/// the background. Derived rather than hardcoded so a configured palette keeps
+/// its own hue; the defaults reproduce the tokens above exactly.
+const MID_BLEND: u16 = 22;
+const RECESSIVE_BLEND: u16 = 62;
+
+/// Semantic colors carry meaning, not theme identity, so they are named
+/// precisely while colour exists and only fall back to the terminal's own
+/// slots at the sixteen-colour floor.
+const GREEN: (u8, u8, u8) = (0x98, 0xc3, 0x79);
+const YELLOW: (u8, u8, u8) = (0xe5, 0xc0, 0x7b);
+const RED: (u8, u8, u8) = (0xe0, 0x6c, 0x75);
+const CYAN: (u8, u8, u8) = (0x56, 0xb6, 0xc2);
+
+/// A semantic color and the ANSI slot it degrades into.
+#[derive(Clone, Copy)]
+struct Semantic {
+    exact: (u8, u8, u8),
+    ansi: Color,
+}
+
+const SEMANTIC_GREEN: Semantic = Semantic {
+    exact: GREEN,
+    ansi: Color::Green,
+};
+const SEMANTIC_YELLOW: Semantic = Semantic {
+    exact: YELLOW,
+    ansi: Color::Yellow,
+};
+const SEMANTIC_RED: Semantic = Semantic {
+    exact: RED,
+    ansi: Color::Red,
+};
+const SEMANTIC_CYAN: Semantic = Semantic {
+    exact: CYAN,
+    ansi: Color::Cyan,
+};
+
+/// Whether the client is painting its own palette or one the user configured.
+fn default_palette(state: &ClientState) -> bool {
+    state.config.ui.background == CANVAS && state.config.ui.foreground == INK
+}
+
+/// One step on the neutral ramp, as an exact color at full depth and the
+/// terminal's own grey below it.
+fn neutral(state: &ClientState, token: (u8, u8, u8), blend: u16) -> Style {
+    let exact = if default_palette(state) {
+        token
+    } else {
+        blend_rgb(
+            state.config.ui.foreground,
+            state.config.ui.background,
+            blend,
+        )
+    };
+    match state.config.ui.color_tier {
+        ColorTier::TrueColor | ColorTier::Ansi256 => {
+            Style::default().fg(tier_color(exact, state.config.ui.color_tier))
+        }
+        ColorTier::Ansi16 => Style::default().fg(Color::Gray),
+        ColorTier::NoColor => Style::default(),
+    }
+}
+
+fn semantic(state: &ClientState, color: Semantic) -> Style {
+    match state.config.ui.color_tier {
+        ColorTier::TrueColor | ColorTier::Ansi256 => {
+            Style::default().fg(tier_color(color.exact, state.config.ui.color_tier))
+        }
+        ColorTier::Ansi16 => Style::default().fg(color.ansi),
+        ColorTier::NoColor => Style::default(),
+    }
+}
+
 pub(super) fn ui_style(state: &ClientState) -> Style {
     style_for_pair(
         state.config.ui.foreground,
@@ -36,19 +116,9 @@ pub(super) fn panel_style(state: &ClientState) -> Style {
     )
 }
 
-/// Mid-weight text: list entries that are present but not the current one.
-/// Derived from the palette so a custom foreground keeps its own hue, and one
-/// step short of `section_style` so the two stay distinguishable.
+/// List entries that are present but not the current one.
 pub(super) fn mid_style(state: &ClientState) -> Style {
-    let mid = if state.config.ui.background == CANVAS && state.config.ui.foreground == INK {
-        (0xb9, 0xb6, 0xb2)
-    } else {
-        blend_rgb(state.config.ui.foreground, state.config.ui.background, 22)
-    };
-    match state.config.ui.color_tier {
-        ColorTier::NoColor => Style::default(),
-        tier => Style::default().fg(tier_color(mid, tier)),
-    }
+    neutral(state, MID, MID_BLEND)
 }
 
 /// The selected row. The design paints it with the accent and also asks for
@@ -105,19 +175,21 @@ pub(super) fn accent_badge_style(state: &ClientState) -> Style {
     }
 }
 
+/// The most recessive text: hints, reasons, and anything the eye should skip
+/// until it needs it.
 pub(super) fn section_style(state: &ClientState) -> Style {
-    match state.config.ui.color_tier {
-        ColorTier::NoColor => Style::default().add_modifier(Modifier::DIM),
-        _ => Style::default().fg(Color::DarkGray),
+    if state.config.ui.color_tier == ColorTier::NoColor {
+        return Style::default().add_modifier(Modifier::DIM);
     }
+    neutral(state, RECESSIVE, RECESSIVE_BLEND)
 }
 
 pub(super) fn warning_style(state: &ClientState) -> Style {
-    semantic_style(state, Color::Yellow)
+    semantic(state, SEMANTIC_YELLOW)
 }
 
 pub(super) fn danger_style(state: &ClientState) -> Style {
-    semantic_style(state, Color::Red)
+    semantic(state, SEMANTIC_RED)
 }
 
 /// `glyph word`, or `glyph <detail>` when the caller has something more
@@ -133,13 +205,15 @@ pub(super) fn status_text(
     format!("{glyph} {tail}")
 }
 
-pub(super) fn status_color(status: DisplayStatus) -> Color {
+pub(super) fn status_style(state: &ClientState, status: DisplayStatus) -> Style {
     match status {
-        DisplayStatus::Idle | DisplayStatus::Ready | DisplayStatus::Unknown => Color::DarkGray,
-        DisplayStatus::Working => Color::Cyan,
-        DisplayStatus::Done => Color::Green,
-        DisplayStatus::NeedsInput => Color::Yellow,
-        DisplayStatus::Exited => Color::Red,
+        // Idle and unsure are absences, so they take the recessive neutral
+        // rather than a semantic colour that would claim they mean something.
+        DisplayStatus::Idle | DisplayStatus::Ready | DisplayStatus::Unknown => section_style(state),
+        DisplayStatus::Working => semantic(state, SEMANTIC_CYAN),
+        DisplayStatus::Done => semantic(state, SEMANTIC_GREEN),
+        DisplayStatus::NeedsInput => semantic(state, SEMANTIC_YELLOW),
+        DisplayStatus::Exited => semantic(state, SEMANTIC_RED),
     }
 }
 
@@ -152,10 +226,6 @@ pub(super) fn status_span(
         status_text(state, status, detail),
         status_style(state, status),
     )
-}
-
-pub(super) fn status_style(state: &ClientState, status: DisplayStatus) -> Style {
-    semantic_style(state, status_color(status))
 }
 
 /// The status column inside a dense list. An idle row spends one cell on its
@@ -187,18 +257,14 @@ pub(super) fn list_status_span(
 /// Host connection colors reuse the agent-status palette, so green/yellow/red
 /// mean the same severity in both columns even though the vocabularies differ.
 pub(super) fn connection_style(state: &ClientState, connection: HostConnection) -> Style {
-    if state.config.ui.color_tier == ColorTier::NoColor {
-        return Style::default();
-    }
-    let color = match connection {
-        HostConnection::Local | HostConnection::Connected => Color::Green,
+    match connection {
+        HostConnection::Local | HostConnection::Connected => semantic(state, SEMANTIC_GREEN),
         HostConnection::Authenticating
         | HostConnection::Reconnecting
-        | HostConnection::NeedsAuthentication => Color::Yellow,
-        HostConnection::HostKeyBlocked | HostConnection::Failed => Color::Red,
-        HostConnection::Disconnected => Color::DarkGray,
-    };
-    Style::default().fg(color)
+        | HostConnection::NeedsAuthentication => semantic(state, SEMANTIC_YELLOW),
+        HostConnection::HostKeyBlocked | HostConnection::Failed => semantic(state, SEMANTIC_RED),
+        HostConnection::Disconnected => section_style(state),
+    }
 }
 
 fn style_for_pair(foreground: (u8, u8, u8), background: (u8, u8, u8), tier: ColorTier) -> Style {
@@ -208,14 +274,6 @@ fn style_for_pair(foreground: (u8, u8, u8), background: (u8, u8, u8), tier: Colo
         Style::default()
             .fg(tier_color(foreground, tier))
             .bg(tier_color(background, tier))
-    }
-}
-
-fn semantic_style(state: &ClientState, color: Color) -> Style {
-    if state.config.ui.color_tier == ColorTier::NoColor {
-        Style::default()
-    } else {
-        Style::default().fg(color)
     }
 }
 
