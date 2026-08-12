@@ -224,7 +224,7 @@ fn refresh_started_before_explicit_operation_cannot_apply_or_clean_forwards_late
         &mut coordinator,
         refresh_token,
         host_id,
-        Ok(HostPeriodicRefresh {
+        Ok(Box::new(HostPeriodicRefresh {
             host_id,
             registry: RegistrySnapshot::default(),
             ports: crate::ports::failed_probe("stale refresh must not apply"),
@@ -234,7 +234,8 @@ fn refresh_started_before_explicit_operation_cannot_apply_or_clean_forwards_late
             connected_clients: Default::default(),
             client_count_errors: Default::default(),
             errors: vec!["stale refresh must not apply".to_owned()],
-        }),
+            overviews: Default::default(),
+        })),
     );
 
     assert!(state

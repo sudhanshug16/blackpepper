@@ -38,11 +38,21 @@ fn port_rows_name_the_mouse_action_and_build_matching_targets() {
 
     let rendered = buffer_text(&terminal);
     assert!(rendered.contains("PORTS"));
-    assert!(rendered.contains("4000 click to forward"));
+    // Each listener is a right-aligned action row over a dim detail row.
+    assert!(
+        rendered.contains("4000") && rendered.contains("click to forward"),
+        "missing port row in:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("service-0 · 127.0.0.1:4000"),
+        "missing detail row in:\n{rendered}"
+    );
     assert_eq!(state.port_click_targets.len(), 2);
     assert_eq!(state.port_click_targets[0].y, 1);
     assert_eq!(state.port_click_targets[0].x_start, 0);
     assert_eq!(state.port_click_targets[0].x_end, 30);
+    // The detail row directly under a port is never its own hit target.
+    assert_eq!(state.port_click_targets[1].y, 3);
 }
 
 #[test]
@@ -53,17 +63,19 @@ fn compact_ports_panel_scrolls_all_listeners_and_rebuilds_click_targets() {
     terminal
         .draw(|frame| super::super::ports::render_ports(&mut state, frame, Rect::new(0, 0, 30, 8)))
         .unwrap();
-    assert_eq!(state.port_click_targets.len(), 7);
+    // Two rows per listener means seven visible rows cover four listeners
+    // (the seventh row is a detail line, which is not clickable).
+    assert_eq!(state.port_click_targets.len(), 4);
     assert_eq!(state.port_click_targets[0].target.remote_port, 4_000);
-    assert_eq!(state.port_click_targets[6].target.remote_port, 4_006);
+    assert_eq!(state.port_click_targets[3].target.remote_port, 4_003);
 
-    state.ports_scroll = 5;
+    state.ports_scroll = 6;
     terminal
         .draw(|frame| super::super::ports::render_ports(&mut state, frame, Rect::new(0, 0, 30, 8)))
         .unwrap();
-    assert_eq!(state.port_click_targets.len(), 7);
-    assert_eq!(state.port_click_targets[0].target.remote_port, 4_005);
-    assert_eq!(state.port_click_targets[6].target.remote_port, 4_011);
+    assert_eq!(state.port_click_targets.len(), 4);
+    assert_eq!(state.port_click_targets[0].target.remote_port, 4_003);
+    assert_eq!(state.port_click_targets[3].target.remote_port, 4_006);
 }
 
 #[test]

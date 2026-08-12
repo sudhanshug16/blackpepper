@@ -1,5 +1,9 @@
+mod command;
 mod footer;
+mod glyph;
 mod header;
+mod help;
+mod picker;
 mod ports;
 mod sidebar;
 mod style;
@@ -8,6 +12,8 @@ mod terminal;
 use super::{ClientMode, ClientState};
 use footer::render_footer;
 use header::render_header;
+use help::render_help;
+use picker::render_picker;
 use ports::render_ports;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::Block;
@@ -29,17 +35,24 @@ pub fn render(state: &mut ClientState, frame: &mut ratatui::Frame) {
         return;
     }
 
+    // The completion list grows upward from the status row, so the prompt
+    // itself never moves while you type.
+    let completion_rows = command::completion_rows(state).min(frame.area().height / 2);
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),
             Constraint::Min(1),
+            Constraint::Length(completion_rows),
             Constraint::Length(1),
         ])
         .split(frame.area());
     render_header(state, frame, outer[0]);
     render_manage_body(state, frame, outer[1]);
-    render_footer(state, frame, outer[2]);
+    if completion_rows > 0 {
+        command::render_completion(state, frame, outer[2]);
+    }
+    render_footer(state, frame, outer[3]);
 }
 
 fn render_work(state: &mut ClientState, frame: &mut ratatui::Frame) {
@@ -55,6 +68,14 @@ fn render_work(state: &mut ClientState, frame: &mut ratatui::Frame) {
 }
 
 fn render_manage_body(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect) {
+    // Help owns the whole body: it is a reference surface, and splitting it
+    // across a column would put the notes column somewhere unreadable.
+    if state.help.is_some() {
+        clear_ports(state);
+        state.terminal_area = None;
+        render_help(state, frame, area);
+        return;
+    }
     let focused_view = state.mode == ClientMode::Authenticate
         || state.pending_approval.is_some()
         || state.detail.is_some();
@@ -74,6 +95,9 @@ fn render_manage_body(state: &mut ClientState, frame: &mut ratatui::Frame, area:
         } else {
             render_terminal(state, frame, content[1]);
             render_ports(state, frame, content[2]);
+        }
+        if state.picker.is_some() {
+            render_picker(state, frame, content[1]);
         }
         return;
     }
@@ -95,6 +119,9 @@ fn render_manage_body(state: &mut ClientState, frame: &mut ratatui::Frame, area:
             render_terminal(state, frame, content[1]);
             clear_ports(state);
         }
+        if state.picker.is_some() {
+            render_picker(state, frame, content[1]);
+        }
         return;
     }
 
@@ -111,6 +138,9 @@ fn render_manage_body(state: &mut ClientState, frame: &mut ratatui::Frame, area:
     render_sidebar(state, frame, content[0]);
     render_terminal(state, frame, content[1]);
     clear_ports(state);
+    if state.picker.is_some() {
+        render_picker(state, frame, content[1]);
+    }
 }
 
 fn clear_ports(state: &mut ClientState) {

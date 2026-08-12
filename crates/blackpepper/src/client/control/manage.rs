@@ -1,3 +1,4 @@
+mod modal;
 mod mouse;
 
 use super::super::{actions, ClientMode, ClientState, EmbeddedTerminal};
@@ -5,11 +6,17 @@ use super::ClientRuntime;
 use crate::keymap::matches_chord;
 use termwiz::input::{KeyCode, KeyEvent, Modifiers};
 
+use modal::{handle_command_input, handle_help, handle_picker};
+
 pub(super) use mouse::handle as handle_mouse;
 
 pub(super) fn handle_key(state: &mut ClientState, runtime: &mut ClientRuntime, key: KeyEvent) {
     let modifiers = key.modifiers.remove_positional_mods();
-    if handle_command_input(state, runtime, &key, modifiers)
+    // The picker and help both capture every key while open, so a filter
+    // keystroke can never leak through to workspace navigation.
+    if handle_picker(state, runtime, &key, modifiers)
+        || handle_help(state, &key, modifiers)
+        || handle_command_input(state, runtime, &key, modifiers)
         || handle_scrollable(state, &key, modifiers)
         || cancel_operation(state, runtime, &key, modifiers)
     {
@@ -41,42 +48,6 @@ pub(super) fn handle_key(state: &mut ClientState, runtime: &mut ClientRuntime, k
         }
         _ => {}
     }
-}
-
-fn handle_command_input(
-    state: &mut ClientState,
-    runtime: &mut ClientRuntime,
-    key: &KeyEvent,
-    modifiers: Modifiers,
-) -> bool {
-    if !state.command_active {
-        return false;
-    }
-    match key.key {
-        KeyCode::Escape => {
-            state.command_active = false;
-            state.command_input.clear();
-        }
-        KeyCode::Enter => {
-            let input = std::mem::take(&mut state.command_input);
-            state.command_active = false;
-            state.close_detail();
-            match super::super::parse_command(&input) {
-                Ok(command) => actions::execute_command(state, runtime, command),
-                Err(error) => state.set_output(error),
-            }
-        }
-        KeyCode::Backspace => {
-            state.command_input.pop();
-        }
-        KeyCode::Char(character)
-            if modifiers == Modifiers::NONE || modifiers == Modifiers::SHIFT =>
-        {
-            state.command_input.push(character);
-        }
-        _ => {}
-    }
-    true
 }
 
 fn handle_scrollable(state: &mut ClientState, key: &KeyEvent, modifiers: Modifiers) -> bool {

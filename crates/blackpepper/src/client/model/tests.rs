@@ -55,7 +55,7 @@ fn workspace_without_an_agent_has_no_unknown_warning() {
 }
 
 #[test]
-fn public_status_vocabulary_is_six_fixed_glyph_word_pairs() {
+fn public_status_vocabulary_is_six_fixed_words() {
     let rendered = [
         DisplayStatus::Idle,
         DisplayStatus::Ready,
@@ -65,18 +65,10 @@ fn public_status_vocabulary_is_six_fixed_glyph_word_pairs() {
         DisplayStatus::Exited,
         DisplayStatus::Unknown,
     ]
-    .map(DisplayStatus::public_text);
+    .map(DisplayStatus::public_word);
 
     assert_eq!(
         rendered,
-        [
-            "· idle",
-            "· idle",
-            "▸ running",
-            "! asks",
-            "✓ done",
-            "× exited",
-            "? unsure",
-        ]
+        ["idle", "idle", "running", "asks", "done", "exited", "unsure"]
     );
 }

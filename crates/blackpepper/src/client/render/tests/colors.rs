@@ -104,7 +104,7 @@ fn every_public_status_has_a_glyph_word_and_semantic_color() {
         (DisplayStatus::Unknown, "? unsure", Color::DarkGray),
     ];
     for (status, expected, color) in cases {
-        let span = super::super::style::status_span(&state, status);
+        let span = super::super::style::status_span(&state, status, None);
         assert_eq!(span.content.as_ref(), expected);
         assert_eq!(span.style.fg, Some(color));
     }
@@ -114,7 +114,7 @@ fn every_public_status_has_a_glyph_word_and_semantic_color() {
 fn no_color_keeps_status_words_and_reverse_video_selection() {
     let mut state = workspace_state();
     state.config.ui.color_tier = ColorTier::NoColor;
-    let status = super::super::style::status_span(&state, DisplayStatus::NeedsInput);
+    let status = super::super::style::status_span(&state, DisplayStatus::NeedsInput, None);
     assert_eq!(status.content.as_ref(), "! asks");
     assert_eq!(status.style.fg, None);
     assert!(super::super::style::selected_style(&state)

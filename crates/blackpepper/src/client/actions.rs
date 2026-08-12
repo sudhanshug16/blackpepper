@@ -5,7 +5,7 @@ mod workspaces;
 mod worktrees;
 
 use super::command::ClientCommand;
-use super::{ClientState, HostConnection, COMMAND_HELP};
+use super::{ClientState, HostConnection};
 use crate::client::runtime::ClientRuntime;
 
 pub(super) use agents::{apply_explain, apply_spawned};
@@ -98,18 +98,12 @@ fn execute(
     Ok(())
 }
 
+/// Help is its own view rather than a detail blob: it groups by what each
+/// command acts on and dims the ones that cannot run, which a plain string
+/// body cannot express.
 fn show_help(state: &mut ClientState) {
-    let mut sections = COMMAND_HELP
-        .iter()
-        .map(|(command, description)| format!("{command}\n  {description}"))
-        .collect::<Vec<_>>();
-    sections.push(format!(
-        "{}\n  Toggle Work/Manage mode\n\n{}\n  Attach the next workspace\n\n{}\n  Open the workspace list",
-        state.config.keymap.toggle_mode,
-        state.config.keymap.switch_workspace,
-        state.config.keymap.workspace_overlay,
-    ));
-    state.set_detail("Command reference", sections.join("\n\n"));
+    state.close_detail();
+    state.help = Some(crate::client::state::HelpView::default());
     state.set_output("Command reference open. Use ↑/↓ or Page Up/Down; Esc closes it.");
 }
 

@@ -39,6 +39,8 @@ pub(super) struct RawWorkspace {
 pub(super) struct RawUi {
     pub(super) background: Option<String>,
     pub(super) foreground: Option<String>,
+    /// The single flag that swaps every non-ASCII glyph for its fallback.
+    pub(super) glyphs: Option<String>,
 }
 
 pub(super) fn read_optional(path: Option<&Path>) -> Result<Option<RawConfig>, ConfigError> {
@@ -99,6 +101,17 @@ fn validate_raw(path: &Path, raw: &RawConfig) -> Result<(), ConfigError> {
                 message: format!("{label} must be a six-digit hexadecimal color"),
             });
         }
+    }
+    if raw
+        .ui
+        .glyphs
+        .as_deref()
+        .is_some_and(|value| !matches!(value.trim(), "unicode" | "ascii"))
+    {
+        return Err(ConfigError::Invalid {
+            path: path.to_path_buf(),
+            message: "ui.glyphs must be \"unicode\" or \"ascii\"".to_string(),
+        });
     }
     for (label, value) in [
         ("keymap.toggle_mode", raw.keymap.toggle_mode.as_deref()),

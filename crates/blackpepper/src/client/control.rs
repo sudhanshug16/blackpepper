@@ -334,12 +334,17 @@ fn handle_matched_chord(
                 ClientMode::Manage
             };
         }
-        MatchedChord::WorkspaceOverlay | MatchedChord::Switch => {
+        // The switch chord is the fast path — next workspace, no prompt. The
+        // overlay chord opens the picker so a workspace can be reached by name
+        // instead of by repeated cycling.
+        MatchedChord::Switch => {
             state.mode = ClientMode::Manage;
             state.select_next(1);
-            if matched == MatchedChord::Switch {
-                attach_selected(state, runtime);
-            }
+            attach_selected(state, runtime);
+        }
+        MatchedChord::WorkspaceOverlay => {
+            state.mode = ClientMode::Manage;
+            state.open_picker();
         }
         MatchedChord::None => {}
     }

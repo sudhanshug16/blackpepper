@@ -19,11 +19,21 @@ struct SessionGroup {
     attached_workspaces: Vec<WorkspaceId>,
 }
 
+/// What one Zellij session reports in a single refresh pass.
+struct SessionSnapshot {
+    panes: Vec<crate::zellij::ZellijPane>,
+    clients: usize,
+    /// One-based focused tab and total tab count.
+    tabs: Option<(u32, u32)>,
+}
+
 #[derive(Default)]
 struct SessionObservation {
     runs: Vec<(HostAgentRun, Result<AgentProcessObservation, String>)>,
     clients: BTreeMap<WorkspaceId, usize>,
     client_errors: BTreeMap<WorkspaceId, String>,
+    /// One-based focused tab and total tab count, per attached workspace.
+    tabs: BTreeMap<WorkspaceId, (u32, u32)>,
 }
 
 pub(super) fn refresh(
@@ -44,6 +54,7 @@ pub(super) fn refresh(
     let mut observations = Vec::new();
     let mut connected_clients = BTreeMap::new();
     let mut client_count_errors = BTreeMap::new();
+    let mut session_tabs = BTreeMap::new();
     let handles = groups
         .into_values()
         .map(|group| std::thread::spawn(move || observe_session(group)))
@@ -54,14 +65,31 @@ pub(super) fn refresh(
                 observations.extend(observed.runs);
                 connected_clients.extend(observed.clients);
                 client_count_errors.extend(observed.client_errors);
+                session_tabs.extend(observed.tabs);
             }
             Err(_) => return Err("A Zellij observation worker panicked.".to_owned()),
         }
     }
+    let mut overviews = BTreeMap::new();
     for workspace_id in attached_workspaces {
         if !client_count_errors.contains_key(&workspace_id) {
             connected_clients.entry(workspace_id).or_insert(0);
         }
+        // The header names the checkout the client is looking at, so only the
+        // attached workspaces are worth a git call each refresh.
+        let Some(record) = registry_snapshot
+            .workspaces
+            .iter()
+            .find(|record| record.id == workspace_id)
+        else {
+            continue;
+        };
+        let mut overview = super::repo_status::overview(&record.root_path);
+        if let Some((active, count)) = session_tabs.get(&workspace_id).copied() {
+            overview.active_tab = Some(active);
+            overview.tab_count = Some(count);
+        }
+        overviews.insert(workspace_id, overview);
     }
 
     let mut agent_runs = Vec::new();
@@ -121,6 +149,7 @@ pub(super) fn refresh(
         connected_clients,
         client_count_errors,
         errors,
+        overviews,
     })
 }
 
@@ -179,7 +208,7 @@ fn session_groups(
 
 fn observe_session(group: SessionGroup) -> SessionObservation {
     let mut result = SessionObservation::default();
-    let observed = (|| -> Result<(Vec<crate::zellij::ZellijPane>, usize), String> {
+    let observed = (|| -> Result<SessionSnapshot, String> {
         let binary = discover_exact_binary("Zellij", "zellij", "zellij", &group.version)?;
         let binary = binary
             .to_str()
@@ -191,7 +220,11 @@ fn observe_session(group: SessionGroup) -> SessionObservation {
             .resolve_session_namespace(&mut transport, &group.session)
             .map_err(|error| error.to_string())?;
         if !session_exists {
-            return Ok((Vec::new(), 0));
+            return Ok(SessionSnapshot {
+                panes: Vec::new(),
+                clients: 0,
+                tabs: None,
+            });
         }
         let panes = if group.runs.is_empty() {
             Vec::new()
@@ -200,19 +233,37 @@ fn observe_session(group: SessionGroup) -> SessionObservation {
                 .list_panes(&mut transport, &group.session)
                 .map_err(|error| error.to_string())?
         };
-        let clients = if group.attached_workspaces.is_empty() {
-            0
+        let (clients, tabs) = if group.attached_workspaces.is_empty() {
+            (0, None)
         } else {
-            zellij
+            let clients = zellij
                 .list_clients(&mut transport, &group.session)
                 .map_err(|error| error.to_string())?
-                .len()
+                .len();
+            let listed = zellij
+                .list_tabs(&mut transport, &group.session)
+                .map_err(|error| error.to_string())?;
+            // Report the focused tab by its one-based position so the status
+            // row reads the way the tab bar does, not by Zellij's internal ID.
+            let tabs = listed
+                .iter()
+                .find(|tab| tab.active)
+                .map(|tab| (tab.position as u32 + 1, listed.len() as u32));
+            (clients, tabs)
         };
-        Ok((panes, clients))
+        Ok(SessionSnapshot {
+            panes,
+            clients,
+            tabs,
+        })
     })();
 
     match observed {
-        Ok((panes, clients)) => {
+        Ok(SessionSnapshot {
+            panes,
+            clients,
+            tabs,
+        }) => {
             for run in group.runs {
                 let observation = if panes.is_empty() {
                     AgentProcessObservation::Missing
@@ -229,6 +280,9 @@ fn observe_session(group: SessionGroup) -> SessionObservation {
             }
             for workspace_id in group.attached_workspaces {
                 result.clients.insert(workspace_id, clients);
+                if let Some(tabs) = tabs {
+                    result.tabs.insert(workspace_id, tabs);
+                }
             }
         }
         Err(error) => {

@@ -60,6 +60,17 @@ pub struct UiConfig {
     pub background: (u8, u8, u8),
     pub foreground: (u8, u8, u8),
     pub color_tier: ColorTier,
+    pub glyphs: GlyphSet,
+}
+
+/// Which repertoire the renderer may draw from. The layout, column widths, and
+/// status words are identical in both sets, so switching can only change the
+/// shape of a marker, never what the client is claiming.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum GlyphSet {
+    #[default]
+    Unicode,
+    Ascii,
 }
 
 /// Terminal paint capability. Layout and public status words never vary by
@@ -210,6 +221,15 @@ fn merge(
                 (0xe6, 0xe4, 0xe1),
             ),
             color_tier: ColorTier::from_environment(),
+            glyphs: layers
+                .iter()
+                .rev()
+                .find_map(|layer| layer.as_ref().and_then(|raw| raw.ui.glyphs.as_deref()))
+                .map(|value| match value.trim() {
+                    "ascii" => GlyphSet::Ascii,
+                    _ => GlyphSet::Unicode,
+                })
+                .unwrap_or_default(),
         },
     }
 }

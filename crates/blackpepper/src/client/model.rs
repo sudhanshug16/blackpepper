@@ -21,6 +21,23 @@ pub enum HostConnection {
     Failed,
 }
 
+impl HostConnection {
+    /// The host row reports reachability, not agent activity. This is that
+    /// column's entire vocabulary.
+    pub const fn public_word(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Connected => "connected",
+            Self::Authenticating => "connecting",
+            Self::Reconnecting => "reconnecting",
+            Self::NeedsAuthentication => "needs auth",
+            Self::HostKeyBlocked => "host key",
+            Self::Failed => "failed",
+            Self::Disconnected => "off",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DisplayStatus {
     /// No agent run exists for this workspace. This is intentionally distinct
@@ -58,22 +75,19 @@ impl DisplayStatus {
         }
     }
 
-    /// The complete public vocabulary. Internal provider states intentionally
-    /// collapse here so `Ready` cannot leak as a seventh, ambiguous state.
-    pub const fn public_parts(self) -> (&'static str, &'static str) {
+    /// The one public word per state. Internal provider states intentionally
+    /// collapse here so `Ready` cannot leak as a seventh, ambiguous state. The
+    /// matching glyph comes from the render glyph budget, which the ASCII
+    /// fallback flag can swap without touching this vocabulary.
+    pub const fn public_word(self) -> &'static str {
         match self {
-            Self::Idle | Self::Ready => ("·", "idle"),
-            Self::Working => ("▸", "running"),
-            Self::NeedsInput => ("!", "asks"),
-            Self::Done => ("✓", "done"),
-            Self::Exited => ("×", "exited"),
-            Self::Unknown => ("?", "unsure"),
+            Self::Idle | Self::Ready => "idle",
+            Self::Working => "running",
+            Self::NeedsInput => "asks",
+            Self::Done => "done",
+            Self::Exited => "exited",
+            Self::Unknown => "unsure",
         }
-    }
-
-    pub fn public_text(self) -> String {
-        let (glyph, word) = self.public_parts();
-        format!("{glyph} {word}")
     }
 }
 

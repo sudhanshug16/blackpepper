@@ -1,3 +1,4 @@
+use super::glyph::Glyphs;
 use crate::client::{ClientState, DisplayStatus, HostConnection};
 use crate::client_config::ColorTier;
 use ratatui::style::{Color, Modifier, Style};
@@ -50,6 +51,13 @@ pub(super) fn accent_style(state: &ClientState) -> Style {
     }
 }
 
+/// The `bp` anchor. It is the one fixed point on both status rows, so it is
+/// drawn bold as well as accented and stays legible when accent degrades to
+/// bold alone.
+pub(super) fn anchor_style(state: &ClientState) -> Style {
+    accent_style(state).add_modifier(Modifier::BOLD)
+}
+
 pub(super) fn accent_badge_style(state: &ClientState) -> Style {
     match state.config.ui.color_tier {
         ColorTier::NoColor => Style::default().add_modifier(Modifier::BOLD | Modifier::REVERSED),
@@ -80,28 +88,40 @@ pub(super) fn danger_style(state: &ClientState) -> Style {
     semantic_style(state, Color::Red)
 }
 
-pub(super) fn status_span(state: &ClientState, status: DisplayStatus) -> Span<'static> {
-    let color = match status {
+/// `glyph word`, or `glyph <detail>` when the caller has something more
+/// specific to say than the vocabulary word — the design gives a running agent
+/// its elapsed time in that column rather than repeating "running".
+pub(super) fn status_text(
+    state: &ClientState,
+    status: DisplayStatus,
+    detail: Option<&str>,
+) -> String {
+    let glyph = Glyphs::of(state).status(status);
+    let tail = detail.unwrap_or_else(|| status.public_word());
+    format!("{glyph} {tail}")
+}
+
+pub(super) fn status_color(status: DisplayStatus) -> Color {
+    match status {
         DisplayStatus::Idle | DisplayStatus::Ready | DisplayStatus::Unknown => Color::DarkGray,
         DisplayStatus::Working => Color::Cyan,
         DisplayStatus::Done => Color::Green,
         DisplayStatus::NeedsInput => Color::Yellow,
         DisplayStatus::Exited => Color::Red,
-    };
-    let style = semantic_style(state, color);
-    Span::styled(status.public_text(), style)
-}
-
-pub(super) fn connection_symbol(connection: HostConnection) -> &'static str {
-    match connection {
-        HostConnection::Local | HostConnection::Connected => "●",
-        HostConnection::Authenticating | HostConnection::Reconnecting => "◐",
-        HostConnection::NeedsAuthentication => "◆",
-        HostConnection::HostKeyBlocked | HostConnection::Failed => "!",
-        HostConnection::Disconnected => "○",
     }
 }
 
+pub(super) fn status_span(
+    state: &ClientState,
+    status: DisplayStatus,
+    detail: Option<&str>,
+) -> Span<'static> {
+    let style = semantic_style(state, status_color(status));
+    Span::styled(status_text(state, status, detail), style)
+}
+
+/// Host connection colors mirror the agent-status colors so one column's
+/// vocabulary never has to be relearned in the other.
 pub(super) fn connection_style(state: &ClientState, connection: HostConnection) -> Style {
     if state.config.ui.color_tier == ColorTier::NoColor {
         return Style::default();

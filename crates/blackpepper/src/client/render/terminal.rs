@@ -1,3 +1,4 @@
+use super::glyph::Glyphs;
 use super::style::{accent_style, section_style, ui_style, warning_style};
 use crate::client::{ClientMode, ClientState};
 use crate::core::RepositoryIdentity;
@@ -36,18 +37,37 @@ pub(super) fn render_terminal(state: &mut ClientState, frame: &mut ratatui::Fram
 }
 
 fn render_session_label(state: &ClientState, frame: &mut ratatui::Frame, area: Rect) {
-    let clients = state
+    let separator = Glyphs::of(state).separator();
+    let mut detail = vec!["zellij".to_owned()];
+    if let Some(count) = state
         .active_workspace
         .and_then(|workspace| state.connected_clients.get(&workspace).copied())
-        .map(|count| match count {
-            1 => "zellij · 1 client".to_owned(),
-            count => format!("zellij · {count} clients"),
-        })
-        .unwrap_or_else(|| "zellij".to_owned());
+    {
+        detail.push(match count {
+            1 => "1 client".to_owned(),
+            count => format!("{count} clients"),
+        });
+    }
+    // Tab position comes from the host, so it is absent rather than guessed
+    // when the session has not been observed yet.
+    if let Some((active, total)) = state
+        .active_workspace
+        .and_then(|workspace| state.overviews.get(&workspace))
+        .and_then(|overview| overview.active_tab.zip(overview.tab_count))
+    {
+        detail.push(format!("tab {active}/{total}"));
+    }
+    let detail = detail.join(&format!(" {separator} "));
+    let padding = usize::from(area.width)
+        .saturating_sub("SESSION".len() + detail.chars().count())
+        .max(2);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("SESSION", section_style(state)),
-            Span::styled(format!("  {clients}"), section_style(state)),
+            Span::styled(
+                format!("{}{detail}", " ".repeat(padding)),
+                section_style(state),
+            ),
         ]))
         .style(ui_style(state)),
         area,
@@ -130,7 +150,10 @@ fn render_approval(state: &mut ClientState, frame: &mut ratatui::Frame, area: Re
         frame,
         area,
         Line::from(vec![
-            Span::styled("⚠ ", warning_style(state)),
+            Span::styled(
+                format!("{} ", Glyphs::of(state).warning()),
+                warning_style(state),
+            ),
             Span::raw("APPROVAL"),
         ]),
         text,
@@ -162,8 +185,10 @@ fn render_detail(state: &mut ClientState, frame: &mut ratatui::Frame, area: Rect
         frame,
         area,
         Line::from(format!(
-            "{}  Esc close · ↑↓ scroll",
-            detail.title.to_uppercase()
+            "{}  Esc close {} {} scroll",
+            detail.title.to_uppercase(),
+            Glyphs::of(state).separator(),
+            Glyphs::of(state).updown()
         )),
         detail.body.clone(),
         state.detail_scroll,

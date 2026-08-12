@@ -14,8 +14,8 @@ pub use protocol::{
     serve_json_lines, serve_json_lines_with_extension, AgentProcessObservation, AgentRunBinding,
     FailureCode, HelperRequest, HelperResponse, HostAgentRun, HostAgentSnapshot, HostAgentUpdate,
     HostPeriodicRefresh, HostServicePayload, ProtocolError, ProtocolExtension, ProtocolFailure,
-    RepositoryInspection, RequestOperation, ResponsePayload, ResponseResult,
-    WorktrunkMutationOutcome, PROTOCOL_VERSION,
+    PullRequestState, PullRequestSummary, RepositoryInspection, RequestOperation, ResponsePayload,
+    ResponseResult, WorkspaceOverview, WorktrunkMutationOutcome, PROTOCOL_VERSION,
 };
 pub use records::{
     HostRecord, HostTransport, RegistrySnapshot, SessionBackend, SessionRecord, SessionState,

@@ -1,7 +1,9 @@
 //! Remote-first interactive client.
 
 mod actions;
+mod catalog;
 mod command;
+mod completion;
 mod control;
 mod model;
 mod mouse;
@@ -36,7 +38,9 @@ pub enum ClientEvent {
     PeriodicRefreshComplete {
         token: uuid::Uuid,
         host_id: crate::core::HostId,
-        result: Result<crate::core::HostPeriodicRefresh, String>,
+        /// Boxed: a refresh carries the whole host observation and would
+        /// otherwise set the size of every event in this queue.
+        result: Result<Box<crate::core::HostPeriodicRefresh>, String>,
     },
     PeriodicForwardCleanupComplete {
         token: uuid::Uuid,

@@ -171,7 +171,7 @@ pub(super) fn complete(
     periodic: &mut Coordinator,
     token: uuid::Uuid,
     host_id: HostId,
-    result: Result<HostPeriodicRefresh, String>,
+    result: Result<Box<HostPeriodicRefresh>, String>,
 ) {
     if runtime.host_is_owned_by_background_work(host_id) {
         invalidate_host(state, periodic, host_id);
@@ -275,7 +275,7 @@ fn spawn_refresh_waiter(
 ) -> (Sender<()>, std::thread::JoinHandle<()>) {
     let (cancellation, cancelled) = mpsc::channel();
     let worker = std::thread::spawn(move || {
-        let result = wait(cancelled);
+        let result = wait(cancelled).map(Box::new);
         let _ = sender.send(ClientEvent::PeriodicRefreshComplete {
             token,
             host_id,

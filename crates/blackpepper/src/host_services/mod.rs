@@ -7,6 +7,7 @@ mod periodic;
 mod ports;
 mod process;
 mod provider_hook;
+mod repo_status;
 mod repository;
 mod session_lease;
 mod tool_runtime;

@@ -5,7 +5,8 @@ mod wire;
 pub use server::{serve_json_lines, serve_json_lines_with_extension, ProtocolExtension};
 pub use service_types::{
     AgentProcessObservation, AgentRunBinding, HostAgentRun, HostAgentSnapshot, HostAgentUpdate,
-    HostPeriodicRefresh, HostServicePayload, RepositoryInspection, WorktrunkMutationOutcome,
+    HostPeriodicRefresh, HostServicePayload, PullRequestState, PullRequestSummary,
+    RepositoryInspection, WorkspaceOverview, WorktrunkMutationOutcome,
 };
 pub use wire::ProtocolError;
 

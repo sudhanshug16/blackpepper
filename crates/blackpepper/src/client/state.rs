@@ -14,7 +14,9 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 pub use agent_run::AgentRunView;
-pub use view::{ClientMode, DetailView, PendingWorktrunkApproval, PortClickTarget};
+pub use view::{
+    ClientMode, DetailView, HelpView, PendingWorktrunkApproval, PortClickTarget, WorkspacePicker,
+};
 
 pub struct ClientState {
     pub mode: ClientMode,
@@ -37,6 +39,8 @@ pub struct ClientState {
     pub ports_area: Option<Rect>,
     pub port_click_targets: Vec<PortClickTarget>,
     pub connected_clients: BTreeMap<WorkspaceId, usize>,
+    /// Host-computed repository and tab context, keyed by workspace.
+    pub overviews: BTreeMap<WorkspaceId, crate::core::WorkspaceOverview>,
     /// Explicit host work remains visible even if terminal output replaces
     /// the transient footer message while its worker is running.
     pub host_operations: BTreeMap<HostId, (uuid::Uuid, String)>,
@@ -44,6 +48,13 @@ pub struct ClientState {
     pub authentication_output: Vec<u8>,
     pub command_active: bool,
     pub command_input: String,
+    /// Highlighted completion candidate, as an index into the grounded list
+    /// rebuilt on every keystroke.
+    pub command_selection: usize,
+    /// Open workspace picker, if any.
+    pub picker: Option<WorkspacePicker>,
+    /// Open grouped help, if any.
+    pub help: Option<HelpView>,
     pub pending_approval: Option<PendingWorktrunkApproval>,
     pub approval_scroll: u16,
     pub detail: Option<DetailView>,
@@ -59,6 +70,29 @@ pub struct ClientState {
     pub workspace_overlay_chord: Option<KeyChord>,
     pub input_modes_applied: InputModes,
     pub pending_input_mode_bytes: Vec<u8>,
+    /// Client start instant. Animation phase is derived from this so restarting
+    /// the client, not the passage of a frame counter, is what resets motion.
+    started: Instant,
+}
+
+/// Compact age of the most recent provider event, in the same two-character
+/// vocabulary the design uses (`8s`, `2m`, `3h`, `4d`). Returns `None` when the
+/// host clock and the client clock disagree enough that any number would be a
+/// guess.
+fn elapsed_label(event_at_ms: u64) -> Option<String> {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
+    let seconds = u128::from(event_at_ms)
+        .le(&now_ms)
+        .then(|| (now_ms - u128::from(event_at_ms)) / 1000)?;
+    Some(match seconds {
+        0..=59 => format!("{seconds}s"),
+        60..=3599 => format!("{}m", seconds / 60),
+        3600..=86_399 => format!("{}h", seconds / 3600),
+        _ => format!("{}d", seconds / 86_400),
+    })
 }
 
 impl ClientState {
@@ -94,11 +128,15 @@ impl ClientState {
             ports_area: None,
             port_click_targets: Vec::new(),
             connected_clients: BTreeMap::new(),
+            overviews: BTreeMap::new(),
             host_operations: BTreeMap::new(),
             authentication_host: None,
             authentication_output: Vec::new(),
             command_active: false,
             command_input: String::new(),
+            command_selection: 0,
+            picker: None,
+            help: None,
             pending_approval: None,
             approval_scroll: 0,
             detail: None,
@@ -114,6 +152,7 @@ impl ClientState {
             workspace_overlay_chord,
             input_modes_applied: InputModes::default(),
             pending_input_mode_bytes: Vec::new(),
+            started: Instant::now(),
         };
         state.rebuild_tree();
         state.selected_workspace = state.workspace_ids().first().copied();
@@ -252,6 +291,104 @@ impl ClientState {
             self.rebuild_tree();
         }
         changed
+    }
+
+    /// Workspaces matching the open picker's filter, in sidebar order, each
+    /// with the host it lives on. Filtering is a plain case-insensitive
+    /// substring match over the label so what you type is what you get.
+    pub fn picker_matches(&self) -> Vec<(WorkspaceId, String, String, DisplayStatus)> {
+        let Some(picker) = self.picker.as_ref() else {
+            return Vec::new();
+        };
+        let filter = picker.filter.to_lowercase();
+        self.tree
+            .iter()
+            .flat_map(|host| {
+                host.repositories
+                    .iter()
+                    .flat_map(|repository| &repository.workspaces)
+                    .map(|workspace| {
+                        (
+                            workspace.id,
+                            workspace.label.clone(),
+                            host.label.clone(),
+                            workspace.status,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .filter(|(_, label, _, _)| filter.is_empty() || label.to_lowercase().contains(&filter))
+            .collect()
+    }
+
+    pub fn open_picker(&mut self) {
+        let selected = self.selected_workspace;
+        self.picker = Some(WorkspacePicker::default());
+        // Land on the current workspace so the picker opens where the eye
+        // already is, rather than resetting to the top of the list.
+        if let Some(index) = selected.and_then(|id| {
+            self.picker_matches()
+                .iter()
+                .position(|(candidate, _, _, _)| *candidate == id)
+        }) {
+            if let Some(picker) = self.picker.as_mut() {
+                picker.selected = index;
+            }
+        }
+    }
+
+    /// Move the picker cursor, clamping to the filtered list rather than
+    /// wrapping past its ends.
+    pub fn move_picker(&mut self, direction: i32) {
+        let count = self.picker_matches().len();
+        let Some(picker) = self.picker.as_mut() else {
+            return;
+        };
+        if count == 0 {
+            picker.selected = 0;
+            return;
+        }
+        let next = (picker.selected as i32 + direction).clamp(0, count as i32 - 1);
+        picker.selected = next as usize;
+    }
+
+    pub fn picker_choice(&self) -> Option<WorkspaceId> {
+        let picker = self.picker.as_ref()?;
+        self.picker_matches()
+            .get(picker.selected)
+            .map(|(id, _, _, _)| *id)
+    }
+
+    /// Rotation phase for in-flight indicators, derived from wall time so every
+    /// spinner on screen advances together without a per-widget animation
+    /// clock.
+    pub fn spinner_phase(&self) -> usize {
+        (self.started.elapsed().as_millis() / 100) as usize
+    }
+
+    /// What the status column says instead of the vocabulary word. A running
+    /// agent shows the provider and how long ago it last reported, which is the
+    /// only status where the age of the evidence changes what you would do.
+    /// Everything else keeps its word.
+    pub fn status_detail(
+        &self,
+        workspace_id: WorkspaceId,
+        status: DisplayStatus,
+    ) -> Option<String> {
+        if status != DisplayStatus::Working {
+            return None;
+        }
+        let run = self
+            .agent_runs
+            .get(&workspace_id)?
+            .iter()
+            .find(|run| run.display_status() == DisplayStatus::Working)?;
+        let elapsed = run
+            .snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.last_event_at_ms)
+            .and_then(elapsed_label)?;
+        Some(format!("{} {elapsed}", run.provider))
     }
 
     pub fn refresh_workspace_status(&mut self, workspace_id: WorkspaceId) {

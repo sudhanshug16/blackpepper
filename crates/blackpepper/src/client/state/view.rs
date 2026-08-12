@@ -15,6 +15,23 @@ pub struct DetailView {
     pub body: String,
 }
 
+/// The workspace picker. It filters across every host at once, which is the
+/// only surface that does — the sidebar stays grouped by host so the two never
+/// duplicate each other's job.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WorkspacePicker {
+    pub filter: String,
+    /// Index into the currently filtered list, not the full workspace list.
+    pub selected: usize,
+}
+
+/// Which grouped `:help` view is open. Help is a first-class surface rather
+/// than a detail blob so unavailable commands can be dimmed in place.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct HelpView {
+    pub scroll: u16,
+}
+
 #[derive(Debug, Clone)]
 pub struct PortClickTarget {
     pub workspace_id: WorkspaceId,

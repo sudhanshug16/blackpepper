@@ -127,7 +127,7 @@ fn format_run(run: &AgentRunView) -> String {
         Some(snapshot) => format!(
             "{} {}, health {:?}, needs_input {}, sequence {:?}, observed {:?}{authority}{failure}{blocker}",
             run.provider,
-            run.display_status().public_text(),
+            run.display_status().public_word(),
             snapshot.integration_health,
             run.displayed_needs_input_capability(),
             snapshot.last_event_sequence,
@@ -136,7 +136,7 @@ fn format_run(run: &AgentRunView) -> String {
         None => format!(
             "{} {}, needs_input {}{authority}{failure}{blocker}",
             run.provider,
-            run.display_status().public_text(),
+            run.display_status().public_word(),
             run.displayed_needs_input_capability()
         ),
     };
@@ -270,7 +270,7 @@ mod tests {
         };
 
         let rendered = format_run(&run);
-        assert!(rendered.contains("codex ? unsure"));
+        assert!(rendered.contains("codex unsure"));
         for internal in ["Unknown", "Ready", "Working", "NeedsInput"] {
             assert!(!rendered.contains(internal));
         }

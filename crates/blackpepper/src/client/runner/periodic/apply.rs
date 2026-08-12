@@ -40,7 +40,7 @@ pub(super) fn refresh(
     state: &mut ClientState,
     runtime: &mut ClientRuntime,
     host_id: HostId,
-    result: Result<HostPeriodicRefresh, String>,
+    result: Result<Box<HostPeriodicRefresh>, String>,
 ) -> Option<ForwardCleanupBatch> {
     let still_connected = state.connections.get(&host_id).is_some_and(|connection| {
         matches!(
@@ -118,6 +118,7 @@ pub(super) fn merge_refresh_state(
         }
     }
     update_client_counts(state, host_id, refresh);
+    update_overviews(state, host_id, refresh);
     for workspace_id in state
         .agent_runs
         .keys()
@@ -178,5 +179,23 @@ fn update_client_counts(state: &mut ClientState, host_id: HostId, refresh: &Host
     }
     for workspace_id in refresh.client_count_errors.keys() {
         state.connected_clients.remove(workspace_id);
+    }
+}
+
+/// Replace this host's repository and tab context wholesale. An older helper
+/// reports no overviews at all, which clears this host's entries rather than
+/// leaving a branch on screen that nothing is confirming any more.
+fn update_overviews(state: &mut ClientState, host_id: HostId, refresh: &HostPeriodicRefresh) {
+    let stale = state
+        .overviews
+        .keys()
+        .copied()
+        .filter(|workspace_id| state.host_for_workspace(*workspace_id) == Some(host_id))
+        .collect::<Vec<_>>();
+    for workspace_id in stale {
+        state.overviews.remove(&workspace_id);
+    }
+    for (workspace_id, overview) in &refresh.overviews {
+        state.overviews.insert(*workspace_id, overview.clone());
     }
 }

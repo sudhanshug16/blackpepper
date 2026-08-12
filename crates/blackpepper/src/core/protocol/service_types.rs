@@ -56,6 +56,60 @@ pub struct HostPeriodicRefresh {
     pub connected_clients: BTreeMap<WorkspaceId, usize>,
     pub client_count_errors: BTreeMap<WorkspaceId, String>,
     pub errors: Vec<String>,
+    /// Per-workspace detail only the host can compute. Defaulted so a client
+    /// built against this field still reads a refresh from an older helper.
+    #[serde(default)]
+    pub overviews: BTreeMap<WorkspaceId, WorkspaceOverview>,
+}
+
+/// Repository and session context for one workspace, gathered host-side
+/// because the checkout and the Zellij session both live there.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceOverview {
+    /// Branch name, or `detached`. `None` when the folder is not a checkout.
+    #[serde(default)]
+    pub head: Option<String>,
+    #[serde(default)]
+    pub dirty: bool,
+    #[serde(default)]
+    pub ahead: u32,
+    #[serde(default)]
+    pub behind: u32,
+    #[serde(default)]
+    pub pull_request: Option<PullRequestSummary>,
+    /// One-based position of the focused tab and the session's tab count.
+    #[serde(default)]
+    pub active_tab: Option<u32>,
+    #[serde(default)]
+    pub tab_count: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PullRequestSummary {
+    pub number: u32,
+    pub state: PullRequestState,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PullRequestState {
+    Open,
+    Draft,
+    Merged,
+    Closed,
+}
+
+impl PullRequestState {
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Draft => "draft",
+            Self::Merged => "merged",
+            Self::Closed => "closed",
+        }
+    }
 }
 
 /// Exact Zellij identity recorded after an agent tab and its terminal pane
