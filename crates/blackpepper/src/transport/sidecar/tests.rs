@@ -14,9 +14,13 @@ fn manifest_has_trusted_assets_for_every_supported_target() {
             assert_eq!(asset.license_name, Some("LICENSES.html"));
         }
     }
-    assert_eq!(sidecar_manifest::assets().len(), 12);
+    assert_eq!(sidecar_manifest::assets().len(), 16);
 
-    for version in [LEGACY_ZELLIJ_VERSION, PATCHED_ZELLIJ_VERSION] {
+    for version in [
+        LEGACY_ZELLIJ_VERSION,
+        "0.44.3-blackpepper.1",
+        PATCHED_ZELLIJ_VERSION,
+    ] {
         for target in [
             SidecarTarget::LinuxX86_64,
             SidecarTarget::LinuxAarch64,
@@ -30,15 +34,25 @@ fn manifest_has_trusted_assets_for_every_supported_target() {
 
 #[test]
 fn historical_zellij_assets_remain_addressable_by_recorded_version() {
-    let asset = release_asset_for_version(
+    let stock = release_asset_for_version(
         ManagedTool::Zellij,
         LEGACY_ZELLIJ_VERSION,
         SidecarTarget::MacOsAarch64,
     )
     .unwrap();
+    let previous_private = release_asset_for_version(
+        ManagedTool::Zellij,
+        "0.44.3-blackpepper.1",
+        SidecarTarget::LinuxX86_64,
+    )
+    .unwrap();
 
-    assert_eq!(asset.version, LEGACY_ZELLIJ_VERSION);
-    assert!(asset.url.contains("zellij-org/zellij/releases"));
+    assert_eq!(stock.version, LEGACY_ZELLIJ_VERSION);
+    assert!(stock.url.contains("zellij-org/zellij/releases"));
+    assert_eq!(previous_private.version, "0.44.3-blackpepper.1");
+    assert!(previous_private
+        .url
+        .contains("zellij-v0.44.3-blackpepper.1"));
 }
 
 #[test]

@@ -36,7 +36,7 @@ not a shipped-runtime screenshot.
 - [x] Manual host registration and explicit literal-alias SSH config preview.
 - [x] Transient, versioned JSON-lines `bp-host` protocol and remote registry
   discovery.
-- [x] Blackpepper Zellij 0.44.3-blackpepper.1 (upstream 0.44.3 base)
+- [x] Blackpepper Zellij 0.44.3-blackpepper.2 (upstream 0.44.3 base)
   attach/create/terminate and multiple-client safety rules.
 - [x] Zellij and Worktrunk pinned sidecar download, checksum verification,
   versioned cache, and atomic Linux upload.

@@ -16,7 +16,7 @@ flowchart LR
     LT["LocalTransport"]
     SSH["OpenSSH ControlMaster"]
     H["bp-host\ntransient JSON-lines helper"]
-    Z["Blackpepper Zellij\n0.44.3-blackpepper.1"]
+    Z["Blackpepper Zellij\n0.44.3-blackpepper.2"]
     WT["Worktrunk 0.72.0"]
     DB["Host SQLite registries"]
 
@@ -99,13 +99,13 @@ directory. It never edits remote shell files or starts a daemon.
 
 ## Zellij sessions and concurrency
 
-New sessions require Blackpepper Zellij `0.44.3-blackpepper.1`. The branded
+New sessions require Blackpepper Zellij `0.44.3-blackpepper.2`. The branded
 version cannot be satisfied by a binary in `PATH`; Blackpepper uses its
-checksum-verified, versioned sidecar. Existing session records retain stock
-Zellij `0.44.3`, its legacy backend name, and its official release assets until
-the workspace is terminated and reopened. Lookup checks a recorded version's
-managed path before the current release pin, and sidecars are not removed while
-a recorded session may still need them.
+checksum-verified, versioned sidecar. Existing session records retain their
+exact runtime, including stock Zellij `0.44.3` or the earlier `.1` generation,
+until the workspace is terminated and reopened. Lookup checks a recorded
+version's managed path before the current release pin, and sidecars are not
+removed while a recorded session may still need them.
 
 Stock session names are `bp-<WorkspaceId>`. Branded sessions append a stable
 short hash of the exact Zellij version so they cannot attach to a surviving

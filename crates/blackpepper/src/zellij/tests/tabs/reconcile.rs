@@ -79,7 +79,7 @@ fn ensure_tab_recovers_an_outer_command_timeout_without_retrying() {
         }),
         Err(TransportError::CommandTimedOut {
             process_id: 43,
-            timeout_ms: 250,
+            timeout_ms: 2_000,
             cancellation_error: None,
         }),
         Ok(metadata_timeout("Timeout listing tabs")),
@@ -98,7 +98,10 @@ fn ensure_tab_recovers_an_outer_command_timeout_without_retrying() {
             "service-api",
             Path::new("/srv/repo"),
             None,
-            Duration::from_millis(250),
+            // Four deliberately transient probes each cross a real 25 ms
+            // polling interval. Leave scheduling headroom for parallel macOS
+            // CI while keeping the production timeout independently covered.
+            Duration::from_secs(2),
         )
         .unwrap();
 

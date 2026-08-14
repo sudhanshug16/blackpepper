@@ -212,7 +212,7 @@ Worktrunk's surviving working directory.
 | --- | --- |
 | Client and local workspace | macOS or Linux; x86_64 or arm64 |
 | SSH workspace host | Linux; x86_64 or arm64 |
-| Session runtime | Blackpepper Zellij **0.44.3-blackpepper.1** (upstream 0.44.3 base) |
+| Session runtime | Blackpepper Zellij **0.44.3-blackpepper.2** (upstream 0.44.3 base) |
 | Worktree runtime | Worktrunk **0.72.0** |
 
 The code targets all four client combinations, but the full live macOS/Linux
@@ -224,10 +224,11 @@ The client needs system OpenSSH. A workspace host needs a POSIX shell, Git,
 a local macOS workspace. Install and authenticate `codex`, `claude`, or
 `opencode` on the host where it will run. Blackpepper always uses its branded,
 checksum-pinned Zellij sidecar for new sessions rather than satisfying that pin
-from `PATH`. Existing stock session records retain Zellij 0.44.3 until their
-workspace is terminated and reopened. When exact Worktrunk is unavailable,
-Blackpepper similarly downloads and installs its private versioned sidecar.
-Neither tool installation edits `PATH` or shell files.
+from `PATH`. Existing session records retain their exact stock 0.44.3 or
+earlier branded runtime until their workspace is terminated and reopened. When
+exact Worktrunk is unavailable, Blackpepper similarly downloads and installs
+its private versioned sidecar. Neither tool installation edits `PATH` or shell
+files.
 
 ## Configuration
 
