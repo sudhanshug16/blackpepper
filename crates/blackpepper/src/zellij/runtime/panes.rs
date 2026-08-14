@@ -21,7 +21,7 @@ impl ZellijRuntime {
         self.list_tabs_with_timeout(host, session, METADATA_TIMEOUT)
     }
 
-    fn list_tabs_with_timeout(
+    pub(in crate::zellij::runtime) fn list_tabs_with_timeout(
         &self,
         host: &mut dyn HostTransport,
         session: &str,

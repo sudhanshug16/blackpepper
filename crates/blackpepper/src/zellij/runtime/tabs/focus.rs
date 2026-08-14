@@ -23,14 +23,27 @@ impl ZellijRuntime {
         let Some((client_id, restore_tab_id)) = restore_focus else {
             return Ok(());
         };
-        let current_clients = self.list_clients(host, session)?;
-        if current_clients.len() != 1 || current_clients[0].client_id != client_id {
-            return Err(ZellijError::InvalidOutput(
-                "the Zellij client set changed while creating the tab; Blackpepper cannot safely restore focus"
-                    .to_string(),
-            ));
+        // Creating the tab legitimately changes the client's focused pane and
+        // therefore its full list-clients row. The numeric client ID is the
+        // only stable server token across the mutation; sandwich the tab read
+        // between two identical post-mutation rows to catch detach/navigation
+        // churn before sending a focus command. Zellij can immediately reuse
+        // a detached ID, so an identical native-client replacement remains
+        // indistinguishable without a server-side connection generation.
+        let clients_before = self.list_clients(host, session)?;
+        match clients_before.as_slice() {
+            [] => return Ok(()),
+            [client] if client.client_id == client_id => {}
+            _ => return Err(changed_background_client_error()),
         }
         let tabs = self.list_tabs(host, session)?;
+        let clients_after = self.list_clients(host, session)?;
+        if clients_after.is_empty() {
+            return Ok(());
+        }
+        if clients_after != clients_before {
+            return Err(changed_background_client_error());
+        }
         let active_tabs = tabs.iter().filter(|tab| tab.active).collect::<Vec<_>>();
         let [active] = active_tabs.as_slice() else {
             return Err(ZellijError::InvalidOutput(format!(
@@ -141,4 +154,11 @@ impl ZellijRuntime {
             Ok(())
         })
     }
+}
+
+fn changed_background_client_error() -> ZellijError {
+    ZellijError::InvalidOutput(
+        "the Zellij client set changed while creating the tab; Blackpepper cannot safely restore focus"
+            .to_string(),
+    )
 }

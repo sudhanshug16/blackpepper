@@ -1,17 +1,18 @@
-use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
 use crate::transport::{HostCommand, HostTransport, TransportError};
 
-use super::super::model::{checked, ClientOperation, ZellijError};
+use super::super::model::{checked, ZellijError};
 use super::validation::{path_text, validate_name, ValidateInitialCommand, BACKGROUND_TAB_LAYOUT};
 use super::ZellijRuntime;
 
 mod close;
 mod focus;
+mod preflight;
 mod reconcile;
 
+use preflight::{BackgroundTabPreflight, BACKGROUND_PREFLIGHT_TIMEOUT};
 use reconcile::{CreationReceipt, TAB_CREATION_RECONCILE_TIMEOUT};
 
 // Cancellation is briefly masked from new-tab through focus compensation, so
@@ -87,41 +88,25 @@ impl ZellijRuntime {
         initial_command: Option<&HostCommand>,
         reconcile_timeout: Duration,
     ) -> Result<(u64, bool), ZellijError> {
-        let clients =
-            self.enforce_client_safety(host, session, ClientOperation::BackgroundMutation)?;
-        let tabs = self.list_tabs(host, session)?;
-        let matching_tabs = tabs
-            .iter()
-            .filter(|tab| tab.name == name)
-            .collect::<Vec<_>>();
-        match matching_tabs.as_slice() {
-            [tab] => return Ok((tab.tab_id, false)),
-            [] => {}
-            _ => {
-                return Err(ZellijError::InvalidOutput(format!(
-                    "found {} Zellij tabs named {name:?}; refusing to choose one",
-                    matching_tabs.len()
-                )));
-            }
-        }
-        let preexisting_tab_ids = tabs.iter().map(|tab| tab.tab_id).collect::<BTreeSet<_>>();
-        let restore_focus = if clients.is_empty() {
-            None
-        } else {
-            Some((
-                clients[0].client_id,
-                tabs.iter()
-                    .find(|tab| tab.active)
-                    .ok_or_else(|| {
-                        ZellijError::InvalidOutput(
-                            "the attached Zellij client's active tab was not reported; refusing to create a focus-stealing tab"
-                                .to_string(),
-                        )
-                    })?
-                    .tab_id,
-            ))
+        let (preexisting_tab_ids, restore_focus) = match self.background_tab_preflight(
+            host,
+            session,
+            name,
+            BACKGROUND_PREFLIGHT_TIMEOUT,
+        )? {
+            BackgroundTabPreflight::Existing(tab_id) => return Ok((tab_id, false)),
+            BackgroundTabPreflight::Create {
+                preexisting_tab_ids,
+                restore_focus,
+            } => (preexisting_tab_ids, restore_focus),
         };
         let command = self.new_tab_command(session, name, cwd, initial_command)?;
+        if crate::transport::CommandCancellation::scope_is_cancelled() {
+            return Err(ZellijError::InvalidOutput(
+                "background tab creation was cancelled after preflight; no new-tab was sent"
+                    .to_string(),
+            ));
+        }
         crate::transport::CommandCancellation::mask_current(|| {
             let mutation_result = (|| {
                 let receipt = match host.exec_timeout(&command, BACKGROUND_MUTATION_TIMEOUT) {

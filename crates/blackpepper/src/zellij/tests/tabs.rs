@@ -1,5 +1,6 @@
 use super::*;
 
+mod preflight;
 mod reconcile;
 
 #[test]
@@ -33,20 +34,27 @@ fn new_tab_uses_the_parseable_focus_false_layout() {
 #[test]
 fn ensure_tab_restores_the_only_attached_clients_previous_tab() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
-    let clients =
+    let clients_before =
         success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n9 terminal_1 zellij attach repo-main\n");
+    // Zellij reports the pane focused by the client, so the row legitimately
+    // changes when focus=false new-tab steals focus. Only the ID is stable
+    // across the mutation; the two post-mutation rows must still agree.
+    let clients_after =
+        success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n9 terminal_4 api-server\n");
     let tabs = success(r#"[{"tab_id":3,"position":0,"name":"shell","active":true}]"#);
     let created_tabs = success(
         r#"[{"tab_id":3,"position":0,"name":"shell","active":false},{"tab_id":7,"position":1,"name":"service-api","active":true}]"#,
     );
     let mut host = ScriptedTransport::new([
-        clients.clone(),
+        clients_before.clone(),
         tabs,
+        clients_before,
         success("7\n"),
         created_tabs.clone(),
         ready_terminal_pane(7, "service-api"),
-        clients,
+        clients_after.clone(),
         created_tabs,
+        clients_after,
         success(""),
     ]);
 
@@ -65,18 +73,21 @@ fn ensure_tab_restores_the_only_attached_clients_previous_tab() {
         wrapped_zellij_args(host.commands.last().unwrap(), "/opt/zellij"),
         ["--session", "repo-main", "action", "go-to-tab-by-id", "3"]
     );
-    assert_eq!(host.timeouts.len(), 8);
-    assert!(host.timeouts[..2]
+    assert_eq!(host.timeouts.len(), 10);
+    assert!(host.timeouts[..3]
         .iter()
         .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(2)));
-    assert_eq!(host.timeouts[2], Duration::from_secs(5));
-    assert!(host.timeouts[3..5]
+    assert!(host.timeouts[..3]
+        .windows(2)
+        .all(|timeouts| timeouts[1] <= timeouts[0]));
+    assert_eq!(host.timeouts[3], Duration::from_secs(5));
+    assert!(host.timeouts[4..6]
         .iter()
         .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(5)));
-    assert!(host.timeouts[5..7]
+    assert!(host.timeouts[6..9]
         .iter()
         .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(2)));
-    assert_eq!(host.timeouts[7], Duration::from_secs(5));
+    assert_eq!(host.timeouts[9], Duration::from_secs(5));
 }
 
 #[test]
@@ -94,11 +105,13 @@ fn ensure_tab_does_not_overwrite_a_users_new_focus_choice() {
     let mut host = ScriptedTransport::new([
         clients.clone(),
         before,
+        clients.clone(),
         success("7\n"),
         created,
         ready_terminal_pane(7, "service-api"),
-        clients,
+        clients.clone(),
         user_choice,
+        clients,
     ]);
 
     let result = runtime
@@ -114,7 +127,7 @@ fn ensure_tab_does_not_overwrite_a_users_new_focus_choice() {
     assert_eq!(result, (7, true));
     assert_eq!(
         wrapped_zellij_args(host.commands.last().unwrap(), "/opt/zellij"),
-        ["--session", "repo-main", "action", "list-tabs", "--json"]
+        ["--session", "repo-main", "action", "list-clients"]
     );
 }
 
@@ -213,4 +226,15 @@ fn ready_terminal_pane_with_command(
         }])
         .to_string(),
     )
+}
+
+fn new_tab_count(host: &ScriptedTransport) -> usize {
+    host.commands
+        .iter()
+        .filter(|command| {
+            wrapped_zellij_args(command, "/opt/zellij")
+                .windows(2)
+                .any(|args| args == ["new-tab", "--layout-string"])
+        })
+        .count()
 }

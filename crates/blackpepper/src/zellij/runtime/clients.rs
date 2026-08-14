@@ -26,8 +26,17 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<Vec<ZellijClient>, ZellijError> {
+        self.list_clients_with_timeout(host, session, CLIENT_LIST_TIMEOUT)
+    }
+
+    pub(in crate::zellij::runtime) fn list_clients_with_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: Duration,
+    ) -> Result<Vec<ZellijClient>, ZellijError> {
         let output = checked(
-            self.list_clients_output(host, session)?,
+            self.list_clients_output_with_timeout(host, session, timeout)?,
             "list Zellij clients",
         )?;
         parse_clients(&String::from_utf8_lossy(&output.stdout))
@@ -38,10 +47,19 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<crate::transport::CommandOutput, ZellijError> {
+        self.list_clients_output_with_timeout(host, session, CLIENT_LIST_TIMEOUT)
+    }
+
+    fn list_clients_output_with_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: Duration,
+    ) -> Result<crate::transport::CommandOutput, ZellijError> {
         read_output(
             host,
             &self.list_clients_command(session)?,
-            CLIENT_LIST_TIMEOUT,
+            timeout,
             |output| {
                 (output.success
                     && output.stderr.is_empty()

@@ -12,14 +12,16 @@ fn ensure_tab_recovers_empty_success_after_the_named_pane_becomes_ready() {
     let mut host = ScriptedTransport::new([
         clients.clone(),
         before.clone(),
+        clients.clone(),
         success("\r\n"),
         before,
         after.clone(),
         success("[]"),
         after.clone(),
         ready_terminal_pane(7, "service-api"),
-        clients,
+        clients.clone(),
         after,
+        clients,
         success(""),
     ]);
 
@@ -39,39 +41,21 @@ fn ensure_tab_recovers_empty_success_after_the_named_pane_becomes_ready() {
         wrapped_zellij_args(host.commands.last().unwrap(), "/opt/zellij"),
         ["--session", "repo-main", "action", "go-to-tab-by-id", "0"]
     );
-    assert_eq!(
-        host.commands
-            .iter()
-            .filter(
-                |command| wrapped_zellij_args(command, "/opt/zellij").ends_with(&[
-                    "action".to_string(),
-                    "new-tab".to_string(),
-                    "--layout-string".to_string(),
-                    "layout { tab focus=false { pane; }; }".to_string(),
-                    "--name".to_string(),
-                    "service-api".to_string(),
-                    "--cwd".to_string(),
-                    "/srv/repo".to_string(),
-                    "--".to_string(),
-                    "api-server".to_string(),
-                ])
-            )
-            .count(),
-        1
-    );
+    assert_eq!(new_tab_count(&host), 1);
 }
 
 #[test]
 fn ensure_tab_retries_false_missing_creation_metadata() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let clients = success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n");
-    let before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":true}]"#);
+    let before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":false}]"#);
     let after = success(
-        r#"[{"tab_id":0,"position":0,"name":"shell","active":true},{"tab_id":7,"position":1,"name":"service-api","active":false}]"#,
+        r#"[{"tab_id":0,"position":0,"name":"shell","active":false},{"tab_id":7,"position":1,"name":"service-api","active":false}]"#,
     );
     let mut host = ScriptedTransport::new([
-        clients,
+        clients.clone(),
         before,
+        clients,
         success("7\n"),
         no_active_session(),
         after.clone(),
@@ -92,20 +76,21 @@ fn ensure_tab_retries_false_missing_creation_metadata() {
         .unwrap();
 
     assert_eq!(result, (7, true));
-    assert_eq!(host.commands.len(), 8);
+    assert_eq!(host.commands.len(), 9);
 }
 
 #[test]
 fn ensure_tab_recovers_an_outer_command_timeout_without_retrying() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let clients = success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n");
-    let before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":true}]"#);
+    let before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":false}]"#);
     let after = success(
-        r#"[{"tab_id":0,"position":0,"name":"shell","active":true},{"tab_id":7,"position":1,"name":"service-api","active":false}]"#,
+        r#"[{"tab_id":0,"position":0,"name":"shell","active":false},{"tab_id":7,"position":1,"name":"service-api","active":false}]"#,
     );
     let mut host = ScriptedTransport::with_results([
-        Ok(clients),
+        Ok(clients.clone()),
         Ok(before),
+        Ok(clients),
         Err(TransportError::CommandTimedOut {
             process_id: 42,
             timeout_ms: 5_000,
@@ -140,17 +125,7 @@ fn ensure_tab_recovers_an_outer_command_timeout_without_retrying() {
         .unwrap();
 
     assert_eq!(result, (7, false));
-    assert_eq!(
-        host.commands
-            .iter()
-            .filter(|command| {
-                wrapped_zellij_args(command, "/opt/zellij")
-                    .windows(2)
-                    .any(|args| args == ["new-tab", "--layout-string"])
-            })
-            .count(),
-        1
-    );
+    assert_eq!(new_tab_count(&host), 1);
 }
 
 #[test]
@@ -164,11 +139,13 @@ fn ensure_tab_refuses_malformed_or_stale_creation_results() {
     let mut malformed = ScriptedTransport::new([
         attached_clients.clone(),
         before.clone(),
+        attached_clients.clone(),
         success("warning\n"),
-        attached_clients,
+        attached_clients.clone(),
         success(
             r#"[{"tab_id":0,"position":0,"name":"shell","active":false},{"tab_id":7,"position":1,"name":"service-api","active":true}]"#,
         ),
+        attached_clients,
         success(""),
     ]);
     let error = runtime
@@ -188,8 +165,9 @@ fn ensure_tab_refuses_malformed_or_stale_creation_results() {
     );
 
     let mut stderr_only = ScriptedTransport::new([
-        success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"),
-        before.clone(),
+        clients.clone(),
+        success(r#"[{"tab_id":0,"position":0,"name":"shell","active":false}]"#),
+        clients.clone(),
         CommandOutput {
             success: true,
             status: Some(0),
@@ -208,12 +186,19 @@ fn ensure_tab_refuses_malformed_or_stale_creation_results() {
         )
         .unwrap_err();
     assert!(error.to_string().contains("19 stderr byte(s)"));
-    assert_eq!(stderr_only.commands.len(), 3);
+    assert_eq!(stderr_only.commands.len(), 4);
 
     let different_id = success(
-        r#"[{"tab_id":0,"position":0,"name":"shell","active":true},{"tab_id":8,"position":1,"name":"service-api","active":false}]"#,
+        r#"[{"tab_id":0,"position":0,"name":"shell","active":false},{"tab_id":8,"position":1,"name":"service-api","active":false}]"#,
     );
-    let mut stale = ScriptedTransport::new([clients, before, success("7\n"), different_id]);
+    let inactive_before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":false}]"#);
+    let mut stale = ScriptedTransport::new([
+        clients.clone(),
+        inactive_before,
+        clients,
+        success("7\n"),
+        different_id,
+    ]);
     let error = runtime
         .ensure_tab_with_reconcile_timeout(
             &mut stale,
@@ -225,7 +210,7 @@ fn ensure_tab_refuses_malformed_or_stale_creation_results() {
         )
         .unwrap_err();
     assert!(error.to_string().contains("stale or mismatched"));
-    assert_eq!(stale.commands.len(), 4);
+    assert_eq!(stale.commands.len(), 5);
 }
 
 fn metadata_timeout(message: &str) -> CommandOutput {
@@ -257,11 +242,17 @@ fn ensure_tab_refuses_duplicate_names_before_or_after_creation() {
     assert!(error.to_string().contains("found 2 Zellij tabs"));
     assert_eq!(before_host.commands.len(), 2);
 
-    let original = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":true}]"#);
+    let original = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":false}]"#);
     let duplicate_after = success(
-        r#"[{"tab_id":0,"position":0,"name":"shell","active":true},{"tab_id":7,"position":1,"name":"service-api","active":false},{"tab_id":8,"position":2,"name":"service-api","active":false}]"#,
+        r#"[{"tab_id":0,"position":0,"name":"shell","active":false},{"tab_id":7,"position":1,"name":"service-api","active":false},{"tab_id":8,"position":2,"name":"service-api","active":false}]"#,
     );
-    let mut after_host = ScriptedTransport::new([clients, original, success(""), duplicate_after]);
+    let mut after_host = ScriptedTransport::new([
+        clients.clone(),
+        original,
+        clients,
+        success(""),
+        duplicate_after,
+    ]);
     let error = runtime
         .ensure_tab_with_reconcile_timeout(
             &mut after_host,
@@ -273,15 +264,21 @@ fn ensure_tab_refuses_duplicate_names_before_or_after_creation() {
         )
         .unwrap_err();
     assert!(error.to_string().contains("produced 2 new Zellij tabs"));
-    assert_eq!(after_host.commands.len(), 4);
+    assert_eq!(after_host.commands.len(), 5);
 }
 
 #[test]
 fn ensure_tab_times_out_unknown_creation_without_sending_a_second_mutation() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let clients = success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n");
-    let before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":true}]"#);
-    let mut host = ScriptedTransport::new([clients, before.clone(), success(""), before]);
+    let before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":false}]"#);
+    let mut host = ScriptedTransport::new([
+        clients.clone(),
+        before.clone(),
+        clients,
+        success(""),
+        before,
+    ]);
 
     let error = runtime
         .ensure_tab_with_reconcile_timeout(
@@ -295,5 +292,6 @@ fn ensure_tab_times_out_unknown_creation_without_sending_a_second_mutation() {
         .unwrap_err();
 
     assert!(error.to_string().contains("no retry was sent"));
-    assert_eq!(host.commands.len(), 4);
+    assert_eq!(host.commands.len(), 5);
+    assert_eq!(new_tab_count(&host), 1);
 }
