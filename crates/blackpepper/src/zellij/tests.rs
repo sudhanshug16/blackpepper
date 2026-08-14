@@ -11,13 +11,14 @@ use crate::transport::{
 
 use super::model::{
     classify_pane_process, client_list_reports_missing_session, parse_clients, parse_panes,
-    parse_sessions, ClientOperation,
+    parse_sessions, reports_no_active_session, ClientOperation,
 };
 use super::runtime::{
     DEV_LAUNCHER_SCRIPT, LAUNCHER_ARG_ZERO, LAUNCHER_PROGRAM, PROD_LAUNCHER_SCRIPT,
 };
 use super::{PaneProcessState, ZellijError, ZellijRuntime};
 
+mod metadata;
 mod tabs;
 
 #[test]
@@ -39,15 +40,17 @@ fn missing_session_attach_race_requires_the_exact_pre_pty_client_error() {
         stderr: b"There is no active session!\n".to_vec(),
     };
     assert!(client_list_reports_missing_session(&missing, "repo-main"));
+    assert!(reports_no_active_session(&missing));
 
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
-    let mut ordinary_list = ScriptedTransport::new([missing.clone()]);
+    let mut ordinary_list =
+        ScriptedTransport::new([missing.clone(), missing.clone(), missing.clone()]);
     assert!(matches!(
         runtime.list_clients(&mut ordinary_list, "repo-main"),
         Err(ZellijError::CommandFailed { .. })
     ));
 
-    let mut host = ScriptedTransport::new([missing.clone()]);
+    let mut host = ScriptedTransport::new([missing.clone(), missing.clone(), missing.clone()]);
     assert!(matches!(
         runtime.attach(
             &mut host,
@@ -60,18 +63,21 @@ fn missing_session_attach_race_requires_the_exact_pre_pty_client_error() {
 
     let mut wrong_status = missing.clone();
     wrong_status.status = Some(2);
+    assert!(!reports_no_active_session(&wrong_status));
     assert!(!client_list_reports_missing_session(
         &wrong_status,
         "repo-main"
     ));
     let mut unexpected_stdout = missing.clone();
     unexpected_stdout.stdout = b"partial output".to_vec();
+    assert!(!reports_no_active_session(&unexpected_stdout));
     assert!(!client_list_reports_missing_session(
         &unexpected_stdout,
         "repo-main"
     ));
     let mut other_error = missing;
     other_error.stderr = b"There is no active session today!".to_vec();
+    assert!(!reports_no_active_session(&other_error));
     assert!(!client_list_reports_missing_session(
         &other_error,
         "repo-main"
@@ -127,15 +133,11 @@ fn initial_shell_focus_revalidates_one_exact_client_before_bounded_mutation() {
         wrapped_zellij_args(host.commands.last().unwrap(), "/opt/zellij"),
         ["--session", "repo-main", "action", "go-to-tab-by-id", "0"]
     );
-    assert_eq!(
-        host.timeouts,
-        [
-            Duration::from_secs(2),
-            Duration::from_secs(5),
-            Duration::from_secs(2),
-            Duration::from_secs(5),
-        ]
-    );
+    assert_eq!(host.timeouts.len(), 4);
+    assert!(host.timeouts[..3]
+        .iter()
+        .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(2)));
+    assert_eq!(host.timeouts[3], Duration::from_secs(5));
 }
 
 #[test]
@@ -227,14 +229,14 @@ fn missing_session_beside_an_attached_session_is_created() {
         stdout: Vec::new(),
         stderr: b"Session 'repo-main' not found. The following sessions are active:\n\x1b[32;1msome-other-session\x1b[m\n".to_vec(),
     };
-    let mut host = ScriptedTransport::new([missing, success("")]);
+    let mut host = ScriptedTransport::new([missing.clone(), missing.clone(), missing, success("")]);
 
     assert!(runtime
         .ensure_session(&mut host, "repo-main", Path::new("/srv/repo"))
         .unwrap());
-    assert_eq!(host.commands.len(), 2);
+    assert_eq!(host.commands.len(), 4);
     assert_eq!(
-        wrapped_zellij_args(&host.commands[1], "/opt/zellij"),
+        wrapped_zellij_args(&host.commands[3], "/opt/zellij"),
         ["attach", "--create-background", "--forget", "repo-main"]
     );
 }
@@ -293,7 +295,9 @@ fn client_observation_has_an_explicit_short_deadline() {
 
     runtime.list_clients(&mut host, "repo-main").unwrap();
 
-    assert_eq!(host.timeouts, [Duration::from_secs(2)]);
+    assert_eq!(host.timeouts.len(), 1);
+    assert!(!host.timeouts[0].is_zero());
+    assert!(host.timeouts[0] <= Duration::from_secs(2));
 }
 
 #[test]
@@ -305,20 +309,20 @@ fn kill_session_waits_until_the_exact_server_is_gone() {
         success(""),
         success(clients),
         missing_session("repo-main"),
+        missing_session("repo-main"),
+        missing_session("repo-main"),
     ]);
 
     runtime.kill_session(&mut host, "repo-main").unwrap();
 
     assert!(host.outputs.is_empty());
-    assert_eq!(
-        host.timeouts,
-        [
-            Duration::from_secs(2),
-            Duration::from_secs(5),
-            Duration::from_secs(2),
-            Duration::from_secs(2),
-        ]
-    );
+    assert_eq!(host.timeouts.len(), 6);
+    assert!(!host.timeouts[0].is_zero());
+    assert!(host.timeouts[0] <= Duration::from_secs(2));
+    assert_eq!(host.timeouts[1], Duration::from_secs(5));
+    assert!(host.timeouts[2..]
+        .iter()
+        .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(2)));
     assert_eq!(
         wrapped_zellij_args(&host.commands[1], "/opt/zellij"),
         ["kill-session", "repo-main"]
@@ -718,7 +722,11 @@ fn pane_observation_distinguishes_exit_from_missing_identity() {
 
 #[test]
 fn pane_observation_reports_a_missing_session_without_querying_panes() {
-    let mut host = ScriptedTransport::new([missing_session("bp-session")]);
+    let mut host = ScriptedTransport::new([
+        missing_session("bp-session"),
+        missing_session("bp-session"),
+        missing_session("bp-session"),
+    ]);
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
 
     assert_eq!(
@@ -755,6 +763,15 @@ fn missing_session(session: &str) -> CommandOutput {
             "Session '{session}' not found. The following sessions are active:\nsome-other-session\n"
         )
         .into_bytes(),
+    }
+}
+
+fn no_active_session() -> CommandOutput {
+    CommandOutput {
+        success: false,
+        status: Some(1),
+        stdout: Vec::new(),
+        stderr: b"There is no active session!\n".to_vec(),
     }
 }
 

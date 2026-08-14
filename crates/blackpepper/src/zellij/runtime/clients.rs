@@ -9,6 +9,7 @@ use super::super::model::{
     checked, client_list_reports_missing_session, parse_clients, ClientOperation, ZellijClient,
     ZellijError,
 };
+use super::metadata::read_output;
 use super::validation::validate_name;
 use super::ZellijRuntime;
 
@@ -25,11 +26,47 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<Vec<ZellijClient>, ZellijError> {
+        self.list_clients_with_timeout(host, session, CLIENT_LIST_TIMEOUT)
+    }
+
+    pub(in crate::zellij::runtime) fn list_clients_with_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: Duration,
+    ) -> Result<Vec<ZellijClient>, ZellijError> {
         let output = checked(
-            host.exec_timeout(&self.list_clients_command(session)?, CLIENT_LIST_TIMEOUT)?,
+            self.list_clients_output_with_timeout(host, session, timeout)?,
             "list Zellij clients",
         )?;
         parse_clients(&String::from_utf8_lossy(&output.stdout))
+    }
+
+    fn list_clients_output(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+    ) -> Result<crate::transport::CommandOutput, ZellijError> {
+        self.list_clients_output_with_timeout(host, session, CLIENT_LIST_TIMEOUT)
+    }
+
+    fn list_clients_output_with_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: Duration,
+    ) -> Result<crate::transport::CommandOutput, ZellijError> {
+        read_output(
+            host,
+            &self.list_clients_command(session)?,
+            timeout,
+            |output| {
+                (output.success
+                    && output.stderr.is_empty()
+                    && output.stdout.iter().all(u8::is_ascii_whitespace))
+                    || client_list_reports_missing_session(output, session)
+            },
+        )
     }
 
     /// Probe one exact session without consulting Zellij's resurrection list.
@@ -42,8 +79,7 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<bool, ZellijError> {
-        let output =
-            host.exec_timeout(&self.list_clients_command(session)?, CLIENT_LIST_TIMEOUT)?;
+        let output = self.list_clients_output(host, session)?;
         if client_list_reports_missing_session(&output, session) {
             return Ok(false);
         }
@@ -72,11 +108,10 @@ impl ZellijRuntime {
         cwd: &Path,
         size: PtySize,
     ) -> Result<(PtyProcess, Vec<ZellijClient>), ZellijError> {
-        // Attach is the only caller allowed to classify Zellij's exact
-        // no-session response as retryable. Other list-client operations must
-        // retain their ordinary failure semantics.
-        let output =
-            host.exec_timeout(&self.list_clients_command(session)?, CLIENT_LIST_TIMEOUT)?;
+        // The shared read retries Zellij's transient recycled-client race.
+        // Attach alone maps a final exact no-session response to the specific
+        // pre-attach error; other callers retain their ordinary semantics.
+        let output = self.list_clients_output(host, session)?;
         if client_list_reports_missing_session(&output, session) {
             return Err(ZellijError::SessionMissingBeforeAttach);
         }

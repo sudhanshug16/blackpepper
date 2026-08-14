@@ -9,6 +9,8 @@ use crate::core::{HostId, HostPeriodicRefresh, RegistrySnapshot, WorkspaceRecord
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Barrier};
 
+mod metadata;
+
 #[test]
 fn coordinator_coalesces_and_rejects_a_stale_connection_generation() {
     let host_id = HostId::new();
@@ -230,6 +232,7 @@ fn refresh_started_before_explicit_operation_cannot_apply_or_clean_forwards_late
             ports: crate::ports::failed_probe("stale refresh must not apply"),
             agent_runs: Vec::new(),
             agent_snapshots: Default::default(),
+            agent_observation_errors: Default::default(),
             watchable_agent_runs: Vec::new(),
             connected_clients: Default::default(),
             client_count_errors: Default::default(),

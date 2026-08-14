@@ -5,6 +5,7 @@ use crate::transport::{HostCommand, HostTransport, ZELLIJ_VERSION};
 use super::model::{checked, ZellijError};
 
 mod clients;
+mod metadata;
 mod namespace;
 #[cfg(test)]
 mod namespace_tests;

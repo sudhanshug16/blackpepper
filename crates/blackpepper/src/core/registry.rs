@@ -1,4 +1,5 @@
 mod identity;
+mod registration;
 mod removals;
 mod schema;
 mod support;
