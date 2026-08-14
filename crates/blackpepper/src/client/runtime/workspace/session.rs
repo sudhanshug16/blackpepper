@@ -341,23 +341,41 @@ impl ClientRuntime {
         &self,
         workspace: &WorkspaceRecord,
     ) -> Result<SessionRecord, String> {
-        if let Some(session) = self
+        let sessions = self
             .registry
             .sessions_for_workspace(workspace.id)
-            .map_err(|error| error.to_string())?
-            .into_iter()
+            .map_err(|error| error.to_string())?;
+        if let Some(session) = sessions
+            .iter()
             .filter(|session| {
                 session.backend == SessionBackend::Zellij && session.state != SessionState::Exited
             })
             .max_by_key(|session| session.created_at_ms)
         {
+            return Ok(session.clone());
+        }
+
+        let version = crate::transport::ZELLIJ_VERSION;
+        let backend_session_id = zellij_session_name(workspace.id, version);
+        // A branded version deliberately reuses one deterministic backend
+        // name. Reuse its exited registry row too: inserting a fresh UUID for
+        // the same workspace/backend/name would violate the registry's unique
+        // identity constraint on the second terminate-and-reopen cycle. The
+        // caller's missing-server path still retires prior agent runs before
+        // it starts a new process generation.
+        if let Some(session) = sessions.into_iter().find(|session| {
+            session.backend == SessionBackend::Zellij
+                && session.state == SessionState::Exited
+                && session.backend_version == version
+                && session.backend_session_id == backend_session_id
+        }) {
             return Ok(session);
         }
         Ok(SessionRecord::new(
             workspace.id,
             SessionBackend::Zellij,
-            crate::transport::ZELLIJ_VERSION,
-            zellij_session_name(workspace.id, crate::transport::ZELLIJ_VERSION),
+            version,
+            backend_session_id,
         ))
     }
 }

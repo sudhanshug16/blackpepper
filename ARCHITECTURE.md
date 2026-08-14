@@ -16,7 +16,7 @@ flowchart LR
     LT["LocalTransport"]
     SSH["OpenSSH ControlMaster"]
     H["bp-host\ntransient JSON-lines helper"]
-    Z["Zellij 0.44.3"]
+    Z["Blackpepper Zellij\n0.44.3-blackpepper.1"]
     WT["Worktrunk 0.72.0"]
     DB["Host SQLite registries"]
 
@@ -99,16 +99,20 @@ directory. It never edits remote shell files or starts a daemon.
 
 ## Zellij sessions and concurrency
 
-Blackpepper accepts only Zellij 0.44.3 for V1. It prefers that exact binary in
-`PATH`; otherwise it uses a checksum-verified, versioned sidecar. Session
-records retain the backend version, and lookup checks that recorded version's
-managed path before the current release pin. Sidecars are not removed while a
-recorded session may still need them.
+New sessions require Blackpepper Zellij `0.44.3-blackpepper.1`. The branded
+version cannot be satisfied by a binary in `PATH`; Blackpepper uses its
+checksum-verified, versioned sidecar. Existing session records retain stock
+Zellij `0.44.3`, its legacy backend name, and its official release assets until
+the workspace is terminated and reopened. Lookup checks a recorded version's
+managed path before the current release pin, and sidecars are not removed while
+a recorded session may still need them.
 
-Session names are `bp-<WorkspaceId>`. A workspace attach creates the session in
-that workspace folder if needed, then runs ordinary `zellij attach`.
-Background agent tabs use a one-pane layout with `focus=false`, an exact cwd,
-and a UUID-derived name.
+Stock session names are `bp-<WorkspaceId>`. Branded sessions append a stable
+short hash of the exact Zellij version so they cannot attach to a surviving
+stock or older branded server. A workspace attach creates the session in that
+workspace folder if needed, then runs ordinary `zellij attach`. Background
+agent tabs use a one-pane layout with `focus=false`, an exact cwd, and a
+UUID-derived name.
 
 The selected Zellij binary validates the effective configuration with the
 read-only `setup --check` command before use. When the workspace host has no
@@ -120,18 +124,18 @@ keybindings. Each attached client applies the client-local
 `on_force_close "quit"` cannot terminate the persistent session when the
 Blackpepper attachment closes.
 
-Several clients may attach. Zellij 0.44.3 moves a client when its external API
-creates a tab even when the layout says `focus=false`. Blackpepper therefore
-refuses background service or agent creation with multiple attached clients;
-with one client it restores that client's previous tab immediately after the
-atomic creation step. Zero-client startup tabs have no focus owner, so after
-the first attachment's terminal reader starts, a bounded host operation takes
-the same lifecycle lease, revalidates one unchanged client, and selects shell
-tab ID 0 before Work-mode input is enabled. It sends no focus command if the
-client set changes. Session destruction requires no attached clients. The
-sidebar refreshes the live client count every two seconds. Native Zellij
-selection remains available. Clients sharing one pane also share input,
-scroll/search/selection state, and minimum dimensions.
+Several clients may attach. The upstream Zellij 0.44.3 codebase moves a client
+when its external API creates a tab even when the layout says `focus=false`.
+Blackpepper therefore refuses background service or agent creation with
+multiple attached clients; with one client it restores that client's previous
+tab immediately after the atomic creation step. Zero-client startup tabs have
+no focus owner, so after the first attachment's terminal reader starts, a
+bounded host operation takes the same lifecycle lease, revalidates one
+unchanged client, and selects shell tab ID 0 before Work-mode input is enabled.
+It sends no focus command if the client set changes. Session destruction
+requires no attached clients. The sidebar refreshes the live client count every
+two seconds. Native Zellij selection remains available. Clients sharing one
+pane also share input, scroll/search/selection state, and minimum dimensions.
 
 SSH connection bootstrap/recovery and explicit host operations run outside the
 render thread. A generation-tokened worker temporarily owns exactly one host's

@@ -25,11 +25,15 @@ fn focus_terminal(
     event_tx: mpsc::Sender<ClientEvent>,
     reporting: bool,
 ) -> EmbeddedTerminal {
-    let process = PtyProcess::spawn(
-        &ProcessSpec::new("sh").args(["-c", "exec sleep 30"]),
+    // These tests exercise visibility policy, not child-process lifetime. Reap
+    // the no-op child before embedding it so portable-pty teardown cannot enter
+    // its unbounded kill-and-wait path on macOS.
+    let mut process = PtyProcess::spawn(
+        &ProcessSpec::new("sh").args(["-c", "exec true"]),
         PtySize::default(),
     )
     .unwrap();
+    assert!(process.wait().unwrap().success);
     let mut terminal = EmbeddedTerminal::new(
         workspace_id,
         process,
@@ -157,11 +161,11 @@ fn workspace_switch_does_not_invent_focus_while_outer_window_is_unfocused() {
     let (_root, mut runtime, mut state, first, second) = focus_fixture(true, true);
     state.update_input_modes();
 
-    handle_event(
-        &mut state,
-        &mut runtime,
-        ClientEvent::RawInput(b"\x1b[O".to_vec()),
-    );
+    // The fixture process is intentionally already reaped. Update the tracked
+    // outer focus directly so this policy test never depends on writes to a
+    // closed PTY; raw focus parsing has dedicated coverage in `client::focus`.
+    assert_eq!(state.outer_focus.observe(b"\x1b[O"), Some(false));
+    state.update_input_modes();
     assert_eq!(
         state.terminals[&first].visibility_focus_history_for_test(),
         [true, false]
@@ -175,11 +179,8 @@ fn workspace_switch_does_not_invent_focus_while_outer_window_is_unfocused() {
         [false]
     );
 
-    handle_event(
-        &mut state,
-        &mut runtime,
-        ClientEvent::RawInput(b"\x1b[I".to_vec()),
-    );
+    assert_eq!(state.outer_focus.observe(b"\x1b[I"), Some(true));
+    state.update_input_modes();
     assert_eq!(
         state.terminals[&second].visibility_focus_history_for_test(),
         [false, true]

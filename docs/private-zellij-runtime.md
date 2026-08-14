@@ -2,7 +2,7 @@
 
 ## Decision
 
-Blackpepper will use a small, pinned Zellij patch set until the required
+Blackpepper uses a small, pinned Zellij patch set until the required
 notification and focus-transport changes ship upstream. The resulting `zellij`
 executable remains a separate process. Blackpepper downloads it on first use to
 its private XDG data directory, invokes it by absolute path, and never adds it
@@ -35,9 +35,9 @@ not need internet access.
 
 ## Distribution
 
-The four targets are Linux x86-64 and ARM64 (static musl), plus macOS x86-64
-and Apple Silicon. They are built from the exact source and patch pins under
-`third_party/zellij/`.
+The four published targets are Linux x86-64 and ARM64 (static musl), plus macOS
+x86-64 and Apple Silicon. They are built from the exact source and patch pins
+under `third_party/zellij/`.
 
 The dedicated workflow is manually dispatched. Its default is build-only and
 produces expiring Actions artifacts. Publication is a separate explicit input:
@@ -46,13 +46,25 @@ prerelease named `zellij-v0.44.3-blackpepper.1`. The release is never marked
 latest, because the Blackpepper installer resolves its own release through
 GitHub's `latest` URL. An existing dependency tag is never reused or
 overwritten. The repository does not need GitHub's optional immutable-release
-setting: activation pins every archive SHA-256, so replacement fails closed and
-deletion produces an explicit download failure.
+setting: activation pins every archive, executable, and license SHA-256, so
+replacement fails closed and deletion produces an explicit download failure.
 
-Activation is a separate reviewed change after publication. It adds the real
-release URLs and archive SHA-256 values to the runtime manifest and changes the
-new-session Zellij pin. This ordering makes a missing or partial dependency
-release incapable of breaking workspace creation.
+That prerelease is published and active. The runtime manifest pins its real
+release URLs and archive, extracted-binary, and license SHA-256 values, while
+[`third_party/zellij/ARTIFACTS.sha256`](../third_party/zellij/ARTIFACTS.sha256)
+records the same published digests. New sessions now pin
+`0.44.3-blackpepper.1`. Publication and activation remain separate reviewed
+steps for later patched generations, so a missing or partial dependency
+release cannot break workspace creation.
+
+## Existing workspace migration
+
+Activation does not rewrite a recorded stock session. To move an existing
+workspace to the branded runtime, select it, run `:workspace terminate`, then
+reopen it by pressing `Enter` or running `:workspace switch <name|id>`. The
+termination ends processes in the old Zellij session but preserves the
+registered folder. Reopening creates its shell and configured `auto_start`
+services; it does not restore agent conversations.
 
 ## Validation
 

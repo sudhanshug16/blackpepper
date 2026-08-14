@@ -1,0 +1,19 @@
+# Published prerelease: zellij-v0.44.3-blackpepper.1
+# https://github.com/sudhanshug16/blackpepper/releases/tag/zellij-v0.44.3-blackpepper.1
+# Release tag commit: 2cfd090ab2769ce2872920fec7932dc8c2789722
+#
+# Downloadable archive assets.
+d15543a529bd05f3249d6823739bb6f9f9da70eb257cabcac2f7709db62944c9  zellij-aarch64-apple-darwin.tar.gz
+503ce8f13b3960401450fd9119fa5c7fec0fc09da0e0002bd7c5a9fb7c121596  zellij-aarch64-unknown-linux-musl.tar.gz
+e4583673d802ba7f7a755d2d498f4abffe346aefa24950794e81a43246b68086  zellij-x86_64-apple-darwin.tar.gz
+2811baaa7b0ee0d2193aa3e7c9884ae1a449a4956fdf4a380614e856a21b528f  zellij-x86_64-unknown-linux-musl.tar.gz
+
+# Extracted zellij executables. Each logical path names the archive target whose
+# root-level zellij file has this digest.
+b5df03771ffe3fbaf12f3aaeef06c143b372633d03d93b82d7af4a618b3242d1  zellij-aarch64-apple-darwin/zellij
+ab06009884f2af4658ad98a35b9c7593bc6b1bf50e8058b43c77703a07f899ea  zellij-aarch64-unknown-linux-musl/zellij
+55092dd786a2013109a2028699c51b8923edf3de62f15379a41b80e8a4cd60eb  zellij-x86_64-apple-darwin/zellij
+ab08e3dd4eadef69619e69e34c92f569d3146da0435085a5650d792adf79483e  zellij-x86_64-unknown-linux-musl/zellij
+
+# Shared release asset and the identical file included in every archive.
+d419799cd4078334ba492e8aae6b691264f618b4ea6d8fb3c72ba8bb5cdc5776  LICENSES.html

@@ -9,11 +9,13 @@ corresponding upstream pull requests are still open:
 
 `source.env` pins the exact upstream release commit and records the upstream
 pull-request heads used to prepare these backports. `PATCHES.sha256` protects
-the checked-in patch set from an unnoticed local rewrite. The build-tool patch
-pins the two tools that Zellij's release task installs from crates.io and makes
-every Cargo build honor `Cargo.lock`. The workflow pins every action, the
-Protobuf compiler, and Linux Cross images; each artifact carries the resolved
-toolchain and image provenance. The patched binary reports
+the checked-in patch set from an unnoticed local rewrite. `ARTIFACTS.sha256`
+records the published archives, extracted executables, and shared license
+bundle. The build-tool patch pins the two tools that Zellij's release task
+installs from crates.io and makes every Cargo build honor `Cargo.lock`. The
+workflow pins every action, the Protobuf compiler, and Linux Cross images; each
+artifact carries the resolved toolchain and image provenance. The patched
+binary reports
 `zellij 0.44.3-blackpepper.1`; this distinct identity is required so a stock
 binary on `PATH` or in Blackpepper's existing `0.44.3` cache can never silently
 satisfy a new patched session.
@@ -33,11 +35,11 @@ notice is absent. Each runtime archive contains that complete notice next to
 The patches retain Zellij's upstream `contract_version_1`. Existing sessions
 therefore remain interoperable with ordinary Zellij clients, while
 Blackpepper's recorded backend version keeps old stock sessions on their
-retained stock binary. Activating the fork does not rewrite running sessions;
-users must terminate and recreate an old session before it gains the new
+retained stock binary. The active fork does not rewrite running sessions;
+users must terminate and reopen an old workspace before it gains the new
 transport.
 
-## Build and activation
+## Published release and rebuilds
 
 `.github/workflows/zellij-sidecar.yml` is manual and defaults to artifact-only.
 It checks out the exact upstream commit, verifies and applies these patches,
@@ -46,12 +48,20 @@ plus checksums and provenance as workflow artifacts. Its separately confirmed
 `publish` input verifies the complete set and creates a dedicated prerelease;
 it never changes Blackpepper's production runtime manifest.
 
-Activation is deliberately a separate change after the four archives are
-published under a new dependency tag. That change must update Blackpepper's
-Zellij version, release URLs, and trusted archive SHA-256 values together. A
-changed asset then fails checksum verification instead of being accepted
-silently. The publisher refuses to reuse an existing tag or release. Do not
-replace the existing `0.44.3` assets in place.
+The four target archives are published and active under the dedicated
+prerelease tag
+[`zellij-v0.44.3-blackpepper.1`](https://github.com/sudhanshug16/blackpepper/releases/tag/zellij-v0.44.3-blackpepper.1).
+Blackpepper's runtime manifest pins that tag's release URLs plus the archive,
+extracted-binary, and license SHA-256 values. A changed asset therefore fails
+checksum verification instead of being accepted silently.
+
+New sessions use the branded runtime. An existing workspace remains on its
+recorded stock runtime until the user runs `:workspace terminate` and reopens
+it by pressing `Enter` (or with `:workspace switch`). Termination ends the old
+session but preserves the registered folder. The publisher refuses to reuse
+an existing tag or release; do not replace the upstream `0.44.3` assets in
+place. A later patched generation must again publish first and activate its new
+version and checksums in a separate reviewed change.
 
 The runtime and rollout invariants are recorded in
 [`docs/private-zellij-runtime.md`](../../docs/private-zellij-runtime.md).

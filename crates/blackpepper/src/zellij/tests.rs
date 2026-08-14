@@ -413,7 +413,8 @@ fn runtime_checks_the_version_selected_for_a_retained_session() {
 #[test]
 fn default_runtime_still_requires_the_release_pin() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
-    let mut host = ScriptedTransport::new([success("zellij 0.44.3\n")]);
+    let version = format!("zellij {}\n", crate::transport::ZELLIJ_VERSION);
+    let mut host = ScriptedTransport::new([success(&version)]);
     runtime.check_version(&mut host).unwrap();
     assert!(ZellijRuntime::for_version("/opt/zellij", "bad version").is_err());
     assert!(ZellijRuntime::for_version("/opt/zellij", "../0.44.3").is_err());

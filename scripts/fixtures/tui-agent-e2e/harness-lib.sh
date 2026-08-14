@@ -21,7 +21,7 @@ cleanup_agent_e2e() {
     printf 'Preserved failed agent E2E: %s\n' "$TEST_ROOT" >&2
   else
     case "$TEST_ROOT" in
-      "${TMPDIR:-/tmp}"/blackpepper-agent-e2e.*) rm -rf -- "$TEST_ROOT" ;;
+      /tmp/bpa.*) rm -rf -- "$TEST_ROOT" ;;
       *) printf 'Refusing to clean unexpected test root: %s\n' "$TEST_ROOT" >&2 ;;
     esac
   fi

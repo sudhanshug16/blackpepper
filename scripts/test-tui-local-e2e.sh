@@ -47,7 +47,9 @@ case "$BP_VERSION" in
   *) printf 'FAIL: expected a development build, got: %s\n' "$BP_VERSION" >&2; exit 1 ;;
 esac
 
-TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/blackpepper-tui-local-e2e.XXXXXX")"
+# Zellij's Unix socket has a 107-byte kernel limit, including its own
+# contract/session suffix. Keep the isolated development socket root short.
+TEST_ROOT="$(mktemp -d /tmp/bpl.XXXXXX)"
 ARTIFACTS="$TEST_ROOT/artifacts"
 PRIMARY="$TEST_ROOT/primary"
 PEER="$TEST_ROOT/peer"
@@ -342,6 +344,21 @@ wait_for_terminal_mode primary-before-terminate 20
 dismiss_zellij_popups
 run_tui_command ':workspace terminate'
 wait_for_screen 'Zellij session terminated; the workspace folder was kept.' primary-terminated 20
+
+# A branded backend name is deterministic for its exact Zellij generation.
+# Recreate and terminate it twice to prove the exited registry row is reused
+# instead of colliding with its unique workspace/backend/name identity.
+for cycle in one two; do
+  run_tui_command ':workspace switch primary'
+  wait_for_terminal_mode "primary-reopen-$cycle" 20
+  dismiss_zellij_popups
+  run_shell_command "printf '\nBP_E2E_REOPEN_${cycle^^}\n'"
+  wait_for_screen "BP_E2E_REOPEN_${cycle^^}" "primary-reopen-marker-$cycle" 10
+  run_tui_command ':workspace terminate'
+  wait_for_screen 'Zellij session terminated; the workspace folder was kept.' \
+    "primary-reterminated-$cycle" 20
+done
+
 run_tui_command ':workspace switch peer'
 wait_for_terminal_mode peer-before-terminate 20
 dismiss_zellij_popups

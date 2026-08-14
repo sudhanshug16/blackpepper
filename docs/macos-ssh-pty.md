@@ -75,8 +75,9 @@ missing. It requires:
 The harness opens a new macOS pseudo-terminal and a new SSH connection. It
 does not inspect, type into, resize, or close an existing Ghostty window. It
 sets Blackpepper's registry, runtime, cache, config, and Zellij socket paths to
-a fresh `0700` directory named `/tmp/blackpepper-macos-ssh-pty.*` on the Linux
-host. Its Zellij config disables first-run tips only inside that directory.
+a fresh `0700` directory named `/tmp/bpmsp.*` on the Linux host. The short name
+keeps Zellij's full Unix socket below the platform limit. Its Zellij config
+disables first-run tips only inside that directory.
 
 On success or failure, the harness terminates only sessions under that socket
 tree and removes that exact temporary directory. Existing Blackpepper and
@@ -95,7 +96,8 @@ macOS OpenSSH PTY boundary. It verifies:
 - terminal-mode setup, including SGR mouse input;
 - ordinary shell input and the inherited terminal identity;
 - outer and embedded PTY resize propagation;
-- mouse-wheel scroll plus keyboard search using Zellij 0.44.3;
+- mouse-wheel scroll plus keyboard search using Blackpepper Zellij
+  0.44.3-blackpepper.1 (upstream 0.44.3 base);
 - a bounded OSC 52 write returned to the outer macOS terminal, together with
   Blackpepper's brief clipboard-handoff notice;
 - an actionable unknown-command error; and

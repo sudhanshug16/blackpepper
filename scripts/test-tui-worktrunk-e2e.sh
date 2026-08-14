@@ -44,7 +44,7 @@ esac
 
 # Zellij's Unix socket has a 107-byte kernel limit, including its own
 # contract/session suffix, so keep this isolated root deliberately short.
-TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/bp-wt.XXXXXX")"
+TEST_ROOT="$(mktemp -d /tmp/bp-wt.XXXXXX)"
 ARTIFACTS="$TEST_ROOT/artifacts"
 PRIMARY="$TEST_ROOT/primary"
 OPEN_PATH="$TEST_ROOT/worktrees/open-me"

@@ -5,8 +5,8 @@
 
 ## Decision
 
-Blackpepper V1 is a standalone local/SSH client backed by Zellij 0.44.3 and
-Worktrunk 0.72.0.
+Blackpepper V1 is a standalone local/SSH client backed by Blackpepper Zellij
+0.44.3-blackpepper.1 (based on upstream 0.44.3) and Worktrunk 0.72.0.
 
 - Zellij owns sessions, panes, tabs, keybindings, scrolling, search, selection,
   and copy behavior.
@@ -94,10 +94,11 @@ them.
   background tab creation, termination, and approved worktree removal for a
   workspace. A pending removal marker blocks session recreation until an
   authoritative Worktrunk list resolves it.
-- Because Zellij 0.44.3's external tab creation steals a client's focus even
-  with `focus=false`, Blackpepper creates service and agent tabs only when one
-  client is attached, then restores that exact client's previous tab. Native
-  Zellij tab controls remain available with several clients.
+- Because the upstream Zellij 0.44.3 codebase's external tab creation steals a
+  client's focus even with `focus=false`, Blackpepper creates service and agent
+  tabs only when one client is attached, then restores that exact client's
+  previous tab. Native Zellij tab controls remain available with several
+  clients.
 - Provider status data excludes prompts, responses, commands, tool content,
   and terminal text. Screen rules are a temporary needs-input hint, never the
   source of working or done state.
