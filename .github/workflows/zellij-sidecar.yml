@@ -52,7 +52,11 @@ jobs:
             's/^pub const PATCHED_ZELLIJ_VERSION: &str = "([^"]+)";$/\1/p' \
             crates/blackpepper/src/transport/sidecar.rs)"
           test -n "$blackpepper_runtime_version"
-          test "$blackpepper_runtime_version" = "$ZELLIJ_RUNTIME_VERSION"
+          if [ "$blackpepper_runtime_version" != "$ZELLIJ_RUNTIME_VERSION" ]; then
+            grep -Fxq \
+              "pending-zellij-runtime=$ZELLIJ_RUNTIME_VERSION" \
+              .github/RELEASE_HOLD
+          fi
       - name: Run focused transport tests
         working-directory: zellij-source
         run: |
@@ -74,6 +78,7 @@ jobs:
           run_focused_test zellij-server legacy_notification_canonical_emit_uses_bel_and_fixed_template
           run_focused_test zellij-server host_terminal_focus_events_reach_opted_in_active_pane
           run_focused_test zellij-server host_terminal_focus_events_skip_pane_that_did_not_opt_in
+          run_focused_test zellij-server tcgetpgrp_returns_foreground_group
           cargo check --locked -p zellij-client -p zellij-server
           cargo fmt --all -- --check
       - name: Generate locked dependency license bundle

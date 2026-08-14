@@ -1,24 +1,26 @@
 # Blackpepper Zellij sidecar
 
 Blackpepper needs two terminal-transport changes that are not in Zellij
-0.44.3: bounded OSC 9/777 forwarding and host focus-event delivery. The
-corresponding upstream pull requests are still open:
+0.44.3: bounded OSC 9/777 forwarding and host focus-event delivery. It also
+backports Zellij's merged foreground-pane command-discovery fix so tab creation
+does not time out while scanning unrelated host processes. The corresponding
+upstream changes are:
 
 - [zellij-org/zellij#5099](https://github.com/zellij-org/zellij/pull/5099)
 - [zellij-org/zellij#5456](https://github.com/zellij-org/zellij/pull/5456)
+- [zellij-org/zellij#5324](https://github.com/zellij-org/zellij/pull/5324)
 
 `source.env` pins the exact upstream release commit and records the upstream
-pull-request heads used to prepare these backports. `PATCHES.sha256` protects
+change commits used to prepare these backports. `PATCHES.sha256` protects
 the checked-in patch set from an unnoticed local rewrite. `ARTIFACTS.sha256`
 records the published archives, extracted executables, and shared license
 bundle. The build-tool patch pins the two tools that Zellij's release task
 installs from crates.io and makes every Cargo build honor `Cargo.lock`. The
 workflow pins every action, the Protobuf compiler, and Linux Cross images; each
-artifact carries the resolved toolchain and image provenance. The patched
-binary reports
-`zellij 0.44.3-blackpepper.1`; this distinct identity is required so a stock
-binary on `PATH` or in Blackpepper's existing `0.44.3` cache can never silently
-satisfy a new patched session.
+artifact carries the resolved toolchain and image provenance. The next patched
+binary reports `zellij 0.44.3-blackpepper.2`; this distinct identity is required
+so a stock binary on `PATH` or in Blackpepper's existing `0.44.3` cache can
+never silently satisfy a new patched session.
 
 The workflow also builds `cargo-about` 0.9.1 from its checksum-pinned crate and
 bundled lockfile. The checked-in `licenses/about.toml` and `licenses/about.hbs`
@@ -54,6 +56,12 @@ prerelease tag
 Blackpepper's runtime manifest pins that tag's release URLs plus the archive,
 extracted-binary, and license SHA-256 values. A changed asset therefore fails
 checksum verification instead of being accepted silently.
+
+The checked-in source lane prepares `0.44.3-blackpepper.2`. While that build is
+unpublished, `.github/RELEASE_HOLD` prevents Blackpepper's `v0.1.71` tag from
+being created. The runtime manifest remains on the published `.1` generation
+until the `.2` prerelease is built, its checksums are pinned in a separate
+activation change, and the hold is removed.
 
 New sessions use the branded runtime. An existing workspace remains on its
 recorded stock runtime until the user runs `:workspace terminate` and reopens

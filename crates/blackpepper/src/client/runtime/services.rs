@@ -84,28 +84,31 @@ impl ClientRuntime {
                 )
                 .map_err(|error| error.to_string())?;
             if !pane.has_command_argument(&marker) {
-                if created {
-                    let _ = zellij.close_tab(
-                        self.transport_mut(workspace.host_id)?,
-                        &session.backend_session_id,
-                        tab_id,
-                    );
-                }
                 return Err(format!(
-                    "Zellij tab {tab_name} does not belong to configured service '{}'; refusing to report it as running.",
+                    "Zellij tab {tab_name} does not belong to configured service '{}'; refusing to report or close it.",
                     service.name
                 ));
             }
             if pane.process_state() == PaneProcessState::Live {
                 return Ok(tab_id);
             }
-            zellij
-                .close_tab(
+            let pane_selector = pane.selector();
+            let closed = zellij
+                .close_tab_if_pane_matches(
                     self.transport_mut(workspace.host_id)?,
                     &session.backend_session_id,
                     tab_id,
+                    &tab_name,
+                    &pane_selector,
+                    &marker,
                 )
                 .map_err(|error| format!("Could not close the exited service tab: {error}"))?;
+            if !closed {
+                return Err(format!(
+                    "Configured service '{}' exited, but its tab identity changed before cleanup; it was left open.",
+                    service.name
+                ));
+            }
             if created || attempt == 1 {
                 return Err(format!(
                     "Configured service '{}' exited immediately; its tab was closed.",

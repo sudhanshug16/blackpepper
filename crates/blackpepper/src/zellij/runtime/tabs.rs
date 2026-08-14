@@ -1,19 +1,23 @@
+use std::collections::BTreeSet;
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use crate::transport::{HostCommand, HostTransport};
+use crate::transport::{HostCommand, HostTransport, TransportError};
 
 use super::super::model::{checked, ClientOperation, ZellijError};
 use super::validation::{path_text, validate_name, ValidateInitialCommand, BACKGROUND_TAB_LAYOUT};
 use super::ZellijRuntime;
 
+mod close;
+mod focus;
+mod reconcile;
+
+use reconcile::{CreationReceipt, TAB_CREATION_RECONCILE_TIMEOUT};
+
 // Cancellation is briefly masked from new-tab through focus compensation, so
 // each action needs its own hard bound. A timeout is an unknown remote result;
-// callers surface it and a later list reconciles the deterministic tab name.
+// `ensure_tab` reconciles it without repeating the mutation.
 const BACKGROUND_MUTATION_TIMEOUT: Duration = Duration::from_secs(5);
-const FOCUS_MUTATION_TIMEOUT: Duration = Duration::from_secs(5);
-const FIRST_ATTACH_CLIENT_TIMEOUT: Duration = Duration::from_secs(2);
-const FIRST_ATTACH_CLIENT_POLL: Duration = Duration::from_millis(25);
 
 impl ZellijRuntime {
     pub fn new_tab_command(
@@ -52,6 +56,10 @@ impl ZellijRuntime {
         Ok(command)
     }
 
+    /// Return the exact tab ID and whether Zellij's own numeric response
+    /// confirmed that this invocation created it. A pre-existing tab or a tab
+    /// recovered from an empty/timeout response returns `false`, so callers do
+    /// not destructively clean it up until their launch marker proves ownership.
     pub fn ensure_tab(
         &self,
         host: &mut dyn HostTransport,
@@ -60,16 +68,48 @@ impl ZellijRuntime {
         cwd: &Path,
         initial_command: Option<&HostCommand>,
     ) -> Result<(u64, bool), ZellijError> {
+        self.ensure_tab_with_reconcile_timeout(
+            host,
+            session,
+            name,
+            cwd,
+            initial_command,
+            TAB_CREATION_RECONCILE_TIMEOUT,
+        )
+    }
+
+    pub(crate) fn ensure_tab_with_reconcile_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        name: &str,
+        cwd: &Path,
+        initial_command: Option<&HostCommand>,
+        reconcile_timeout: Duration,
+    ) -> Result<(u64, bool), ZellijError> {
         let clients =
             self.enforce_client_safety(host, session, ClientOperation::BackgroundMutation)?;
         let tabs = self.list_tabs(host, session)?;
-        if let Some(tab) = tabs.iter().find(|tab| tab.name == name) {
-            return Ok((tab.tab_id, false));
+        let matching_tabs = tabs
+            .iter()
+            .filter(|tab| tab.name == name)
+            .collect::<Vec<_>>();
+        match matching_tabs.as_slice() {
+            [tab] => return Ok((tab.tab_id, false)),
+            [] => {}
+            _ => {
+                return Err(ZellijError::InvalidOutput(format!(
+                    "found {} Zellij tabs named {name:?}; refusing to choose one",
+                    matching_tabs.len()
+                )));
+            }
         }
-        let restore_tab_id = if clients.is_empty() {
+        let preexisting_tab_ids = tabs.iter().map(|tab| tab.tab_id).collect::<BTreeSet<_>>();
+        let restore_focus = if clients.is_empty() {
             None
         } else {
-            Some(
+            Some((
+                clients[0].client_id,
                 tabs.iter()
                     .find(|tab| tab.active)
                     .ok_or_else(|| {
@@ -79,154 +119,66 @@ impl ZellijRuntime {
                         )
                     })?
                     .tab_id,
-            )
+            ))
         };
+        let command = self.new_tab_command(session, name, cwd, initial_command)?;
         crate::transport::CommandCancellation::mask_current(|| {
-            let output = checked(
-                host.exec_timeout(
-                    &self.new_tab_command(session, name, cwd, initial_command)?,
-                    BACKGROUND_MUTATION_TIMEOUT,
-                )?,
-                "create Zellij tab",
-            )?;
-            let id = String::from_utf8_lossy(&output.stdout)
-                .trim()
-                .parse::<u64>()
-                .map_err(|_| {
-                    ZellijError::InvalidOutput("new-tab did not return a tab ID".to_string())
-                })?;
-            if let Some(tab_id) = restore_tab_id {
-                let current_clients = self.list_clients(host, session)?;
-                if current_clients.len() != 1
-                    || current_clients[0].client_id != clients[0].client_id
-                {
-                    return Err(ZellijError::InvalidOutput(
-                        "the Zellij client set changed while creating the tab; the tab was created, but Blackpepper cannot safely restore focus"
-                            .to_string(),
-                    ));
-                }
-                checked(
-                    host.exec_timeout(
-                        &self.focus_tab_command(session, tab_id)?,
-                        BACKGROUND_MUTATION_TIMEOUT,
-                    )?,
-                    "restore Zellij client focus",
-                )?;
+            let mutation_result = (|| {
+                let receipt = match host.exec_timeout(&command, BACKGROUND_MUTATION_TIMEOUT) {
+                    Ok(output) => {
+                        let output = checked(output, "create Zellij tab")?;
+                        if output.stdout.iter().all(u8::is_ascii_whitespace)
+                            && output.stderr.is_empty()
+                        {
+                            CreationReceipt::unknown("new-tab returned no tab ID")
+                        } else {
+                            let tab_id = std::str::from_utf8(&output.stdout)
+                                .ok()
+                                .map(|value| {
+                                    value.trim_matches(|character: char| {
+                                        character.is_ascii_whitespace()
+                                    })
+                                })
+                                .and_then(|value| value.parse::<u64>().ok())
+                                .ok_or_else(|| {
+                                    ZellijError::InvalidOutput(format!(
+                                        "new-tab returned {} nonnumeric stdout byte(s) and {} stderr byte(s); refusing to infer tab ownership",
+                                        output.stdout.len(),
+                                        output.stderr.len()
+                                    ))
+                                })?;
+                            CreationReceipt::reported(tab_id)
+                        }
+                    }
+                    Err(
+                        error @ (TransportError::CommandTimedOut { .. }
+                        | TransportError::CommandCancelled { .. }),
+                    ) => CreationReceipt::unknown(error.to_string()),
+                    Err(error) => return Err(error.into()),
+                };
+                self.reconcile_created_tab(
+                    host,
+                    session,
+                    name,
+                    &preexisting_tab_ids,
+                    receipt,
+                    reconcile_timeout,
+                )
+            })();
+            let focus_result = self.restore_background_focus(
+                host,
+                session,
+                name,
+                &preexisting_tab_ids,
+                restore_focus,
+            );
+            match (mutation_result, focus_result) {
+                (Ok(result), Ok(())) => Ok(result),
+                (Err(error), Ok(())) | (Ok(_), Err(error)) => Err(error),
+                (Err(mutation_error), Err(focus_error)) => Err(ZellijError::InvalidOutput(
+                    format!("{mutation_error}; focus restoration also failed: {focus_error}"),
+                )),
             }
-            Ok((id, true))
         })
-    }
-
-    pub fn focus_tab_command(
-        &self,
-        session: &str,
-        tab_id: u64,
-    ) -> Result<HostCommand, ZellijError> {
-        validate_name("session", session)?;
-        Ok(self.session_action(session, ["go-to-tab-by-id", &tab_id.to_string()]))
-    }
-
-    /// Focus the initial workspace shell only while one stable client owns the
-    /// session. The caller holds Blackpepper's workspace lifecycle lease, so
-    /// another Blackpepper client cannot attach between validation and focus.
-    /// Rechecking after tab discovery also refuses native-client races before
-    /// the focus-changing command is sent.
-    pub fn focus_initial_shell_for_single_client(
-        &self,
-        host: &mut dyn HostTransport,
-        session: &str,
-    ) -> Result<(), ZellijError> {
-        self.focus_initial_shell_for_single_client_with_timeout(
-            host,
-            session,
-            FIRST_ATTACH_CLIENT_TIMEOUT,
-        )
-    }
-
-    pub(crate) fn focus_initial_shell_for_single_client_with_timeout(
-        &self,
-        host: &mut dyn HostTransport,
-        session: &str,
-        client_wait_timeout: Duration,
-    ) -> Result<(), ZellijError> {
-        const INITIAL_SHELL_TAB_ID: u64 = 0;
-
-        let started = Instant::now();
-        let clients = loop {
-            let clients = self.list_clients(host, session)?;
-            match clients.len() {
-                1 => break clients,
-                count if count > 1 => {
-                    return Err(ZellijError::InvalidOutput(format!(
-                        "initial shell focus requires exactly 1 controlling client; found {count}; no focus change was sent"
-                    )));
-                }
-                _ if started.elapsed() >= client_wait_timeout => {
-                    return Err(ZellijError::InvalidOutput(
-                        "initial shell focus timed out waiting for its controlling client; no focus change was sent"
-                            .to_string(),
-                    ));
-                }
-                _ if crate::transport::CommandCancellation::scope_is_cancelled() => {
-                    return Err(ZellijError::InvalidOutput(
-                        "initial shell focus was cancelled before its controlling client appeared; no focus change was sent"
-                            .to_string(),
-                    ));
-                }
-                _ => std::thread::sleep(FIRST_ATTACH_CLIENT_POLL),
-            }
-        };
-        if !self
-            .list_tabs(host, session)?
-            .iter()
-            .any(|tab| tab.tab_id == INITIAL_SHELL_TAB_ID)
-        {
-            return Err(ZellijError::InvalidOutput(
-                "the workspace's initial shell tab (ID 0) is missing; no focus change was sent"
-                    .to_string(),
-            ));
-        }
-        let current_clients = self.list_clients(host, session)?;
-        if current_clients != clients {
-            return Err(ZellijError::InvalidOutput(
-                "the Zellij client set changed while selecting the initial shell; no focus change was sent"
-                    .to_string(),
-            ));
-        }
-        crate::transport::CommandCancellation::mask_current(|| {
-            checked(
-                host.exec_timeout(
-                    &self.focus_tab_command(session, INITIAL_SHELL_TAB_ID)?,
-                    FOCUS_MUTATION_TIMEOUT,
-                )?,
-                "focus initial workspace shell",
-            )?;
-            Ok(())
-        })
-    }
-
-    pub fn close_tab_command(
-        &self,
-        session: &str,
-        tab_id: u64,
-    ) -> Result<HostCommand, ZellijError> {
-        validate_name("session", session)?;
-        Ok(self.session_action(session, ["close-tab-by-id", &tab_id.to_string()]))
-    }
-
-    /// Closing a visible tab may move attached clients, so refuse it while
-    /// multiple clients could be affected by Zellij's last-active routing.
-    pub fn close_tab(
-        &self,
-        host: &mut dyn HostTransport,
-        session: &str,
-        tab_id: u64,
-    ) -> Result<(), ZellijError> {
-        self.enforce_client_safety(host, session, ClientOperation::FocusChange)?;
-        checked(
-            host.exec(&self.close_tab_command(session, tab_id)?)?,
-            "close Zellij tab",
-        )?;
-        Ok(())
     }
 }

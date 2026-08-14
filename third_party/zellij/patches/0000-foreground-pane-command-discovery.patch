@@ -1,0 +1,585 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 53d102a2..e2566945 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -2297,6 +2297,25 @@ dependencies = [
+  "libc",
+ ]
+ 
++[[package]]
++name = "objc2-core-foundation"
++version = "0.3.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
++dependencies = [
++ "bitflags 2.11.0",
++]
++
++[[package]]
++name = "objc2-io-kit"
++version = "0.3.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "33fafba39597d6dc1fb709123dfa8289d39406734be322956a69f0931c73bb15"
++dependencies = [
++ "libc",
++ "objc2-core-foundation",
++]
++
+ [[package]]
+ name = "object"
+ version = "0.28.4"
+@@ -3496,14 +3515,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "sysinfo"
+-version = "0.33.1"
++version = "0.37.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4fc858248ea01b66f19d8e8a6d55f41deaf91e9d495246fd01368d99935c6c01"
++checksum = "16607d5caffd1c07ce073528f9ed972d88db15dd44023fa57142963be3feb11f"
+ dependencies = [
+- "core-foundation-sys",
+  "libc",
+  "memchr",
+  "ntapi",
++ "objc2-core-foundation",
++ "objc2-io-kit",
+  "windows",
+ ]
+ 
+@@ -4441,12 +4461,24 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+ 
+ [[package]]
+ name = "windows"
+-version = "0.57.0"
++version = "0.61.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "12342cb4d8e3b046f3d80effd474a7a02447231330ef77d71daa6fbc40681143"
++checksum = "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893"
+ dependencies = [
+- "windows-core 0.57.0",
+- "windows-targets 0.52.6",
++ "windows-collections",
++ "windows-core 0.61.2",
++ "windows-future",
++ "windows-link",
++ "windows-numerics",
++]
++
++[[package]]
++name = "windows-collections"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3beeceb5e5cfd9eb1d76b381630e82c4241ccd0d27f1a39ed41b2760b255c5e8"
++dependencies = [
++ "windows-core 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -4460,21 +4492,33 @@ dependencies = [
+ 
+ [[package]]
+ name = "windows-core"
+-version = "0.57.0"
++version = "0.61.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d2ed2439a290666cd67ecce2b0ffaad89c2a56b976b736e6ece670297897832d"
++checksum = "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
+ dependencies = [
+  "windows-implement",
+  "windows-interface",
++ "windows-link",
+  "windows-result",
+- "windows-targets 0.52.6",
++ "windows-strings",
++]
++
++[[package]]
++name = "windows-future"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
++dependencies = [
++ "windows-core 0.61.2",
++ "windows-link",
++ "windows-threading",
+ ]
+ 
+ [[package]]
+ name = "windows-implement"
+-version = "0.57.0"
++version = "0.60.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9107ddc059d5b6fbfbffdfa7a7fe3e22a226def0b2608f72e9d552763d3e1ad7"
++checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+@@ -4483,22 +4527,47 @@ dependencies = [
+ 
+ [[package]]
+ name = "windows-interface"
+-version = "0.57.0"
++version = "0.59.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "29bee4b38ea3cde66011baa44dba677c432a78593e202392d1e9070cf2a7fca7"
++checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+  "syn 2.0.96",
+ ]
+ 
++[[package]]
++name = "windows-link"
++version = "0.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
++
++[[package]]
++name = "windows-numerics"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
++dependencies = [
++ "windows-core 0.61.2",
++ "windows-link",
++]
++
+ [[package]]
+ name = "windows-result"
+-version = "0.1.2"
++version = "0.3.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5e383302e8ec8515204254685643de10811af0ed97ea37210dc26fb0032647f8"
++checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
+ dependencies = [
+- "windows-targets 0.52.6",
++ "windows-link",
++]
++
++[[package]]
++name = "windows-strings"
++version = "0.4.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
++dependencies = [
++ "windows-link",
+ ]
+ 
+ [[package]]
+@@ -4559,6 +4628,15 @@ dependencies = [
+  "windows_x86_64_msvc 0.52.6",
+ ]
+ 
++[[package]]
++name = "windows-threading"
++version = "0.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b66463ad2e0ea3bbf808b7f1d371311c80e115c0b71d60efc142cafbcfb057a6"
++dependencies = [
++ "windows-link",
++]
++
+ [[package]]
+ name = "windows_aarch64_gnullvm"
+ version = "0.48.0"
+diff --git a/zellij-server/Cargo.toml b/zellij-server/Cargo.toml
+index a67ceed2..7da38f69 100644
+--- a/zellij-server/Cargo.toml
++++ b/zellij-server/Cargo.toml
+@@ -33,7 +33,7 @@ serde = { workspace = true }
+ serde_json = { workspace = true }
+ sixel-image = { version = "0.2.1", default-features = false }
+ sixel-tokenizer = { version = "0.1.0", default-features = false }
+-sysinfo = { version = "0.33", default-features = false, features = ["system"] }
++sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+ tempfile = { workspace = true }
+ tokio = { workspace = true }
+ typetag = { version = "0.1.7", default-features = false }
+diff --git a/zellij-server/src/os_input_output.rs b/zellij-server/src/os_input_output.rs
+index dd7225ad..376de666 100644
+--- a/zellij-server/src/os_input_output.rs
++++ b/zellij-server/src/os_input_output.rs
+@@ -348,6 +348,15 @@ pub trait ServerOsApi: Send + Sync {
+     fn get_all_cmds_by_ppid(&self, _post_hook: &Option<String>) -> HashMap<String, Vec<String>> {
+         HashMap::new()
+     }
++    /// For each `(terminal_id, shell_pid)` pane, return the foreground command running in its
++    /// controlling terminal, keyed by `terminal_id`.
++    fn get_foreground_cmds(
++        &self,
++        _panes: &[(u32, u32)],
++        _post_hook: &Option<String>,
++    ) -> HashMap<u32, Vec<String>> {
++        HashMap::new()
++    }
+     /// Writes the given buffer to a string
+     fn write_to_file(&mut self, buf: String, file: Option<String>) -> Result<()>;
+ 
+@@ -545,54 +554,6 @@ impl ServerOsApi for ServerOsInputOutput {
+ 
+         (cwds, cmds)
+     }
+-    #[cfg(unix)]
+-    fn get_all_cmds_by_ppid(&self, post_hook: &Option<String>) -> HashMap<String, Vec<String>> {
+-        // the key is the stringified ppid
+-        let mut cmds = HashMap::new();
+-        if let Some(output) = Command::new("ps")
+-            .args(vec!["-ao", "ppid,args"])
+-            .output()
+-            .ok()
+-        {
+-            let output = String::from_utf8(output.stdout.clone())
+-                .unwrap_or_else(|_| String::from_utf8_lossy(&output.stdout).to_string());
+-            for line in output.lines() {
+-                let line_parts: Vec<String> = line
+-                    .trim()
+-                    .split_ascii_whitespace()
+-                    .map(|p| p.to_owned())
+-                    .collect();
+-                let mut line_parts = line_parts.into_iter();
+-                let ppid = line_parts.next();
+-                if let Some(ppid) = ppid {
+-                    match &post_hook {
+-                        Some(post_hook) => {
+-                            let command: Vec<String> = line_parts.clone().collect();
+-                            let stringified = command.join(" ");
+-                            let cmd = match run_command_hook(&stringified, post_hook) {
+-                                Ok(command) => command,
+-                                Err(e) => {
+-                                    log::error!("Post command hook failed to run: {}", e);
+-                                    stringified.to_owned()
+-                                },
+-                            };
+-                            let line_parts: Vec<String> = cmd
+-                                .trim()
+-                                .split_ascii_whitespace()
+-                                .map(|p| p.to_owned())
+-                                .collect();
+-                            cmds.insert(ppid.into(), line_parts);
+-                        },
+-                        None => {
+-                            cmds.insert(ppid.into(), line_parts.collect());
+-                        },
+-                    }
+-                }
+-            }
+-        }
+-        cmds
+-    }
+-
+     #[cfg(not(unix))]
+     fn get_all_cmds_by_ppid(&self, post_hook: &Option<String>) -> HashMap<String, Vec<String>> {
+         let mut system_info = System::new();
+@@ -610,29 +571,76 @@ impl ServerOsApi for ServerOsInputOutput {
+                 if command.is_empty() {
+                     continue;
+                 }
+-                match post_hook {
+-                    Some(post_hook) => {
+-                        let stringified = command.join(" ");
+-                        let cmd = match run_command_hook(&stringified, post_hook) {
+-                            Ok(command) => command,
+-                            Err(e) => {
+-                                log::error!("Post command hook failed to run: {}", e);
+-                                stringified.to_owned()
+-                            },
+-                        };
+-                        let line_parts: Vec<String> = cmd
+-                            .trim()
+-                            .split_ascii_whitespace()
+-                            .map(|p| p.to_owned())
+-                            .collect();
+-                        cmds.insert(ppid_str, line_parts);
+-                    },
+-                    None => {
+-                        cmds.insert(ppid_str, command);
+-                    },
++                cmds.insert(ppid_str, apply_post_command_hook(command, post_hook));
++            }
++        }
++        cmds
++    }
++
++    #[cfg(unix)]
++    fn get_foreground_cmds(
++        &self,
++        panes: &[(u32, u32)],
++        post_hook: &Option<String>,
++    ) -> HashMap<u32, Vec<String>> {
++        let mut terminal_to_fg_pid: HashMap<u32, u32> = HashMap::new();
++        for &(terminal_id, shell_pid) in panes {
++            if let Some(fpgid) = self.pty_backend.tcgetpgrp(terminal_id) {
++                if fpgid > 0 && fpgid as u32 != shell_pid {
++                    terminal_to_fg_pid.insert(terminal_id, fpgid as u32);
+                 }
+             }
+         }
++        if terminal_to_fg_pid.is_empty() {
++            return HashMap::new();
++        }
++
++        let sysinfo_pids: Vec<sysinfo::Pid> = terminal_to_fg_pid
++            .values()
++            .map(|&p| sysinfo::Pid::from_u32(p))
++            .collect();
++        let mut system_info = System::new();
++        let refresh_kind = ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always);
++        system_info.refresh_processes_specifics(
++            ProcessesToUpdate::Some(&sysinfo_pids),
++            false,
++            refresh_kind,
++        );
++
++        let mut cmds = HashMap::new();
++        for (terminal_id, fg_pid) in terminal_to_fg_pid {
++            let Some(process) = system_info.process(sysinfo::Pid::from_u32(fg_pid)) else {
++                continue;
++            };
++            let command: Vec<String> = process
++                .cmd()
++                .iter()
++                .map(|s| s.to_string_lossy().into_owned())
++                .collect();
++            if command.is_empty() {
++                continue;
++            }
++            let command = apply_post_command_hook(command, post_hook);
++            cmds.insert(terminal_id, command);
++        }
++        cmds
++    }
++
++    #[cfg(not(unix))]
++    fn get_foreground_cmds(
++        &self,
++        panes: &[(u32, u32)],
++        post_hook: &Option<String>,
++    ) -> HashMap<u32, Vec<String>> {
++        // Use ppid-based discovery on Windows, because it has no controlling-terminal
++        // foreground group.
++        let ppids_to_cmds = self.get_all_cmds_by_ppid(post_hook);
++        let mut cmds = HashMap::new();
++        for &(terminal_id, shell_pid) in panes {
++            if let Some(cmd) = ppids_to_cmds.get(&shell_pid.to_string()) {
++                cmds.insert(terminal_id, cmd.clone());
++            }
++        }
+         cmds
+     }
+ 
+@@ -726,6 +734,24 @@ impl Drop for ResizeCache {
+     }
+ }
+ 
++fn apply_post_command_hook(command: Vec<String>, post_hook: &Option<String>) -> Vec<String> {
++    let Some(post_hook) = post_hook else {
++        return command;
++    };
++    let stringified = command.join(" ");
++    let cmd = match run_command_hook(&stringified, post_hook) {
++        Ok(command) => command,
++        Err(e) => {
++            Err::<(), _>(anyhow!("post command discovery hook failed to run: {e}")).non_fatal();
++            stringified
++        },
++    };
++    cmd.trim()
++        .split_ascii_whitespace()
++        .map(|p| p.to_owned())
++        .collect()
++}
++
+ #[cfg(not(windows))]
+ fn run_command_hook(
+     original_command: &str,
+diff --git a/zellij-server/src/os_input_output_unix.rs b/zellij-server/src/os_input_output_unix.rs
+index 2ce856f0..1ce8033b 100644
+--- a/zellij-server/src/os_input_output_unix.rs
++++ b/zellij-server/src/os_input_output_unix.rs
+@@ -414,6 +414,13 @@ impl UnixPtyBackend {
+         }
+     }
+ 
++    pub fn tcgetpgrp(&self, terminal_id: u32) -> Option<i32> {
++        match self.terminal_id_to_raw_fd.lock().ok()?.get(&terminal_id) {
++            Some(Some(fd)) => unistd::tcgetpgrp(*fd).ok().map(|pgid| pgid.as_raw()),
++            _ => None,
++        }
++    }
++
+     pub fn kill(&self, pid: u32) -> Result<()> {
+         let _ = kill(unistd::Pid::from_raw(pid as i32), Some(Signal::SIGHUP));
+         Ok(())
+diff --git a/zellij-server/src/pty.rs b/zellij-server/src/pty.rs
+index 478a60e3..13b06b57 100644
+--- a/zellij-server/src/pty.rs
++++ b/zellij-server/src/pty.rs
+@@ -1959,19 +1959,23 @@ impl Pty {
+             .as_ref()
+             .map(|os_input| os_input.get_cwds(pids))
+             .unwrap_or_default();
+-        let ppids_to_cmds = self
++        let panes: Vec<(u32, u32)> = terminal_ids
++            .iter()
++            .filter_map(|id| self.id_to_child_pid.get(id).map(|pid| (*id, *pid)))
++            .collect();
++        let foreground_cmds = self
+             .bus
+             .os_input
+             .as_ref()
+-            .map(|os_input| os_input.get_all_cmds_by_ppid(&self.post_command_discovery_hook))
++            .map(|os_input| os_input.get_foreground_cmds(&panes, &self.post_command_discovery_hook))
+             .unwrap_or_default();
+ 
+         for terminal_id in terminal_ids {
+             let process_id = self.id_to_child_pid.get(&terminal_id);
+             let cwd = process_id.and_then(|pid| pids_to_cwds.get(pid));
+             let cmd_sysinfo = process_id.and_then(|pid| pids_to_cmds.get(pid));
+-            let cmd_ps = process_id.and_then(|pid| ppids_to_cmds.get(&format!("{}", pid)));
+-            if let Some(cmd) = cmd_ps {
++            let cmd_foreground = foreground_cmds.get(&terminal_id);
++            if let Some(cmd) = cmd_foreground {
+                 terminal_ids_to_commands.insert(terminal_id, cmd.clone());
+             } else if let Some(cmd) = cmd_sysinfo {
+                 terminal_ids_to_commands.insert(terminal_id, cmd.clone());
+@@ -2126,17 +2130,20 @@ impl Pty {
+             }
+         }
+ 
+-        let ppids_to_cmds = self
++        let panes: Vec<(u32, u32)> = active_terminal_ids
++            .iter()
++            .filter_map(|id| self.id_to_child_pid.get(id).map(|pid| (*id, *pid)))
++            .collect();
++        let foreground_cmds = self
+             .bus
+             .os_input
+             .as_ref()
+-            .map(|os_input| os_input.get_all_cmds_by_ppid(&self.post_command_discovery_hook))
++            .map(|os_input| os_input.get_foreground_cmds(&panes, &self.post_command_discovery_hook))
+             .unwrap_or_default();
+ 
+         for terminal_id in &active_terminal_ids {
+-            let process_id = self.id_to_child_pid.get(terminal_id);
+-            let foreground_cmd: Vec<String> = process_id
+-                .and_then(|pid| ppids_to_cmds.get(&pid.to_string()))
++            let foreground_cmd: Vec<String> = foreground_cmds
++                .get(terminal_id)
+                 .cloned()
+                 .unwrap_or_default();
+ 
+@@ -2281,16 +2288,18 @@ impl Pty {
+                 if let Some(&child_pid) = self.id_to_child_pid.get(&terminal_id) {
+                     // Query OS for current running command
+                     if let Some(os_input) = self.bus.os_input.as_ref() {
+-                        // First, try to get child process command (e.g., nvim running in bash)
+-                        let ppids_to_cmds =
+-                            os_input.get_all_cmds_by_ppid(&self.post_command_discovery_hook);
+-                        let cmd_ps = ppids_to_cmds.get(&format!("{}", child_pid));
++                        // First, try to get the foreground command (e.g., nvim running in bash)
++                        let foreground_cmds = os_input.get_foreground_cmds(
++                            &[(terminal_id, child_pid)],
++                            &self.post_command_discovery_hook,
++                        );
++                        let cmd_foreground = foreground_cmds.get(&terminal_id);
+ 
+-                        // If no child process, fall back to parent process (e.g., the shell itself)
++                        // If no foreground command, fall back to the shell itself
+                         let (_cwds, cmds) = os_input.get_cwds(vec![child_pid]);
+                         let cmd_sysinfo = cmds.get(&child_pid);
+ 
+-                        if let Some(command_args) = cmd_ps {
++                        if let Some(command_args) = cmd_foreground {
+                             GetPaneRunningCommandResponse::Ok(command_args.clone())
+                         } else if let Some(command_args) = cmd_sysinfo {
+                             GetPaneRunningCommandResponse::Ok(command_args.clone())
+diff --git a/zellij-server/src/unit/os_input_output_tests.rs b/zellij-server/src/unit/os_input_output_tests.rs
+index 994ed984..71e08b7a 100644
+--- a/zellij-server/src/unit/os_input_output_tests.rs
++++ b/zellij-server/src/unit/os_input_output_tests.rs
+@@ -201,3 +201,57 @@ fn spawn_and_read_output() {
+         output_str
+     );
+ }
++
++#[cfg(unix)]
++#[test]
++fn tcgetpgrp_returns_foreground_group() {
++    use crate::panes::PaneId;
++    use zellij_utils::input::command::TerminalAction;
++
++    let server = make_server();
++
++    // `login_tty` in the child makes the spawned command the controlling terminal's
++    // foreground process group, so tcgetpgrp(master) should return its pid
++    let cmd = RunCommand {
++        command: PathBuf::from("sleep"),
++        args: vec!["60".to_string()],
++        ..Default::default()
++    };
++    let quit_cb: Box<dyn Fn(PaneId, Option<i32>, RunCommand) + Send> = Box::new(|_, _, _| {});
++    let (terminal_id, _reader, child_pid) = server
++        .spawn_terminal(TerminalAction::RunCommand(cmd), quit_cb, None)
++        .expect("spawn_terminal should succeed");
++
++    // poll (bounded to ~2s) for the child to finish setting up its controlling terminal
++    let mut fpgid = None;
++    for _ in 0..100 {
++        fpgid = server.pty_backend.tcgetpgrp(terminal_id);
++        let ready = match (fpgid, child_pid) {
++            (Some(p), Some(child_pid)) => p > 0 && p as u32 == child_pid,
++            (Some(p), None) => p > 0,
++            _ => false,
++        };
++        if ready {
++            break;
++        }
++        std::thread::sleep(std::time::Duration::from_millis(20));
++    }
++    assert!(
++        matches!(fpgid, Some(p) if p > 0),
++        "tcgetpgrp should return the foreground process group, got {:?}",
++        fpgid
++    );
++    if let (Some(fpgid), Some(child_pid)) = (fpgid, child_pid) {
++        assert_eq!(
++            fpgid as u32, child_pid,
++            "the spawned command leads its own foreground group"
++        );
++    }
++
++    // An unknown terminal id has no fd and must not panic.
++    assert_eq!(server.pty_backend.tcgetpgrp(u32::MAX), None);
++
++    if let Some(child_pid) = child_pid {
++        let _ = server.force_kill(child_pid);
++    }
++}
+diff --git a/zellij-server/src/unit/pty_tests.rs b/zellij-server/src/unit/pty_tests.rs
+index 1080b6ca..39463a46 100644
+--- a/zellij-server/src/unit/pty_tests.rs
++++ b/zellij-server/src/unit/pty_tests.rs
+@@ -125,6 +125,21 @@ impl ServerOsApi for MockOsApi {
+     fn get_all_cmds_by_ppid(&self, _: &Option<String>) -> HashMap<String, Vec<String>> {
+         self.cmds_by_ppid.lock().unwrap().clone()
+     }
++    fn get_foreground_cmds(
++        &self,
++        panes: &[(u32, u32)],
++        _: &Option<String>,
++    ) -> HashMap<u32, Vec<String>> {
++        let cmds_by_ppid = self.cmds_by_ppid.lock().unwrap();
++        panes
++            .iter()
++            .filter_map(|(terminal_id, shell_pid)| {
++                cmds_by_ppid
++                    .get(&shell_pid.to_string())
++                    .map(|cmd| (*terminal_id, cmd.clone()))
++            })
++            .collect()
++    }
+     fn write_to_file(&mut self, _: String, _: Option<String>) -> anyhow::Result<()> {
+         Ok(())
+     }

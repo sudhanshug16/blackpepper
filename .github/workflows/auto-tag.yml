@@ -28,6 +28,33 @@ jobs:
           write_output() {
             printf '%s\n' "$@" >> "$GITHUB_OUTPUT"
           }
+          source third_party/zellij/source.env
+          selected_zellij_version="$(sed -nE \
+            's/^pub const ZELLIJ_VERSION: &str = "([^"]+)";$/\1/p' \
+            crates/blackpepper/src/transport/sidecar.rs)"
+          patched_zellij_version="$(sed -nE \
+            's/^pub const PATCHED_ZELLIJ_VERSION: &str = "([^"]+)";$/\1/p' \
+            crates/blackpepper/src/transport/sidecar.rs)"
+          test -n "$selected_zellij_version"
+          test -n "$patched_zellij_version"
+          if [ -f .github/RELEASE_HOLD ]; then
+            expected_hold="pending-zellij-runtime=$ZELLIJ_RUNTIME_VERSION"
+            test "$(cat .github/RELEASE_HOLD)" = "$expected_hold"
+            if [ "$selected_zellij_version" = "$ZELLIJ_RUNTIME_VERSION" ] && \
+                [ "$patched_zellij_version" = "$ZELLIJ_RUNTIME_VERSION" ]; then
+              echo "The Zellij runtime is active, but the production release hold remains." >&2
+              exit 1
+            fi
+            printf 'Production tagging is held: %s\n' \
+              "$expected_hold"
+            write_output "changed=false"
+            exit 0
+          fi
+          if [ "$selected_zellij_version" != "$ZELLIJ_RUNTIME_VERSION" ] || \
+              [ "$patched_zellij_version" != "$ZELLIJ_RUNTIME_VERSION" ]; then
+            echo "The staged Zellij runtime is not active and no production release hold exists." >&2
+            exit 1
+          fi
           VERSION=$(sed -nE 's/^version\s*=\s*"([^"]+)".*/\1/p' crates/blackpepper/Cargo.toml | head -n1)
           if [ -z "$VERSION" ]; then
             write_output "changed=false"
