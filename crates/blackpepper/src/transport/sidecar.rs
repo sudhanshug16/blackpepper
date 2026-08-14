@@ -10,10 +10,8 @@ use super::sidecar_manifest;
 mod error;
 pub use error::SidecarError;
 
-/// The release used by new sessions. Activation switches this to
-/// [`PATCHED_ZELLIJ_VERSION`] only after all four private assets are published
-/// and their archive digests are pinned in the manifest.
-pub const ZELLIJ_VERSION: &str = "0.44.3";
+/// The private, checksum-pinned release used by new sessions.
+pub const ZELLIJ_VERSION: &str = "0.44.3-blackpepper.1";
 pub const LEGACY_ZELLIJ_VERSION: &str = "0.44.3";
 pub const PATCHED_ZELLIJ_VERSION: &str = "0.44.3-blackpepper.1";
 pub const WORKTRUNK_VERSION: &str = "0.72.0";

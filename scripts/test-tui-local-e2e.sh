@@ -47,7 +47,9 @@ case "$BP_VERSION" in
   *) printf 'FAIL: expected a development build, got: %s\n' "$BP_VERSION" >&2; exit 1 ;;
 esac
 
-TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/blackpepper-tui-local-e2e.XXXXXX")"
+# Zellij's Unix socket has a 107-byte kernel limit, including its own
+# contract/session suffix. Keep the isolated development socket root short.
+TEST_ROOT="$(mktemp -d /tmp/bpl.XXXXXX)"
 ARTIFACTS="$TEST_ROOT/artifacts"
 PRIMARY="$TEST_ROOT/primary"
 PEER="$TEST_ROOT/peer"

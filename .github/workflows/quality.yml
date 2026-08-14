@@ -76,6 +76,8 @@ jobs:
       - name: Production and development coexistence acceptance
         run: scripts/test-dev-coexistence-e2e.sh
       - name: Terminal transparency acceptance
+        env:
+          BLACKPEPPER_TERMINAL_E2E_EXPECT_NOTIFICATIONS: 1
         run: scripts/test-terminal-transparency-e2e.sh
       - name: Worktrunk edge acceptance
         run: scripts/test-tui-worktrunk-e2e.sh

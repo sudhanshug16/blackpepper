@@ -14,7 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from zellij_runtime import MetadataError, current_zellij_version  # noqa: E402
 
 
-ROOT_PREFIX = "/tmp/blackpepper-macos-ssh-pty."
+# The path becomes a Zellij socket root, whose full Unix socket name must stay
+# below the platform limit even with Blackpepper's versioned session suffix.
+ROOT_PREFIX = "/tmp/bpmsp."
 
 
 class AcceptanceFailure(RuntimeError):

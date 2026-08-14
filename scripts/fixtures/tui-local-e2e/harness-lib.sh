@@ -28,7 +28,7 @@ cleanup_e2e() {
     printf 'Preserved failed run: %s\n' "$TEST_ROOT" >&2
   else
     case "$TEST_ROOT" in
-      "${TMPDIR:-/tmp}"/blackpepper-tui-local-e2e.*|"${TMPDIR:-/tmp}"/blackpepper-terminal-e2e.*)
+      /tmp/bpl.*|/tmp/bpt.*)
         rm -rf -- "$TEST_ROOT"
         ;;
       *) printf 'Refusing to clean unexpected test root: %s\n' "$TEST_ROOT" >&2 ;;

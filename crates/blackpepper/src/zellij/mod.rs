@@ -1,4 +1,4 @@
-//! Pinned Zellij 0.44.3 command surface used by Blackpepper workspaces.
+//! Pinned Blackpepper Zellij command surface used by workspace sessions.
 
 pub mod appearance;
 mod model;

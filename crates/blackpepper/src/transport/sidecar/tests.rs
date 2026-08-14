@@ -14,7 +14,18 @@ fn manifest_has_trusted_assets_for_every_supported_target() {
             assert_eq!(asset.license_name, Some("LICENSES.html"));
         }
     }
-    assert_eq!(sidecar_manifest::assets().len(), 8);
+    assert_eq!(sidecar_manifest::assets().len(), 12);
+
+    for version in [LEGACY_ZELLIJ_VERSION, PATCHED_ZELLIJ_VERSION] {
+        for target in [
+            SidecarTarget::LinuxX86_64,
+            SidecarTarget::LinuxAarch64,
+            SidecarTarget::MacOsX86_64,
+            SidecarTarget::MacOsAarch64,
+        ] {
+            assert!(release_asset_for_version(ManagedTool::Zellij, version, target).is_ok());
+        }
+    }
 }
 
 #[test]
@@ -43,18 +54,19 @@ fn branded_zellij_is_always_a_managed_runtime() {
         version: format!("zellij {PATCHED_ZELLIJ_VERSION}"),
     };
 
-    // The private manifest is deliberately absent until its artifacts have
-    // been published. Reaching lookup instead of accepting PATH proves the
-    // system executable cannot satisfy the branded runtime.
-    assert!(matches!(
-        select_runtime_for_version(
-            ManagedTool::Zellij,
-            PATCHED_ZELLIJ_VERSION,
-            SidecarTarget::LinuxX86_64,
-            Some(installed),
-        ),
-        Err(SidecarError::UnsupportedAsset { .. })
-    ));
+    let selected = select_runtime_for_version(
+        ManagedTool::Zellij,
+        PATCHED_ZELLIJ_VERSION,
+        SidecarTarget::LinuxX86_64,
+        Some(installed),
+    )
+    .unwrap();
+
+    let RuntimeSelection::Managed(asset) = selected else {
+        panic!("a PATH executable satisfied the private Zellij runtime");
+    };
+    assert_eq!(asset.version, PATCHED_ZELLIJ_VERSION);
+    assert!(asset.url.contains("sudhanshug16/blackpepper/releases"));
 }
 
 #[test]

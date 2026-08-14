@@ -31,7 +31,7 @@ cleanup_worktrunk_e2e() {
     printf 'Worktrunk E2E artifacts retained at %s\n' "$TEST_ROOT" >&2
   else
     case "$TEST_ROOT" in
-      "${TMPDIR:-/tmp}"/bp-wt.*)
+      /tmp/bp-wt.*)
         find "$TEST_ROOT" -depth -delete >/dev/null 2>&1 || true
         ;;
       *) printf 'Refusing to clean unexpected test root: %s\n' "$TEST_ROOT" >&2 ;;
