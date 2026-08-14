@@ -9,6 +9,9 @@ source "$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/ui-markers
 
 cleanup_e2e() {
   local status=$?
+  # Signal handlers exit through this function; disarm every trap first so
+  # cleanup cannot re-enter and accidentally replace the signal status.
+  trap - EXIT HUP INT TERM
   set +e
   if [ -n "$ZELLIJ_BIN" ] && [ -x "$ZELLIJ_BIN" ]; then
     ZELLIJ_SOCKET_DIR="$ZELLIJ_SOCKET_ROOT" "$ZELLIJ_BIN" kill-all-sessions -y \

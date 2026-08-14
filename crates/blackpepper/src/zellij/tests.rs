@@ -384,6 +384,51 @@ fn client_observation_has_an_explicit_short_deadline() {
 }
 
 #[test]
+fn kill_session_waits_until_the_exact_server_is_gone() {
+    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
+    let clients = "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n";
+    let mut host = ScriptedTransport::new([
+        success(clients),
+        success(""),
+        success(clients),
+        missing_session("repo-main"),
+    ]);
+
+    runtime.kill_session(&mut host, "repo-main").unwrap();
+
+    assert!(host.outputs.is_empty());
+    assert_eq!(
+        host.timeouts,
+        [
+            Duration::from_secs(2),
+            Duration::from_secs(5),
+            Duration::from_secs(2),
+            Duration::from_secs(2),
+        ]
+    );
+    assert_eq!(
+        wrapped_zellij_args(&host.commands[1], "/opt/zellij"),
+        ["kill-session", "repo-main"]
+    );
+}
+
+#[test]
+fn kill_session_refuses_success_while_the_exact_server_remains_active() {
+    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
+    let clients = "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n";
+    let mut host = ScriptedTransport::new([success(clients), success(""), success(clients)]);
+
+    let error = runtime
+        .kill_session_with_timeout_for_test(&mut host, "repo-main", Duration::ZERO, Duration::ZERO)
+        .unwrap_err();
+
+    assert!(error
+        .to_string()
+        .contains("remained active for 0ms after kill-session"));
+    assert!(host.outputs.is_empty());
+}
+
+#[test]
 fn existing_session_is_not_mutated_with_new_environment() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let mut host = ScriptedTransport::new([success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n")]);

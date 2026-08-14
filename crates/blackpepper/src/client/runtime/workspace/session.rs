@@ -79,19 +79,13 @@ impl ClientRuntime {
     ) -> Result<(), String> {
         let (lease, workspace) = self.acquire_workspace_session_lease(workspace_id)?;
         let result = (|| {
-            let session = self
+            let sessions = self
                 .registry
                 .sessions_for_workspace(workspace.id)
-                .map_err(|error| error.to_string())?
-                .into_iter()
-                .filter(|session| {
-                    session.backend == SessionBackend::Zellij
-                        && session.state != SessionState::Exited
-                })
-                .max_by_key(|session| session.created_at_ms)
-                .ok_or_else(|| {
-                    "The attached workspace has no live Zellij session to focus.".to_owned()
-                })?;
+                .map_err(|error| error.to_string())?;
+            let session = latest_non_exited_zellij_session(&sessions).ok_or_else(|| {
+                "The attached workspace has no live Zellij session to focus.".to_owned()
+            })?;
             let binary =
                 self.exact_binary(workspace.host_id, "zellij", &session.backend_version)?;
             let zellij = ZellijRuntime::for_version(binary, &session.backend_version)
@@ -264,14 +258,11 @@ impl ClientRuntime {
         &mut self,
         workspace: &WorkspaceRecord,
     ) -> Result<(), String> {
-        let Some(mut session) = self
+        let sessions = self
             .registry
             .sessions_for_workspace(workspace.id)
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .filter(|session| session.backend == SessionBackend::Zellij)
-            .max_by_key(|session| session.created_at_ms)
-        else {
+            .map_err(|error| error.to_string())?;
+        let Some(mut session) = latest_non_exited_zellij_session(&sessions).cloned() else {
             return Ok(());
         };
         let binary = self.exact_binary(workspace.host_id, "zellij", &session.backend_version)?;
@@ -322,14 +313,11 @@ impl ClientRuntime {
 
     pub(crate) fn mark_detached(&mut self, workspace_id: WorkspaceId) -> Result<(), String> {
         let (lease, workspace) = self.acquire_workspace_session_lease(workspace_id)?;
-        if let Some(mut session) = self
+        let sessions = self
             .registry
             .sessions_for_workspace(workspace_id)
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .max_by_key(|session| session.created_at_ms)
-            .filter(|session| session.state != SessionState::Exited)
-        {
+            .map_err(|error| error.to_string())?;
+        if let Some(mut session) = latest_non_exited_zellij_session(&sessions).cloned() {
             session.state = SessionState::Detached;
             session.touch();
             self.persist_session(workspace.host_id, &session)?;
@@ -345,13 +333,7 @@ impl ClientRuntime {
             .registry
             .sessions_for_workspace(workspace.id)
             .map_err(|error| error.to_string())?;
-        if let Some(session) = sessions
-            .iter()
-            .filter(|session| {
-                session.backend == SessionBackend::Zellij && session.state != SessionState::Exited
-            })
-            .max_by_key(|session| session.created_at_ms)
-        {
+        if let Some(session) = latest_non_exited_zellij_session(&sessions) {
             return Ok(session.clone());
         }
 
@@ -378,6 +360,17 @@ impl ClientRuntime {
             backend_session_id,
         ))
     }
+}
+
+pub(super) fn latest_non_exited_zellij_session(
+    sessions: &[SessionRecord],
+) -> Option<&SessionRecord> {
+    sessions
+        .iter()
+        .filter(|session| {
+            session.backend == SessionBackend::Zellij && session.state != SessionState::Exited
+        })
+        .max_by_key(|session| session.created_at_ms)
 }
 
 const BRANDED_SESSION_HASH_LENGTH: usize = 12;
