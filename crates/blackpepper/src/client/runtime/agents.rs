@@ -12,6 +12,7 @@ mod integration;
 #[cfg(test)]
 use command::apply_agent_environment_with;
 use command::{apply_agent_environment, initial_agent_command};
+use integration::VerifiedAgentTab;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SpawnedAgent {
@@ -144,7 +145,7 @@ impl ClientRuntime {
                 )
                 .map_err(|error| error.to_string())
         });
-        let (tab_id, created) = match tab_result {
+        let (tab_id, _) = match tab_result {
             Ok(value) => value,
             Err(error) => {
                 let abort =
@@ -167,8 +168,7 @@ impl ClientRuntime {
                     &zellij,
                     workspace.host_id,
                     &session.backend_session_id,
-                    tab_id,
-                    created,
+                    None,
                 );
                 let abort =
                     self.abort_note(workspace.host_id, workspace.id, run_id, pane_id, provider);
@@ -184,8 +184,7 @@ impl ClientRuntime {
                 &zellij,
                 workspace.host_id,
                 &session.backend_session_id,
-                tab_id,
-                created,
+                None,
             );
             let abort = self.abort_note(workspace.host_id, workspace.id, run_id, pane_id, provider);
             let assets = self.cleanup_assets_note(workspace.host_id, &launch.assets);
@@ -193,13 +192,22 @@ impl ClientRuntime {
                 "Zellij did not preserve the launch-scoped agent identity marker; status recovery was disabled.{cleanup}{abort}{assets}"
             ));
         }
+        // The immutable run marker is stronger ownership evidence than
+        // Zellij's sometimes-missing new-tab response. From this point on,
+        // downstream cleanup may close a reconciled launch tab safely.
         let zellij_pane_id = pane.selector();
+        let owned_tab = VerifiedAgentTab {
+            tab_id,
+            tab_name: &name,
+            pane_selector: &zellij_pane_id,
+            launch_marker: &launch_marker,
+        };
         let binding = AgentRunBinding {
             session_id: session.id,
             session_name: session.backend_session_id.clone(),
             zellij_version: session.backend_version.clone(),
             tab_id,
-            tab_name: name,
+            tab_name: name.clone(),
             zellij_pane_id: zellij_pane_id.clone(),
         };
         if let Err(error) = self.bind_agent_run(
@@ -214,8 +222,7 @@ impl ClientRuntime {
                 &zellij,
                 workspace.host_id,
                 &session.backend_session_id,
-                tab_id,
-                created,
+                Some(&owned_tab),
             );
             let abort = self.abort_note(workspace.host_id, workspace.id, run_id, pane_id, provider);
             let assets = self.cleanup_assets_note(workspace.host_id, &launch.assets);
@@ -239,8 +246,7 @@ impl ClientRuntime {
                 &zellij,
                 workspace.host_id,
                 &session.backend_session_id,
-                tab_id,
-                created,
+                Some(&owned_tab),
             );
             let abort = self.abort_note(workspace.host_id, workspace.id, run_id, pane_id, provider);
             let assets = self.cleanup_assets_note(workspace.host_id, &launch.assets);
@@ -262,8 +268,7 @@ impl ClientRuntime {
                 &zellij,
                 workspace.host_id,
                 &session.backend_session_id,
-                tab_id,
-                created,
+                Some(&owned_tab),
             );
             let abort = self.abort_note(workspace.host_id, workspace.id, run_id, pane_id, provider);
             let assets = self.cleanup_assets_note(workspace.host_id, &launch.assets);

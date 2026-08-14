@@ -6,24 +6,41 @@ use crate::transport::HostCommand;
 use crate::zellij::ZellijRuntime;
 use std::time::{Duration, Instant};
 
+pub(super) struct VerifiedAgentTab<'a> {
+    pub tab_id: u64,
+    pub tab_name: &'a str,
+    pub pane_selector: &'a str,
+    pub launch_marker: &'a str,
+}
+
 impl ClientRuntime {
     pub(super) fn cleanup_agent_tab(
         &mut self,
         zellij: &ZellijRuntime,
         host_id: crate::core::HostId,
         session: &str,
-        tab_id: u64,
-        created: bool,
+        tab: Option<&VerifiedAgentTab<'_>>,
     ) -> String {
-        if !created {
-            return " The pre-existing tab was left untouched.".to_string();
-        }
+        let Some(tab) = tab else {
+            return " The tab was left untouched because its launch identity was not verified."
+                .to_string();
+        };
         match self.transport_mut(host_id).and_then(|transport| {
             zellij
-                .close_tab(transport, session, tab_id)
+                .close_tab_if_pane_matches(
+                    transport,
+                    session,
+                    tab.tab_id,
+                    tab.tab_name,
+                    tab.pane_selector,
+                    tab.launch_marker,
+                )
                 .map_err(|error| error.to_string())
         }) {
-            Ok(()) => " The failed background tab was closed.".to_string(),
+            Ok(true) => " The failed background tab was closed.".to_string(),
+            Ok(false) => {
+                " The background tab was left open because its launch identity changed.".to_string()
+            }
             Err(error) => format!(
                 " The background tab was left open because safe cleanup was unavailable: {error}."
             ),

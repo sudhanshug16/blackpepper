@@ -18,6 +18,8 @@ use super::runtime::{
 };
 use super::{PaneProcessState, ZellijError, ZellijRuntime};
 
+mod tabs;
+
 #[test]
 fn client_parser_requires_pinned_header() {
     let clients =
@@ -105,95 +107,6 @@ fn missing_session_attach_race_requires_the_exact_pre_pty_client_error() {
         &arbitrary_trailing_error,
         "repo-main"
     ));
-}
-
-#[test]
-fn new_tab_uses_the_parseable_focus_false_layout() {
-    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
-    let initial = HostCommand::new("codex").args(["--model", "gpt 5"]);
-    let command = runtime
-        .new_tab_command("repo-main", "agent", Path::new("/srv/repo"), Some(&initial))
-        .unwrap();
-    assert_eq!(
-        wrapped_zellij_args(&command, "/opt/zellij"),
-        [
-            "--session",
-            "repo-main",
-            "action",
-            "new-tab",
-            "--layout-string",
-            "layout { tab focus=false { pane; }; }",
-            "--name",
-            "agent",
-            "--cwd",
-            "/srv/repo",
-            "--",
-            "codex",
-            "--model",
-            "gpt 5"
-        ]
-    );
-}
-
-#[test]
-fn ensure_tab_restores_the_only_attached_clients_previous_tab() {
-    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
-    let clients =
-        success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n9 terminal_1 zellij attach repo-main\n");
-    let tabs = success(r#"[{"tab_id":3,"position":0,"name":"shell","active":true}]"#);
-    let mut host =
-        ScriptedTransport::new([clients.clone(), tabs, success("7\n"), clients, success("")]);
-
-    let result = runtime
-        .ensure_tab(
-            &mut host,
-            "repo-main",
-            "service-api",
-            Path::new("/srv/repo"),
-            Some(&HostCommand::new("api-server")),
-        )
-        .unwrap();
-
-    assert_eq!(result, (7, true));
-    assert_eq!(
-        wrapped_zellij_args(host.commands.last().unwrap(), "/opt/zellij"),
-        ["--session", "repo-main", "action", "go-to-tab-by-id", "3"]
-    );
-    assert_eq!(
-        host.timeouts,
-        [
-            Duration::from_secs(2),
-            Duration::from_secs(5),
-            Duration::from_secs(5),
-            Duration::from_secs(2),
-            Duration::from_secs(5),
-        ]
-    );
-}
-
-#[test]
-fn ensure_tab_refuses_multiple_clients_before_creating_anything() {
-    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
-    let mut host = ScriptedTransport::new([success(
-        "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n9 terminal_1 zellij attach repo-main\n10 terminal_2 zellij attach repo-main\n",
-    )]);
-
-    let error = runtime
-        .ensure_tab(
-            &mut host,
-            "repo-main",
-            "service-api",
-            Path::new("/srv/repo"),
-            None,
-        )
-        .unwrap_err();
-
-    assert!(error.to_string().contains("2 controlling client(s)"));
-    assert_eq!(host.commands.len(), 1);
-    assert_eq!(
-        wrapped_zellij_args(&host.commands[0], "/opt/zellij"),
-        ["--session", "repo-main", "action", "list-clients"]
-    );
 }
 
 #[test]
@@ -860,13 +773,23 @@ fn wrapped_zellij_args<'a>(command: &'a HostCommand, binary: &str) -> &'a [Strin
 }
 
 struct ScriptedTransport {
-    outputs: VecDeque<CommandOutput>,
+    outputs: VecDeque<Result<CommandOutput, TransportError>>,
     commands: Vec<HostCommand>,
     timeouts: Vec<Duration>,
 }
 
 impl ScriptedTransport {
     fn new(outputs: impl IntoIterator<Item = CommandOutput>) -> Self {
+        Self {
+            outputs: outputs.into_iter().map(Ok).collect(),
+            commands: Vec::new(),
+            timeouts: Vec::new(),
+        }
+    }
+
+    fn with_results(
+        outputs: impl IntoIterator<Item = Result<CommandOutput, TransportError>>,
+    ) -> Self {
         Self {
             outputs: outputs.into_iter().collect(),
             commands: Vec::new(),
@@ -917,7 +840,7 @@ impl HostTransport for ScriptedTransport {
         self.commands.push(command.clone());
         self.outputs
             .pop_front()
-            .ok_or(TransportError::Unsupported("unexpected command"))
+            .unwrap_or(Err(TransportError::Unsupported("unexpected command")))
     }
 
     fn exec_timeout(
