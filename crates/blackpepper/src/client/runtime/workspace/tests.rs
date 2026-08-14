@@ -152,8 +152,8 @@ fn stock_zellij_session_name_keeps_the_legacy_identity() {
 fn branded_zellij_generations_get_distinct_stable_session_names() {
     let (_root, runtime) = local_runtime();
     let workspace = WorkspaceRecord::new(runtime.local_host_id, "/tmp/branded-zellij-name");
-    let first_version = crate::transport::PATCHED_ZELLIJ_VERSION;
-    let next_version = "0.44.3-blackpepper.2";
+    let first_version = "0.44.3-blackpepper.1";
+    let next_version = crate::transport::PATCHED_ZELLIJ_VERSION;
     let first = zellij_session_name(workspace.id, first_version);
     let first_again = zellij_session_name(workspace.id, first_version);
     let next = zellij_session_name(workspace.id, next_version);

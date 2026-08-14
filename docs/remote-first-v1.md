@@ -6,7 +6,7 @@
 ## Decision
 
 Blackpepper V1 is a standalone local/SSH client backed by Blackpepper Zellij
-0.44.3-blackpepper.1 (based on upstream 0.44.3) and Worktrunk 0.72.0.
+0.44.3-blackpepper.2 (based on upstream 0.44.3) and Worktrunk 0.72.0.
 
 - Zellij owns sessions, panes, tabs, keybindings, scrolling, search, selection,
   and copy behavior.

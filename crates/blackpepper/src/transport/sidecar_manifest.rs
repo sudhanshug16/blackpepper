@@ -140,6 +140,82 @@ const ASSETS: &[ReleaseAsset] = &[
         ),
     },
     ReleaseAsset {
+        tool: ManagedTool::Zellij,
+        target: SidecarTarget::LinuxX86_64,
+        version: "0.44.3-blackpepper.2",
+        asset_name: "zellij-x86_64-unknown-linux-musl.tar.gz",
+        url: "https://github.com/sudhanshug16/blackpepper/releases/download/zellij-v0.44.3-blackpepper.2/zellij-x86_64-unknown-linux-musl.tar.gz",
+        trusted_sha256: Some(
+            "87a69b7f2d2368175f8dc2e0d686f55979c89ab1e1fa55e40a2dfec2362e674f",
+        ),
+        binary_sha256: Some(
+            "3c73a11164defda444cf4f326edecbc60fe0e3fda4ee476db2526ed181c65a72",
+        ),
+        archive: ArchiveKind::TarGz,
+        binary_name: "zellij",
+        license_name: Some("LICENSES.html"),
+        license_sha256: Some(
+            "a5c95ce77d27c7e8991122ecf3e63e341287022bd5d807ebb38bdcb0fe53d253",
+        ),
+    },
+    ReleaseAsset {
+        tool: ManagedTool::Zellij,
+        target: SidecarTarget::LinuxAarch64,
+        version: "0.44.3-blackpepper.2",
+        asset_name: "zellij-aarch64-unknown-linux-musl.tar.gz",
+        url: "https://github.com/sudhanshug16/blackpepper/releases/download/zellij-v0.44.3-blackpepper.2/zellij-aarch64-unknown-linux-musl.tar.gz",
+        trusted_sha256: Some(
+            "86b8d63b8a84ba6c5b3e9e921fd246ae03b03e83e224832190b1d5a8bdd16d51",
+        ),
+        binary_sha256: Some(
+            "b258c1c2b4156138702c11241751dbe101b4ef67db96ffe92170ede6111cd8f3",
+        ),
+        archive: ArchiveKind::TarGz,
+        binary_name: "zellij",
+        license_name: Some("LICENSES.html"),
+        license_sha256: Some(
+            "a5c95ce77d27c7e8991122ecf3e63e341287022bd5d807ebb38bdcb0fe53d253",
+        ),
+    },
+    ReleaseAsset {
+        tool: ManagedTool::Zellij,
+        target: SidecarTarget::MacOsX86_64,
+        version: "0.44.3-blackpepper.2",
+        asset_name: "zellij-x86_64-apple-darwin.tar.gz",
+        url: "https://github.com/sudhanshug16/blackpepper/releases/download/zellij-v0.44.3-blackpepper.2/zellij-x86_64-apple-darwin.tar.gz",
+        trusted_sha256: Some(
+            "0e193938ee52944aca82604dc763533679c6b0261aaa0828dfa60bf332f7c8a3",
+        ),
+        binary_sha256: Some(
+            "aee87f259e679aa250239cbddef6c2e47ecb86c3aa3d3102a4d7c266ae9030a7",
+        ),
+        archive: ArchiveKind::TarGz,
+        binary_name: "zellij",
+        license_name: Some("LICENSES.html"),
+        license_sha256: Some(
+            "a5c95ce77d27c7e8991122ecf3e63e341287022bd5d807ebb38bdcb0fe53d253",
+        ),
+    },
+    ReleaseAsset {
+        tool: ManagedTool::Zellij,
+        target: SidecarTarget::MacOsAarch64,
+        version: "0.44.3-blackpepper.2",
+        asset_name: "zellij-aarch64-apple-darwin.tar.gz",
+        url: "https://github.com/sudhanshug16/blackpepper/releases/download/zellij-v0.44.3-blackpepper.2/zellij-aarch64-apple-darwin.tar.gz",
+        trusted_sha256: Some(
+            "e0162f450a1216ba6910bd48b33f716e98209f866f43820de935e9afd05f7e1f",
+        ),
+        binary_sha256: Some(
+            "ff753b0517cc43594d59c32a27ed867bc3420e307a61bd3d231a88d1d2d5a055",
+        ),
+        archive: ArchiveKind::TarGz,
+        binary_name: "zellij",
+        license_name: Some("LICENSES.html"),
+        license_sha256: Some(
+            "a5c95ce77d27c7e8991122ecf3e63e341287022bd5d807ebb38bdcb0fe53d253",
+        ),
+    },
+    ReleaseAsset {
         tool: ManagedTool::Worktrunk,
         target: SidecarTarget::LinuxX86_64,
         version: "0.72.0",

@@ -18,19 +18,19 @@ not need internet access.
 ## Required behavior
 
 - New sessions use the branded runtime version
-  `0.44.3-blackpepper.1` and cannot fall back to a same-version executable on
+  `0.44.3-blackpepper.2` and cannot fall back to a same-version executable on
   `PATH`.
 - Stock sessions keep the exact `bp-<workspace UUID>` backend name. Branded
   sessions append a stable short hash of their exact Zellij version, so a new
   generation cannot attach to a surviving stock or older branded server. Both
   use Zellij's standard socket namespaces, which keeps the recorded name
   discoverable by older Blackpepper clients.
-- Existing session records retain stock version `0.44.3`, including its legacy
-  socket discovery and downloadable official release assets. They are not
-  silently migrated.
+- Existing session records retain their exact runtime, including stock
+  `0.44.3` or the earlier `.1` generation and their downloadable assets. They
+  are not silently migrated.
 - Archives, extracted executables, and license files are checksum verified and
   stored under a version and target triple. Remote publication is atomic.
-- A user moves a workspace to the branded runtime by terminating its old
+- A user moves a workspace to the current `.2` runtime by terminating its old
   Blackpepper session and attaching again. The registered folder is preserved.
 
 ## Distribution
@@ -42,7 +42,7 @@ under `third_party/zellij/`.
 The dedicated workflow is manually dispatched. Its default is build-only and
 produces expiring Actions artifacts. Publication is a separate explicit input:
 it verifies the complete four-target set and creates a new Blackpepper-owned
-prerelease named `zellij-v0.44.3-blackpepper.1`. The release is never marked
+prerelease named `zellij-v0.44.3-blackpepper.2`. The release is never marked
 latest, because the Blackpepper installer resolves its own release through
 GitHub's `latest` URL. An existing dependency tag is never reused or
 overwritten. The repository does not need GitHub's optional immutable-release
@@ -53,18 +53,19 @@ That prerelease is published and active. The runtime manifest pins its real
 release URLs and archive, extracted-binary, and license SHA-256 values, while
 [`third_party/zellij/ARTIFACTS.sha256`](../third_party/zellij/ARTIFACTS.sha256)
 records the same published digests. New sessions now pin
-`0.44.3-blackpepper.1`. Publication and activation remain separate reviewed
+`0.44.3-blackpepper.2`. Publication and activation remain separate reviewed
 steps for later patched generations, so a missing or partial dependency
 release cannot break workspace creation.
 
 ## Existing workspace migration
 
-Activation does not rewrite a recorded stock session. To move an existing
-workspace to the branded runtime, select it, run `:workspace terminate`, then
-reopen it by pressing `Enter` or running `:workspace switch <name|id>`. The
-termination ends processes in the old Zellij session but preserves the
-registered folder. Reopening creates its shell and configured `auto_start`
-services; it does not restore agent conversations.
+Activation does not rewrite a recorded stock or earlier branded session. To
+move an existing workspace to the current `.2` runtime, select it, run
+`:workspace terminate`, then reopen it by pressing `Enter` or running
+`:workspace switch <name|id>`. The termination ends processes in the old
+Zellij session but preserves the registered folder. Reopening creates its
+shell and configured `auto_start` services; it does not restore agent
+conversations.
 
 ## Validation
 

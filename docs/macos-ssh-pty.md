@@ -97,7 +97,7 @@ macOS OpenSSH PTY boundary. It verifies:
 - ordinary shell input and the inherited terminal identity;
 - outer and embedded PTY resize propagation;
 - mouse-wheel scroll plus keyboard search using Blackpepper Zellij
-  0.44.3-blackpepper.1 (upstream 0.44.3 base);
+  0.44.3-blackpepper.2 (upstream 0.44.3 base);
 - a bounded OSC 52 write returned to the outer macOS terminal, together with
   Blackpepper's brief clipboard-handoff notice;
 - an actionable unknown-command error; and

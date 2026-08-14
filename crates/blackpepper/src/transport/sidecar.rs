@@ -11,9 +11,9 @@ mod error;
 pub use error::SidecarError;
 
 /// The private, checksum-pinned release used by new sessions.
-pub const ZELLIJ_VERSION: &str = "0.44.3-blackpepper.1";
+pub const ZELLIJ_VERSION: &str = "0.44.3-blackpepper.2";
 pub const LEGACY_ZELLIJ_VERSION: &str = "0.44.3";
-pub const PATCHED_ZELLIJ_VERSION: &str = "0.44.3-blackpepper.1";
+pub const PATCHED_ZELLIJ_VERSION: &str = "0.44.3-blackpepper.2";
 pub const WORKTRUNK_VERSION: &str = "0.72.0";
 
 /// Private Zellij builds must never be satisfied by an executable from PATH.
