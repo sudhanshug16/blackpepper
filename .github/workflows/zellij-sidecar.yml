@@ -93,15 +93,10 @@ jobs:
           tar -xzf "$tool_archive" -C "$tool_parent"
           cargo install --locked --path "$tool_source" --features cli \
             --root "$tool_root"
-          for target in \
-            x86_64-unknown-linux-musl \
-            aarch64-unknown-linux-musl \
-            x86_64-apple-darwin \
-            aarch64-apple-darwin \
-            wasm32-wasip1; do
-            cargo fetch --locked --manifest-path zellij-source/Cargo.toml \
-              --target "$target"
-          done
+          # cargo-about's workspace metadata includes dependencies behind every
+          # target condition, including Android. An unfiltered fetch populates
+          # the complete locked graph before the frozen metadata pass.
+          cargo fetch --locked --manifest-path zellij-source/Cargo.toml
           # cargo-about warns and falls back when a clarification checksum
           # drifts, even with --fail. Treat any stderr as fatal so a missing
           # native-library notice cannot silently pass this release gate.
