@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use crate::transport::{HostTransport, TransportError};
 
 use super::super::super::model::{checked, parse_panes, ZellijError, ZellijPane, ZellijTab};
-use super::super::metadata::transient_metadata_result;
+use super::super::metadata::transient_session_metadata_result;
 use super::super::{ZellijRuntime, METADATA_TIMEOUT};
 
 pub(super) const TAB_CREATION_RECONCILE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -156,7 +156,7 @@ impl ZellijRuntime {
             Err(TransportError::CommandTimedOut { .. }) => return Ok(None),
             Err(error) => return Err(error.into()),
         };
-        if transient_metadata_result(&output, "Timeout listing tabs") {
+        if transient_session_metadata_result(&output, "Timeout listing tabs") {
             return Ok(None);
         }
         let output = checked(output, "list Zellij tabs")?;
@@ -176,7 +176,7 @@ impl ZellijRuntime {
             Err(TransportError::CommandTimedOut { .. }) => return Ok(None),
             Err(error) => return Err(error.into()),
         };
-        if transient_metadata_result(&output, "Timeout listing panes") {
+        if transient_session_metadata_result(&output, "Timeout listing panes") {
             return Ok(None);
         }
         let output = checked(output, "list Zellij panes")?;

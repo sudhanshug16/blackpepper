@@ -4,15 +4,15 @@ use serde::de::DeserializeOwned;
 
 use crate::transport::{CommandOutput, HostCommand, HostTransport, TransportError};
 
-use super::super::model::{checked, ZellijError};
+use super::super::model::{checked, reports_no_active_session, ZellijError};
 
 const METADATA_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 const METADATA_RETRY_POLL: Duration = Duration::from_millis(25);
 const METADATA_MAX_ATTEMPTS: usize = 3;
 
-/// Read one JSON snapshot without treating Zellij's blank-success race as an
-/// empty authoritative result. Every retry is read-only and the whole attempt
-/// stays inside the caller's original metadata deadline.
+/// Read one JSON snapshot without treating Zellij's blank-success,
+/// false-absence, or internal-timeout races as authoritative. Every retry is
+/// read-only and stays inside the caller's original metadata deadline.
 pub(super) fn read_json<T: DeserializeOwned>(
     host: &mut dyn HostTransport,
     command: &HostCommand,
@@ -22,7 +22,7 @@ pub(super) fn read_json<T: DeserializeOwned>(
     timeout: Duration,
 ) -> Result<T, ZellijError> {
     let output = read_output(host, command, timeout, |output| {
-        transient_metadata_result(output, zellij_timeout_message)
+        transient_session_metadata_result(output, zellij_timeout_message)
     })?;
     if transient_metadata_result(&output, zellij_timeout_message) {
         let transient = if output.success {
@@ -96,6 +96,16 @@ pub(super) fn transient_metadata_result(
         && output.status == Some(2)
         && output.stdout.is_empty()
         && std::str::from_utf8(&output.stderr).ok().map(str::trim) == Some(zellij_timeout_message)
+}
+
+/// Treat Zellij's exact false-missing response as transient while a read-only
+/// metadata caller still has retry budget. A final missing response keeps its
+/// ordinary command-failure meaning; it is never converted into empty JSON.
+pub(super) fn transient_session_metadata_result(
+    output: &CommandOutput,
+    zellij_timeout_message: &str,
+) -> bool {
+    transient_metadata_result(output, zellij_timeout_message) || reports_no_active_session(output)
 }
 
 fn sleep_until_next_probe(started: Instant, timeout: Duration) {

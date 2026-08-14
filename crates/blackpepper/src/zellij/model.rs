@@ -4,6 +4,10 @@ use serde::Deserialize;
 
 use crate::transport::{CommandOutput, TransportError};
 
+mod missing_session;
+
+pub(crate) use missing_session::{client_list_reports_missing_session, reports_no_active_session};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientOperation {
     /// Starting another client never changes an existing client's focus.
@@ -204,54 +208,6 @@ pub(crate) fn command_error(operation: &str, output: CommandOutput) -> ZellijErr
         status: output.status,
         stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
     }
-}
-
-/// Zellij 0.44.3 reports this exact result when a session exits between a
-/// successful `list-sessions` observation and the pre-attach client query.
-/// Keep the classification narrow so arbitrary command failures never become
-/// an attach retry.
-pub(crate) fn client_list_reports_missing_session(output: &CommandOutput, session: &str) -> bool {
-    let Ok(stderr) = std::str::from_utf8(&output.stderr) else {
-        return false;
-    };
-    if !output.success
-        && output.status == Some(1)
-        && output.stdout.is_empty()
-        && stderr.trim_end_matches(['\n', '\r']) == "There is no active session!"
-    {
-        return true;
-    }
-
-    // With another detached session, 0.44.3 exits 0 and writes ANSI-formatted
-    // session rows to stdout. With an attached session, it exits 1 and appends
-    // plain rows to stderr. The rows are presentation, not evidence we use;
-    // bind the classification to the exact requested-name header, status, and
-    // stream placement instead of trying to parse Zellij's colored display.
-    let expected = format!("Session '{session}' not found. The following sessions are active:");
-    match output.status {
-        Some(0)
-            if output.success
-                && stderr == format!("{expected}\n")
-                && valid_reported_session_rows(&output.stdout) =>
-        {
-            true
-        }
-        Some(1) if !output.success && output.stdout.is_empty() => stderr
-            .strip_prefix(&format!("{expected}\n"))
-            .is_some_and(|rows| valid_reported_session_rows(rows.as_bytes())),
-        _ => false,
-    }
-}
-
-fn valid_reported_session_rows(value: &[u8]) -> bool {
-    if value.is_empty() || value.len() > 64 * 1024 || !value.ends_with(b"\n") || value.contains(&0)
-    {
-        return false;
-    }
-    let mut rows = value
-        .split(|byte| *byte == b'\n')
-        .filter(|line| !line.is_empty());
-    rows.next().is_some_and(|line| line != b"\r") && rows.all(|line| line != b"\r")
 }
 
 #[derive(Debug)]

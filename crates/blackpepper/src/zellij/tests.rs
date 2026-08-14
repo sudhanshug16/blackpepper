@@ -11,7 +11,7 @@ use crate::transport::{
 
 use super::model::{
     classify_pane_process, client_list_reports_missing_session, parse_clients, parse_panes,
-    parse_sessions, ClientOperation,
+    parse_sessions, reports_no_active_session, ClientOperation,
 };
 use super::runtime::{
     DEV_LAUNCHER_SCRIPT, LAUNCHER_ARG_ZERO, LAUNCHER_PROGRAM, PROD_LAUNCHER_SCRIPT,
@@ -40,6 +40,7 @@ fn missing_session_attach_race_requires_the_exact_pre_pty_client_error() {
         stderr: b"There is no active session!\n".to_vec(),
     };
     assert!(client_list_reports_missing_session(&missing, "repo-main"));
+    assert!(reports_no_active_session(&missing));
 
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let mut ordinary_list =
@@ -62,18 +63,21 @@ fn missing_session_attach_race_requires_the_exact_pre_pty_client_error() {
 
     let mut wrong_status = missing.clone();
     wrong_status.status = Some(2);
+    assert!(!reports_no_active_session(&wrong_status));
     assert!(!client_list_reports_missing_session(
         &wrong_status,
         "repo-main"
     ));
     let mut unexpected_stdout = missing.clone();
     unexpected_stdout.stdout = b"partial output".to_vec();
+    assert!(!reports_no_active_session(&unexpected_stdout));
     assert!(!client_list_reports_missing_session(
         &unexpected_stdout,
         "repo-main"
     ));
     let mut other_error = missing;
     other_error.stderr = b"There is no active session today!".to_vec();
+    assert!(!reports_no_active_session(&other_error));
     assert!(!client_list_reports_missing_session(
         &other_error,
         "repo-main"
@@ -759,6 +763,15 @@ fn missing_session(session: &str) -> CommandOutput {
             "Session '{session}' not found. The following sessions are active:\nsome-other-session\n"
         )
         .into_bytes(),
+    }
+}
+
+fn no_active_session() -> CommandOutput {
+    CommandOutput {
+        success: false,
+        status: Some(1),
+        stdout: Vec::new(),
+        stderr: b"There is no active session!\n".to_vec(),
     }
 }
 

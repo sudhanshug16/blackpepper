@@ -62,6 +62,40 @@ fn ensure_tab_recovers_empty_success_after_the_named_pane_becomes_ready() {
 }
 
 #[test]
+fn ensure_tab_retries_false_missing_creation_metadata() {
+    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
+    let clients = success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n");
+    let before = success(r#"[{"tab_id":0,"position":0,"name":"shell","active":true}]"#);
+    let after = success(
+        r#"[{"tab_id":0,"position":0,"name":"shell","active":true},{"tab_id":7,"position":1,"name":"service-api","active":false}]"#,
+    );
+    let mut host = ScriptedTransport::new([
+        clients,
+        before,
+        success("7\n"),
+        no_active_session(),
+        after.clone(),
+        no_active_session(),
+        after,
+        ready_terminal_pane(7, "service-api"),
+    ]);
+
+    let result = runtime
+        .ensure_tab_with_reconcile_timeout(
+            &mut host,
+            "repo-main",
+            "service-api",
+            Path::new("/srv/repo"),
+            None,
+            Duration::from_millis(500),
+        )
+        .unwrap();
+
+    assert_eq!(result, (7, true));
+    assert_eq!(host.commands.len(), 8);
+}
+
+#[test]
 fn ensure_tab_recovers_an_outer_command_timeout_without_retrying() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let clients = success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n");
