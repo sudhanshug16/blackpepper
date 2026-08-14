@@ -1,0 +1,36 @@
+diff --git a/default-plugins/plugin-manager/Cargo.toml b/default-plugins/plugin-manager/Cargo.toml
+index c7495809..7419be8a 100644
+--- a/default-plugins/plugin-manager/Cargo.toml
++++ b/default-plugins/plugin-manager/Cargo.toml
+@@ -3,6 +3,7 @@ name = "plugin-manager"
+ version = "0.1.0"
+ authors = ["Aram Drevekenin <aram@poor.dev>"]
+ edition.workspace = true
++license.workspace = true
+ 
+ [dependencies]
+ uuid = { version = "1.7.0", features = ["v4"] }
+diff --git a/default-plugins/session-manager/Cargo.toml b/default-plugins/session-manager/Cargo.toml
+index 6aaf53dd..8aeb80d7 100644
+--- a/default-plugins/session-manager/Cargo.toml
++++ b/default-plugins/session-manager/Cargo.toml
+@@ -3,6 +3,7 @@ name = "session-manager"
+ version = "0.1.0"
+ authors = ["Aram Drevekenin <aram@poor.dev>"]
+ edition.workspace = true
++license.workspace = true
+ 
+ [dependencies]
+ ansi_term = "0.12.1"
+diff --git a/xtask/Cargo.toml b/xtask/Cargo.toml
+index 8df4e998..a104e773 100644
+--- a/xtask/Cargo.toml
++++ b/xtask/Cargo.toml
+@@ -2,6 +2,7 @@
+ name = "xtask"
+ version = "0.1.0"
+ edition.workspace = true
++license.workspace = true
+ 
+ 
+ [dependencies]

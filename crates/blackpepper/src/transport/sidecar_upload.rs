@@ -13,6 +13,10 @@ pub struct UploadPlan {
     pub remote_directory: PathBuf,
     pub remote_temporary: PathBuf,
     pub remote_binary: PathBuf,
+    pub local_license: Option<PathBuf>,
+    pub license_sha256: Option<String>,
+    pub remote_license_temporary: Option<PathBuf>,
+    pub remote_license: Option<PathBuf>,
 }
 
 impl UploadPlan {
@@ -42,10 +46,30 @@ impl UploadPlan {
         binary_sha256: impl Into<String>,
         remote_home: &Path,
     ) -> Result<Self, SidecarError> {
-        Self::new_in_data_home(
+        Self::new_with_license(
             archive,
             local_binary,
             binary_sha256,
+            None,
+            None,
+            remote_home,
+        )
+    }
+
+    pub fn new_with_license(
+        archive: VerifiedArchive,
+        local_binary: impl Into<PathBuf>,
+        binary_sha256: impl Into<String>,
+        local_license: Option<&Path>,
+        license_sha256: Option<&str>,
+        remote_home: &Path,
+    ) -> Result<Self, SidecarError> {
+        Self::new_with_license_in_data_home(
+            archive,
+            local_binary,
+            binary_sha256,
+            local_license,
+            license_sha256,
             &remote_home.join(".local/share"),
         )
     }
@@ -55,6 +79,24 @@ impl UploadPlan {
         archive: VerifiedArchive,
         local_binary: impl Into<PathBuf>,
         binary_sha256: impl Into<String>,
+        remote_data_home: &Path,
+    ) -> Result<Self, SidecarError> {
+        Self::new_with_license_in_data_home(
+            archive,
+            local_binary,
+            binary_sha256,
+            None,
+            None,
+            remote_data_home,
+        )
+    }
+
+    pub fn new_with_license_in_data_home(
+        archive: VerifiedArchive,
+        local_binary: impl Into<PathBuf>,
+        binary_sha256: impl Into<String>,
+        local_license: Option<&Path>,
+        license_sha256: Option<&str>,
         remote_data_home: &Path,
     ) -> Result<Self, SidecarError> {
         let asset = archive.asset();
@@ -79,13 +121,20 @@ impl UploadPlan {
                 "remote XDG data directory must be valid UTF-8 without NUL bytes".to_string(),
             ));
         }
-        let binary_sha256 = binary_sha256.into().to_ascii_lowercase();
-        if binary_sha256.len() != 64 || !binary_sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
-        {
-            return Err(SidecarError::InvalidUploadPlan(
-                "sidecar binary checksum must be 64 hexadecimal characters".to_string(),
-            ));
-        }
+        let binary_sha256 = validated_checksum(binary_sha256.into(), "binary")?;
+        let license = match (asset.license_name, local_license, license_sha256) {
+            (None, None, None) => None,
+            (Some(name), Some(path), Some(checksum)) => Some((
+                name,
+                path.to_path_buf(),
+                validated_checksum(checksum.to_owned(), "license")?,
+            )),
+            _ => {
+                return Err(SidecarError::InvalidUploadPlan(
+                    "sidecar license path and checksum must match the asset declaration".to_owned(),
+                ))
+            }
+        };
 
         let remote_application_directory = remote_data_home.join("blackpepper");
         let sidecars_directory = remote_application_directory.join("sidecars");
@@ -99,6 +148,18 @@ impl UploadPlan {
             &binary_sha256[..12],
             uuid::Uuid::new_v4()
         ));
+        let (local_license, license_sha256, remote_license_temporary, remote_license) =
+            if let Some((name, local, checksum)) = license {
+                let remote = remote_directory.join(name);
+                let temporary = remote_directory.join(format!(
+                    ".{name}.{}.{}.upload",
+                    &checksum[..12],
+                    uuid::Uuid::new_v4()
+                ));
+                (Some(local), Some(checksum), Some(temporary), Some(remote))
+            } else {
+                (None, None, None, None)
+            };
         Ok(Self {
             asset,
             local_binary: local_binary.into(),
@@ -107,6 +168,10 @@ impl UploadPlan {
             remote_directory,
             remote_temporary,
             remote_binary,
+            local_license,
+            license_sha256,
+            remote_license_temporary,
+            remote_license,
         })
     }
 
@@ -133,28 +198,67 @@ impl UploadPlan {
         HostCommand::new("sh").args(["-c".to_string(), format!("umask 077; cat > {target}")])
     }
 
+    pub fn receive_license_command(&self) -> Option<HostCommand> {
+        let target = self.remote_license_temporary.as_ref()?;
+        let target = path_string(target);
+        let target = shell_words::quote(&target);
+        Some(HostCommand::new("sh").args(["-c".to_string(), format!("umask 077; cat > {target}")]))
+    }
+
     pub fn verify_and_commit_command(&self) -> HostCommand {
         let temporary = path_string(&self.remote_temporary);
         let final_path = path_string(&self.remote_binary);
         let temporary = shell_words::quote(&temporary);
         let final_path = shell_words::quote(&final_path);
         let expected = &self.binary_sha256;
-        let script = format!(
+        let mut script = format!(
             "set -eu; actual=$(sha256sum -- {temporary}); actual=${{actual%% *}}; \
              if [ \"$actual\" != \"{expected}\" ]; then \
-             echo 'uploaded sidecar checksum mismatch' >&2; exit 74; fi; \
-             chmod 700 {temporary}; mv -f -- {temporary} {final_path}"
+             echo 'uploaded sidecar checksum mismatch' >&2; exit 74; fi; "
         );
+        if let (Some(license_temporary), Some(license_path), Some(license_expected)) = (
+            &self.remote_license_temporary,
+            &self.remote_license,
+            &self.license_sha256,
+        ) {
+            let license_temporary = path_string(license_temporary);
+            let license_path = path_string(license_path);
+            let license_temporary = shell_words::quote(&license_temporary);
+            let license_path = shell_words::quote(&license_path);
+            script.push_str(&format!(
+                "license_actual=$(sha256sum -- {license_temporary}); license_actual=${{license_actual%% *}}; \
+                 if [ \"$license_actual\" != \"{license_expected}\" ]; then \
+                 echo 'uploaded sidecar license checksum mismatch' >&2; exit 74; fi; \
+                 chmod 600 {license_temporary}; mv -f -- {license_temporary} {license_path}; "
+            ));
+        }
+        script.push_str(&format!(
+            "chmod 700 {temporary}; mv -f -- {temporary} {final_path}"
+        ));
         HostCommand::new("sh").args(["-c".to_string(), script])
     }
 
     pub fn cleanup_command(&self) -> HostCommand {
-        HostCommand::new("rm").args([
+        let mut arguments = vec![
             "-f".to_string(),
             "--".to_string(),
             path_string(&self.remote_temporary),
-        ])
+        ];
+        if let Some(license) = &self.remote_license_temporary {
+            arguments.push(path_string(license));
+        }
+        HostCommand::new("rm").args(arguments)
     }
+}
+
+fn validated_checksum(checksum: String, label: &str) -> Result<String, SidecarError> {
+    let checksum = checksum.to_ascii_lowercase();
+    if checksum.len() != 64 || !checksum.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(SidecarError::InvalidUploadPlan(format!(
+            "sidecar {label} checksum must be 64 hexadecimal characters"
+        )));
+    }
+    Ok(checksum)
 }
 
 fn path_string(path: &Path) -> String {
@@ -164,98 +268,5 @@ fn path_string(path: &Path) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::transport::{release_asset, ManagedTool, SidecarTarget};
-
-    #[test]
-    fn upload_plan_is_versioned_and_verifies_before_atomic_move() {
-        let asset = release_asset(ManagedTool::Zellij, SidecarTarget::LinuxAarch64).unwrap();
-        // Constructing the token through verification prevents planning from an
-        // unverified download. This test asset uses a matching synthetic digest.
-        let synthetic = Box::leak(Box::new(ReleaseAsset {
-            trusted_sha256: Some(
-                "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
-            ),
-            ..asset.clone()
-        }));
-        let verified = synthetic.verify(b"x").unwrap();
-        let plan = UploadPlan::new(
-            verified,
-            "/tmp/zellij",
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            Path::new("/home/dev"),
-        )
-        .unwrap();
-
-        assert_eq!(
-            plan.remote_binary,
-            Path::new("/home/dev/.local/share/blackpepper/sidecars/zellij/0.44.3/aarch64-unknown-linux-musl/zellij")
-        );
-        let command = plan.verify_and_commit_command();
-        assert_eq!(command.program, "sh");
-        assert!(command.args[1].contains("sha256sum"));
-        assert!(command.args[1].contains("exit 74"));
-        assert!(command.args[1].contains("mv -f"));
-
-        let custom = UploadPlan::new_in_data_home(
-            verified,
-            "/tmp/zellij",
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            Path::new("/srv/blackpepper-data"),
-        )
-        .unwrap();
-        assert_eq!(
-            custom.remote_binary,
-            Path::new(
-                "/srv/blackpepper-data/blackpepper/sidecars/zellij/0.44.3/aarch64-unknown-linux-musl/zellij"
-            )
-        );
-        assert!(custom
-            .prepare_command()
-            .args
-            .contains(&"/srv/blackpepper-data/blackpepper".to_string()));
-    }
-
-    #[test]
-    fn upload_plan_rejects_macos_asset_for_linux_remote() {
-        let asset = release_asset(ManagedTool::Zellij, SidecarTarget::MacOsAarch64).unwrap();
-        let synthetic = Box::leak(Box::new(ReleaseAsset {
-            trusted_sha256: Some(
-                "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
-            ),
-            ..asset.clone()
-        }));
-        let verified = synthetic.verify(b"x").unwrap();
-        assert!(UploadPlan::new(
-            verified,
-            "/tmp/zellij",
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            Path::new("/Users/dev"),
-        )
-        .is_err());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn upload_plan_rejects_non_utf8_remote_paths() {
-        use std::os::unix::ffi::OsStrExt;
-
-        let asset = release_asset(ManagedTool::Zellij, SidecarTarget::LinuxAarch64).unwrap();
-        let synthetic = Box::leak(Box::new(ReleaseAsset {
-            trusted_sha256: Some(
-                "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
-            ),
-            ..asset.clone()
-        }));
-        let verified = synthetic.verify(b"x").unwrap();
-        let remote_home = Path::new(std::ffi::OsStr::from_bytes(b"/home/\xff"));
-        assert!(UploadPlan::new(
-            verified,
-            "/tmp/zellij",
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            remote_home,
-        )
-        .is_err());
-    }
-}
+#[path = "sidecar_upload_tests.rs"]
+mod tests;

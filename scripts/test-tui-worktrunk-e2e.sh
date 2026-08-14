@@ -12,6 +12,7 @@ for requirement in git python3 timeout tmux; do
     exit 1
   }
 done
+ZELLIJ_VERSION="$(python3 "$ROOT/scripts/fixtures/zellij_runtime.py" version)"
 [ "$(uname -s)" = Linux ] || {
   printf '%s\n' 'FAIL: guarded Worktrunk process-group acceptance currently requires Linux.' >&2
   exit 1
@@ -59,6 +60,7 @@ TMUX_SESSION='bp-worktrunk-e2e'
 ZELLIJ_SOCKET_ROOT="$TEST_ROOT/zellij-sockets"
 ZELLIJ_BIN=''
 E2E_DATA_HOME="${BLACKPEPPER_WORKTRUNK_E2E_DATA_HOME:-$ROOT/target/tui-local-e2e-data}"
+ZELLIJ_CACHE_ROOT="$E2E_DATA_HOME/blackpepper/sidecars/zellij/$ZELLIJ_VERSION"
 
 trap cleanup_worktrunk_e2e EXIT HUP INT TERM
 install -d -m 0700 \
@@ -101,13 +103,13 @@ assert_worktrunk_screen_has 'SESSION' startup-session
 assert_worktrunk_screen_has 'PORTS' startup-ports
 wait_for_worktrunk_screen 'primary' primary-startup 60
 for _attempt in $(seq 1 200); do
-  ZELLIJ_BIN="$(find "$E2E_DATA_HOME/blackpepper/sidecars/zellij/0.44.3" \
+  ZELLIJ_BIN="$(find "$ZELLIJ_CACHE_ROOT" \
     -type f -name zellij -perm -u+x -print -quit 2>/dev/null || true)"
   [ -n "$ZELLIJ_BIN" ] && break
   sleep 0.1
 done
-[ -x "$ZELLIJ_BIN" ] || fail_worktrunk_e2e 'managed Zellij 0.44.3 was not installed'
-[ "$($ZELLIJ_BIN --version)" = 'zellij 0.44.3' ] ||
+[ -x "$ZELLIJ_BIN" ] || fail_worktrunk_e2e "managed Zellij $ZELLIJ_VERSION was not installed"
+[ "$($ZELLIJ_BIN --version)" = "zellij $ZELLIJ_VERSION" ] ||
   fail_worktrunk_e2e 'managed Zellij version is not exact'
 
 run_worktrunk_tui_command ':worktree open open-me'

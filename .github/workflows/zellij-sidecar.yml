@@ -1,0 +1,486 @@
+name: Build patched Zellij sidecar
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the verified archives as a dedicated prerelease
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: zellij-org/zellij
+          ref: 55a2121b73dce4be624cda425a960e893000777c
+          path: zellij-source
+      - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        with:
+          version: 23.4
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: 1.92.0
+          components: clippy,rustfmt,rust-src
+      - name: Verify and apply Blackpepper patches
+        run: |
+          set -euo pipefail
+          source third_party/zellij/source.env
+          test "$(git -C zellij-source rev-parse HEAD)" = "$ZELLIJ_UPSTREAM_COMMIT"
+          (cd third_party/zellij && sha256sum -c PATCHES.sha256)
+          for patch in third_party/zellij/patches/*.patch; do
+            git -C zellij-source apply --check "$GITHUB_WORKSPACE/$patch"
+            git -C zellij-source apply "$GITHUB_WORKSPACE/$patch"
+          done
+          git -C zellij-source diff --check
+          test "$(sed -nE 's/^version = "([^"]+)"/\1/p' zellij-source/Cargo.toml | head -n1)" = \
+            "$ZELLIJ_RUNTIME_VERSION"
+          blackpepper_runtime_version="$(sed -nE \
+            's/^pub const PATCHED_ZELLIJ_VERSION: &str = "([^"]+)";$/\1/p' \
+            crates/blackpepper/src/transport/sidecar.rs)"
+          test -n "$blackpepper_runtime_version"
+          test "$blackpepper_runtime_version" = "$ZELLIJ_RUNTIME_VERSION"
+      - name: Run focused transport tests
+        working-directory: zellij-source
+        run: |
+          set -euo pipefail
+          run_focused_test() {
+            local package="$1" filter="$2" output
+            output=$(cargo test --locked -p "$package" --lib "$filter" -- --nocapture 2>&1)
+            printf '%s\n' "$output"
+            printf '%s\n' "$output" \
+              | grep -Eq 'test result: ok\. [1-9][0-9]* passed; 0 failed'
+          }
+          run_focused_test zellij-client extracts_focus_events_outside_bracketed_paste
+          run_focused_test zellij-client extracts_fragmented_focus_event
+          run_focused_test zellij-client preserves_focus_sequences_inside_bracketed_paste
+          run_focused_test zellij-utils server_client_contract
+          run_focused_test zellij-server osc9_grid_parses_and_stores_notification
+          run_focused_test zellij-server osc777_notify_grid_parses_and_stores_notification
+          run_focused_test zellij-server legacy_notification_field_is_length_capped
+          run_focused_test zellij-server legacy_notification_canonical_emit_uses_bel_and_fixed_template
+          run_focused_test zellij-server host_terminal_focus_events_reach_opted_in_active_pane
+          run_focused_test zellij-server host_terminal_focus_events_skip_pane_that_did_not_opt_in
+          cargo check --locked -p zellij-client -p zellij-server
+          cargo fmt --all -- --check
+      - name: Generate locked dependency license bundle
+        run: |
+          set -euo pipefail
+          source third_party/zellij/source.env
+          tool_archive="$RUNNER_TEMP/cargo-about-$CARGO_ABOUT_VERSION.crate"
+          tool_parent="$RUNNER_TEMP/cargo-about-source"
+          tool_source="$tool_parent/cargo-about-$CARGO_ABOUT_VERSION"
+          tool_root="$RUNNER_TEMP/cargo-about-install"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            "https://static.crates.io/crates/cargo-about/cargo-about-$CARGO_ABOUT_VERSION.crate" \
+            --output "$tool_archive"
+          printf '%s  %s\n' "$CARGO_ABOUT_CRATE_SHA256" "$tool_archive" \
+            | sha256sum -c -
+          install -d "$tool_parent" "$tool_root" license-dist
+          tar -xzf "$tool_archive" -C "$tool_parent"
+          cargo install --locked --path "$tool_source" --features cli \
+            --root "$tool_root"
+          for target in \
+            x86_64-unknown-linux-musl \
+            aarch64-unknown-linux-musl \
+            x86_64-apple-darwin \
+            aarch64-apple-darwin \
+            wasm32-wasip1; do
+            cargo fetch --locked --manifest-path zellij-source/Cargo.toml \
+              --target "$target"
+          done
+          # cargo-about warns and falls back when a clarification checksum
+          # drifts, even with --fail. Treat any stderr as fatal so a missing
+          # native-library notice cannot silently pass this release gate.
+          generation_log="$RUNNER_TEMP/cargo-about.stderr"
+          if ! "$tool_root/bin/cargo-about" generate \
+              --manifest-path zellij-source/Cargo.toml \
+              --config third_party/zellij/licenses/about.toml \
+              --workspace \
+              --frozen \
+              --fail \
+              --no-default-features \
+              --features 'plugins_from_target vendored_curl' \
+              --output-file license-dist/LICENSES.html \
+              third_party/zellij/licenses/about.hbs \
+              2> "$generation_log"; then
+            cat "$generation_log" >&2
+            exit 1
+          fi
+          if test -s "$generation_log"; then
+            cat "$generation_log" >&2
+            exit 1
+          fi
+          rust_sysroot="$(rustc --print sysroot)"
+          rust_library="$rust_sysroot/share/doc/rust/COPYRIGHT-library.html"
+          libunwind_license="$rust_sysroot/lib/rustlib/src/rust/src/llvm-project/libunwind/LICENSE.TXT"
+          printf '%s  %s\n' "$RUST_LIBRARY_COPYRIGHT_SHA256" "$rust_library" \
+            | sha256sum -c -
+          printf '%s  %s\n' "$RUST_LIBUNWIND_LICENSE_SHA256" \
+            "$libunwind_license" | sha256sum -c -
+          musl_archive="$RUNNER_TEMP/musl-$MUSL_VERSION.tar.gz"
+          musl_copyright="$RUNNER_TEMP/musl-COPYRIGHT"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            "https://musl.libc.org/releases/musl-$MUSL_VERSION.tar.gz" \
+            --output "$musl_archive"
+          printf '%s  %s\n' "$MUSL_ARCHIVE_SHA256" "$musl_archive" \
+            | sha256sum -c -
+          tar -xOf "$musl_archive" "musl-$MUSL_VERSION/COPYRIGHT" \
+            > "$musl_copyright"
+          python3 third_party/zellij/licenses/assemble.py \
+            --licenses license-dist/LICENSES.html \
+            --rust-library "$rust_library" \
+            --musl "$musl_copyright" \
+            --libunwind "$libunwind_license"
+          test -s license-dist/LICENSES.html
+          test "$(wc -c < license-dist/LICENSES.html)" -le 1048576
+          grep -Fq 'Copyright (c) 2020 Zellij contributors' \
+            license-dist/LICENSES.html
+          grep -Fq 'Mozilla Public License 2.0' license-dist/LICENSES.html
+          grep -Fq 'Copyright (c) 1996 - 2023, Daniel Stenberg' \
+            license-dist/LICENSES.html
+          grep -Fq 'Copyright (c) 2012, 2014, 2015, 2016 Tatsuhiro Tsujikawa' \
+            license-dist/LICENSES.html
+          grep -Fq 'Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler' \
+            license-dist/LICENSES.html
+          grep -Fq 'AWS Libcrypto (AWS-LC)' license-dist/LICENSES.html
+          grep -Fq 'Copyright (C) 2017 - 2025, Stephan Mueller' \
+            license-dist/LICENSES.html
+          grep -Fq 'Copyright notices for The Rust Standard Library' \
+            license-dist/LICENSES.html
+          grep -Fq 'Copyright © 2005-2020 Rich Felker, et al.' \
+            license-dist/LICENSES.html
+          grep -Fq 'The LLVM Project is under the Apache License v2.0' \
+            license-dist/LICENSES.html
+          (cd license-dist && sha256sum LICENSES.html > LICENSES.html.sha256)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: patched-zellij-licenses
+          path: license-dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  build:
+    needs: focused-tests
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            cross_image: ghcr.io/cross-rs/x86_64-unknown-linux-musl@sha256:48da142669b71e8a4ef9f01eec80358dd9c8b174732dd672155041fe4a0f9c2d
+          # cross 0.2.5's aarch64-musl container is published for amd64 hosts.
+          - runner: ubuntu-24.04
+            target: aarch64-unknown-linux-musl
+            cross_image: ghcr.io/cross-rs/aarch64-unknown-linux-musl@sha256:53a761857a806b4f73b209a15bf71eacc38a82d5a02e05b166300c4794d7ad83
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            cross_image: host-cargo
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            cross_image: host-cargo
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: zellij-org/zellij
+          ref: 55a2121b73dce4be624cda425a960e893000777c
+          path: zellij-source
+      - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        with:
+          version: 23.4
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: 1.92.0
+          targets: ${{ matrix.target }},wasm32-wasip1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: patched-zellij-licenses
+          path: generated-license
+      - name: Verify and apply Blackpepper patches
+        run: |
+          set -euo pipefail
+          source third_party/zellij/source.env
+          test "$(git -C zellij-source rev-parse HEAD)" = "$ZELLIJ_UPSTREAM_COMMIT"
+          if command -v sha256sum >/dev/null 2>&1; then
+            (cd third_party/zellij && sha256sum -c PATCHES.sha256)
+          else
+            (cd third_party/zellij && shasum -a 256 -c PATCHES.sha256)
+          fi
+          for patch in third_party/zellij/patches/*.patch; do
+            git -C zellij-source apply --check "$GITHUB_WORKSPACE/$patch"
+            git -C zellij-source apply "$GITHUB_WORKSPACE/$patch"
+          done
+          git -C zellij-source diff --check
+      - name: Build release binary
+        working-directory: zellij-source
+        env:
+          CROSS_TARGET_X86_64_UNKNOWN_LINUX_MUSL_IMAGE: ${{ matrix.target == 'x86_64-unknown-linux-musl' && matrix.cross_image || '' }}
+          CROSS_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_IMAGE: ${{ matrix.target == 'aarch64-unknown-linux-musl' && matrix.cross_image || '' }}
+        run: cargo xtask ci cross "${{ matrix.target }}" --no-web
+      - name: Enable pinned ARM64 emulation for runtime verification
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          image: docker.io/tonistiigi/binfmt@sha256:2d2918e86e5327d0661f7083d67a95280b0f7be8f77ed79a8418f81d7d90ce6f
+          platforms: arm64
+          cache-image: false
+      - name: Package verified artifact
+        env:
+          SIDECAR_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          source third_party/zellij/source.env
+          checksum() {
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$@"
+            else
+              shasum -a 256 "$@"
+            fi
+          }
+          binary="zellij-source/target/$SIDECAR_TARGET/release/zellij"
+          test -x "$binary"
+          binary_description="$(file -b "$binary")"
+          case "$SIDECAR_TARGET" in
+            x86_64-unknown-linux-musl)
+              printf '%s\n' "$binary_description" \
+                | grep -Eq 'ELF 64-bit LSB.*x86-64.*static'
+              ;;
+            aarch64-unknown-linux-musl)
+              test "$(uname -m)" = x86_64
+              printf '%s\n' "$binary_description" \
+                | grep -Eq 'ELF 64-bit LSB.*ARM aarch64.*static'
+              ;;
+            x86_64-apple-darwin)
+              test "$(uname -m)" = x86_64
+              printf '%s\n' "$binary_description" \
+                | grep -Eq 'Mach-O 64-bit executable x86_64'
+              ;;
+            aarch64-apple-darwin)
+              test "$(uname -m)" = arm64
+              printf '%s\n' "$binary_description" \
+                | grep -Eq 'Mach-O 64-bit executable arm64'
+              ;;
+            *)
+              printf 'Unexpected sidecar target: %s\n' "$SIDECAR_TARGET" >&2
+              exit 1
+              ;;
+          esac
+          test "$("$binary" --version)" = "zellij $ZELLIJ_RUNTIME_VERSION"
+          install -d dist
+          license="generated-license/LICENSES.html"
+          license_digest="$(checksum "$license" | awk '{print $1}')"
+          expected_license_digest="$(awk '{print $1}' \
+            generated-license/LICENSES.html.sha256)"
+          test "$license_digest" = "$expected_license_digest"
+          install -m 0644 "$license" "$(dirname "$binary")/LICENSES.html"
+          archive_name="zellij-$SIDECAR_TARGET.tar.gz"
+          archive="dist/$archive_name"
+          tar -czf "$archive" -C "$(dirname "$binary")" zellij LICENSES.html
+          archive_digest="$(checksum "$archive" | awk '{print $1}')"
+          binary_digest="$(checksum "$binary" | awk '{print $1}')"
+          printf '%s  %s\n' "$archive_digest" "$archive_name" > "$archive.sha256"
+          printf '%s  zellij\n' "$binary_digest" \
+            > "dist/zellij-$SIDECAR_TARGET.binary.sha256"
+          cp "$license" dist/LICENSES.html
+          printf '%s  LICENSES.html\n' "$license_digest" \
+            > dist/LICENSES.html.sha256
+          {
+            printf 'upstream_repository=%s\n' "$ZELLIJ_UPSTREAM_REPOSITORY"
+            printf 'upstream_commit=%s\n' "$ZELLIJ_UPSTREAM_COMMIT"
+            printf 'runtime_version=%s\n' "$ZELLIJ_RUNTIME_VERSION"
+            printf 'target=%s\n' "$SIDECAR_TARGET"
+            printf 'cross_image=%s\n' '${{ matrix.cross_image }}'
+            printf 'license_bundle_sha256=%s\n' "$license_digest"
+            printf 'cargo_about_version=%s\n' "$CARGO_ABOUT_VERSION"
+            printf 'cargo_about_crate_sha256=%s\n' \
+              "$CARGO_ABOUT_CRATE_SHA256"
+            printf 'license_config_sha256=%s\n' \
+              "$(checksum third_party/zellij/licenses/about.toml | awk '{print $1}')"
+            printf 'license_template_sha256=%s\n' \
+              "$(checksum third_party/zellij/licenses/about.hbs | awk '{print $1}')"
+            printf 'license_assembler_sha256=%s\n' \
+              "$(checksum third_party/zellij/licenses/assemble.py | awk '{print $1}')"
+            printf 'rust_library_copyright_sha256=%s\n' \
+              "$RUST_LIBRARY_COPYRIGHT_SHA256"
+            printf 'rust_libunwind_license_sha256=%s\n' \
+              "$RUST_LIBUNWIND_LICENSE_SHA256"
+            printf 'musl_version=%s\n' "$MUSL_VERSION"
+            printf 'musl_archive_sha256=%s\n' "$MUSL_ARCHIVE_SHA256"
+            rustc --version
+            cargo --version
+            protoc --version
+            printf 'mandown=1.1.0 (Cargo.lock enforced)\n'
+            printf 'cross=0.2.5 (Cargo.lock enforced)\n'
+            printf '\npatches:\n'
+            cat third_party/zellij/PATCHES.sha256
+          } > "dist/zellij-$SIDECAR_TARGET.provenance.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: zellij-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    if: inputs.publish
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: zellij-sidecar-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: zellij-*
+          path: downloaded
+      - name: Verify the complete release set
+        run: |
+          set -euo pipefail
+          source third_party/zellij/source.env
+          install -d dist verify
+          first_license=
+          for target in \
+            x86_64-unknown-linux-musl \
+            aarch64-unknown-linux-musl \
+            x86_64-apple-darwin \
+            aarch64-apple-darwin; do
+            source_dir="downloaded/zellij-$target"
+            archive="zellij-$target.tar.gz"
+            for file in \
+              "$archive" \
+              "$archive.sha256" \
+              "zellij-$target.binary.sha256" \
+              "zellij-$target.provenance.txt" \
+              LICENSES.html \
+              LICENSES.html.sha256; do
+              test -f "$source_dir/$file"
+            done
+            cp "$source_dir/$archive" "$source_dir/$archive.sha256" \
+              "$source_dir/zellij-$target.binary.sha256" \
+              "$source_dir/zellij-$target.provenance.txt" dist/
+            if [ -z "$first_license" ]; then
+              cp "$source_dir/LICENSES.html" "$source_dir/LICENSES.html.sha256" \
+                dist/
+              first_license="$source_dir/LICENSES.html"
+            else
+              cmp -s "$first_license" "$source_dir/LICENSES.html"
+              cmp -s dist/LICENSES.html.sha256 \
+                "$source_dir/LICENSES.html.sha256"
+            fi
+            test "$(tar -tzf "dist/$archive" | LC_ALL=C sort)" = \
+              "$(printf '%s\n' LICENSES.html zellij | LC_ALL=C sort)"
+            install -d "verify/$target"
+            tar -xzf "dist/$archive" -C "verify/$target"
+            (cd dist && sha256sum -c "$archive.sha256")
+            (cd "verify/$target" && \
+              sha256sum -c "../../dist/zellij-$target.binary.sha256")
+            (cd "verify/$target" && \
+              sha256sum -c ../../dist/LICENSES.html.sha256)
+            test "$(sed -n 's/^runtime_version=//p' \
+              "dist/zellij-$target.provenance.txt")" = "$ZELLIJ_RUNTIME_VERSION"
+            test "$(sed -n 's/^target=//p' \
+              "dist/zellij-$target.provenance.txt")" = "$target"
+            test "$(sed -n 's/^upstream_repository=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$ZELLIJ_UPSTREAM_REPOSITORY"
+            test "$(sed -n 's/^upstream_commit=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$ZELLIJ_UPSTREAM_COMMIT"
+            test "$(sed -n 's/^license_bundle_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$(awk '{print $1}' dist/LICENSES.html.sha256)"
+            test "$(sed -n 's/^cargo_about_version=//p' \
+              "dist/zellij-$target.provenance.txt")" = "$CARGO_ABOUT_VERSION"
+            test "$(sed -n 's/^cargo_about_crate_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$CARGO_ABOUT_CRATE_SHA256"
+            test "$(sed -n 's/^license_config_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$(sha256sum third_party/zellij/licenses/about.toml | awk '{print $1}')"
+            test "$(sed -n 's/^license_template_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$(sha256sum third_party/zellij/licenses/about.hbs | awk '{print $1}')"
+            test "$(sed -n 's/^license_assembler_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$(sha256sum third_party/zellij/licenses/assemble.py | awk '{print $1}')"
+            test "$(sed -n 's/^rust_library_copyright_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$RUST_LIBRARY_COPYRIGHT_SHA256"
+            test "$(sed -n 's/^rust_libunwind_license_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$RUST_LIBUNWIND_LICENSE_SHA256"
+            test "$(sed -n 's/^musl_version=//p' \
+              "dist/zellij-$target.provenance.txt")" = "$MUSL_VERSION"
+            test "$(sed -n 's/^musl_archive_sha256=//p' \
+              "dist/zellij-$target.provenance.txt")" = \
+              "$MUSL_ARCHIVE_SHA256"
+            sed -n '/^patches:$/,$p' \
+              "dist/zellij-$target.provenance.txt" \
+              > "verify/$target/patches.txt"
+            {
+              printf 'patches:\n'
+              cat third_party/zellij/PATCHES.sha256
+            } > "verify/$target/expected-patches.txt"
+            cmp -s "verify/$target/expected-patches.txt" \
+              "verify/$target/patches.txt"
+          done
+          test "$(wc -c < dist/LICENSES.html)" -le 1048576
+          (cd dist && sha256sum -c LICENSES.html.sha256)
+          cp third_party/zellij/source.env dist/zellij-source.env
+          cp third_party/zellij/PATCHES.sha256 dist/zellij-patches.sha256
+          (cd dist && sha256sum -- zellij-*.tar.gz > SHA256SUMS)
+      - name: Publish a new checksum-pinned prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source third_party/zellij/source.env
+          tag="zellij-v$ZELLIJ_RUNTIME_VERSION"
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            printf 'Refusing to publish from non-main ref %s\n' "$GITHUB_REF" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code origin "refs/tags/$tag" >/dev/null 2>&1 \
+            || gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            printf 'Refusing to reuse dependency tag %s\n' "$tag" >&2
+            exit 1
+          fi
+          gh release create "$tag" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Blackpepper Zellij $ZELLIJ_RUNTIME_VERSION" \
+            --notes "Private Zellij runtime for Blackpepper. Built from the pinned source and patches included in this release." \
+            --draft \
+            --prerelease \
+            --latest=false
+          gh release edit "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --prerelease \
+            --latest=false
+          release_path="repos/$GITHUB_REPOSITORY/releases/tags/$tag"
+          test "$(gh api "$release_path" --jq .draft)" = false
+          test "$(gh api "$release_path" --jq .prerelease)" = true
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" \
+            --jq .tag_name)" != "$tag"
+          test "$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}')" = \
+            "$GITHUB_SHA"

@@ -171,6 +171,7 @@ fn handle_raw(state: &mut ClientState, runtime: &mut ClientRuntime, bytes: &[u8]
     if bytes.is_empty() {
         return;
     }
+    state.outer_focus.observe(bytes);
     if state.mode == ClientMode::Authenticate {
         if let Some(host_id) = state.authentication_host {
             if let Err(error) = runtime.send_authentication_input(host_id, bytes) {

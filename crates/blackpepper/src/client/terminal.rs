@@ -1,3 +1,6 @@
+mod focus;
+mod query;
+
 use crate::core::WorkspaceId;
 use crate::terminal::{
     osc::{clipboard_write_sequence, ClipboardTarget, OscAction, OscProtocol},
@@ -14,6 +17,8 @@ use std::thread;
 use vt100::Parser;
 
 use super::{mouse::MouseInputProtocol, ClientEvent};
+use focus::VisibilityFocus;
+use query::TerminalQueryProtocol;
 
 pub struct EmbeddedTerminal {
     workspace_id: WorkspaceId,
@@ -24,6 +29,7 @@ pub struct EmbeddedTerminal {
     cols: u16,
     osc: OscProtocol,
     terminal_queries: TerminalQueryProtocol,
+    visibility_focus: VisibilityFocus,
     mouse_input: MouseInputProtocol,
     event_tx: Sender<ClientEvent>,
 }
@@ -51,6 +57,7 @@ impl EmbeddedTerminal {
             cols: cols.max(1),
             osc: OscProtocol::new(foreground, background),
             terminal_queries: TerminalQueryProtocol::default(),
+            visibility_focus: VisibilityFocus::default(),
             mouse_input: MouseInputProtocol::default(),
             event_tx,
         })
@@ -65,12 +72,16 @@ impl EmbeddedTerminal {
     }
 
     pub fn process_bytes(&mut self, bytes: &[u8]) {
+        let was_focus_reporting = self.terminal_queries.focus_reporting();
         for response in self.terminal_queries.process(bytes, self.rows, self.cols) {
             if let Err(error) = self.process.write_all(&response) {
                 self.report_notice(format!(
                     "The embedded terminal could not answer a size query: {error}"
                 ));
             }
+        }
+        if was_focus_reporting && !self.terminal_queries.focus_reporting() {
+            self.visibility_focus.reset();
         }
         for action in self.osc.process(bytes) {
             match action {
@@ -81,12 +92,19 @@ impl EmbeddedTerminal {
                         ));
                     }
                 }
+                OscAction::WriteToOuter(sequence) => {
+                    if let Err(error) = write_outer_terminal(&sequence) {
+                        self.report_notice(format!(
+                            "The embedded terminal could not forward a terminal signal: {error}"
+                        ));
+                    }
+                }
                 OscAction::SetClipboard { target, text } => {
                     if let Some(message) = dispatch_clipboard(
                         target,
                         &text,
                         set_native_clipboard,
-                        write_outer_clipboard,
+                        write_outer_terminal,
                     ) {
                         self.report_notice(message);
                     }
@@ -113,6 +131,8 @@ impl EmbeddedTerminal {
         );
         if !translated.bytes.is_empty() {
             self.process.write_all(&translated.bytes)?;
+            self.visibility_focus
+                .observe_forwarded(&translated.bytes, self.terminal_queries.focus_reporting());
         }
         Ok(translated.shell_clicked)
     }
@@ -141,6 +161,36 @@ impl EmbeddedTerminal {
 
     pub fn input_modes(&self) -> InputModes {
         InputModes::from_screen(self.parser.screen())
+            .with_focus_reporting(self.terminal_queries.focus_reporting())
+    }
+
+    /// Keep each live Zellij client aligned with whether its canvas is really
+    /// visible. Hidden clients do not receive the outer terminal's raw focus
+    /// events, so they need one synthetic FocusOut; the visible client receives
+    /// FocusIn only while the real terminal window is focused.
+    pub(crate) fn sync_visibility_focus(&mut self, displayed: bool, outer_focused: bool) {
+        if !self.terminal_queries.focus_reporting() {
+            self.visibility_focus.reset();
+            return;
+        }
+        let desired = displayed && outer_focused;
+        if self.visibility_focus.delivered == Some(desired) {
+            return;
+        }
+        let sequence: &[u8] = if desired { b"\x1b[I" } else { b"\x1b[O" };
+        // Record the attempted state even on failure: otherwise the notice
+        // event would immediately retry, fail, and enqueue another notice.
+        self.visibility_focus.record(desired);
+        if let Err(error) = self.process.write_all(sequence) {
+            self.report_notice(format!(
+                "The embedded terminal could not synchronize focus: {error}"
+            ));
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn visibility_focus_history_for_test(&self) -> &[bool] {
+        &self.visibility_focus.history
     }
 
     fn report_notice(&self, message: String) {
@@ -177,13 +227,13 @@ fn set_native_clipboard(_target: ClipboardTarget, text: &str) -> Result<(), Stri
         .map_err(|error| format!("could not write the system clipboard: {error}"))
 }
 
-fn write_outer_clipboard(sequence: &[u8]) -> Result<(), String> {
+fn write_outer_terminal(sequence: &[u8]) -> Result<(), String> {
     let stdout = io::stdout();
     let mut output = stdout.lock();
     output
         .write_all(sequence)
         .and_then(|()| output.flush())
-        .map_err(|error| format!("could not write OSC 52 to the outer terminal: {error}"))
+        .map_err(|error| format!("could not write to the outer terminal: {error}"))
 }
 
 fn dispatch_clipboard(
@@ -204,74 +254,6 @@ fn dispatch_clipboard(
         (Ok(()), _) => Some("Copied.".to_owned()),
         (Err(_), Ok(())) => Some("Copy sent to your terminal.".to_owned()),
         (Err(_), Err(_)) => Some("Copy failed.".to_owned()),
-    }
-}
-
-/// Replies to terminal-window queries that an embedded application would
-/// normally send directly to a hardware terminal emulator.
-///
-/// Zellij uses the PTY window size for its primary sizing path, but terminal
-/// applications are also allowed to request the text-area size with CSI 18 t.
-/// Blackpepper consumes the escape stream instead of forwarding it to an outer
-/// emulator, so it must answer this query itself.
-#[derive(Default)]
-struct TerminalQueryProtocol {
-    pending: Vec<u8>,
-}
-
-impl TerminalQueryProtocol {
-    fn process(&mut self, bytes: &[u8], rows: u16, cols: u16) -> Vec<Vec<u8>> {
-        const MAX_SEQUENCE: usize = 64;
-
-        if bytes.is_empty() {
-            return Vec::new();
-        }
-        let combined;
-        let input = if self.pending.is_empty() {
-            bytes
-        } else {
-            combined = [self.pending.as_slice(), bytes].concat();
-            self.pending.clear();
-            &combined
-        };
-        let mut replies = Vec::new();
-        let mut cursor = 0;
-        while cursor < input.len() {
-            let Some(offset) = input[cursor..].iter().position(|byte| *byte == 0x1b) else {
-                break;
-            };
-            let start = cursor + offset;
-            if start + 1 >= input.len() {
-                self.pending.extend_from_slice(&input[start..]);
-                break;
-            }
-            if input[start + 1] != b'[' {
-                cursor = start + 2;
-                continue;
-            }
-            let mut end = start + 2;
-            while end < input.len()
-                && !(0x40..=0x7e).contains(&input[end])
-                && end - start < MAX_SEQUENCE
-            {
-                end += 1;
-            }
-            if end >= input.len() {
-                if input.len() - start <= MAX_SEQUENCE {
-                    self.pending.extend_from_slice(&input[start..]);
-                }
-                break;
-            }
-            if end - start >= MAX_SEQUENCE {
-                cursor = end;
-                continue;
-            }
-            if input[end] == b't' && &input[start + 2..end] == b"18" {
-                replies.push(format!("\x1b[8;{};{}t", rows.max(1), cols.max(1)).into_bytes());
-            }
-            cursor = end + 1;
-        }
-        replies
     }
 }
 

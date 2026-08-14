@@ -11,6 +11,7 @@ use std::io::{self, Write};
 // Repeating these terminal operations is safe, which also makes recovery from
 // a partially written escape sequence conservative.
 const CONSERVATIVE_INPUT_RESET: &[u8] = b"\x1b[0m\x1b>\x1b[?1l\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1007l\x1b[?1015l\x1b[?1016l\x1b[?2004l";
+const ENABLE_FOCUS_REPORTING: &[u8] = b"\x1b[?1004h";
 const LEAVE_ALTERNATE_SCREEN: &[u8] = b"\x1b[?1049l";
 const SHOW_CURSOR: &[u8] = b"\x1b[?25h";
 
@@ -42,9 +43,26 @@ impl TerminalSessionGuard {
     }
 
     pub(super) fn enter_alternate_screen(&mut self, writer: &mut impl Write) -> io::Result<()> {
+        self.enter_alternate_screen_with(writer, |writer| {
+            writer.execute(EnterAlternateScreen).map(|_| ())
+        })
+    }
+
+    fn enter_alternate_screen_with(
+        &mut self,
+        writer: &mut impl Write,
+        enter: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+    ) -> io::Result<()> {
         self.alternate_screen_armed = true;
+        self.input_modes_armed = true;
         self.flush_armed = true;
-        writer.execute(EnterAlternateScreen).map(|_| ())
+        enter(writer)?;
+        // Blackpepper itself must receive FocusIn/FocusOut even before an
+        // embedded Zellij client asks for them. Otherwise a workspace first
+        // attached while the outer terminal is already unfocused starts its agent as
+        // focused and suppresses the completion notification.
+        writer.write_all(ENABLE_FOCUS_REPORTING)?;
+        writer.flush()
     }
 
     pub(super) fn hide_cursor(&mut self, writer: &mut impl Write) -> io::Result<()> {

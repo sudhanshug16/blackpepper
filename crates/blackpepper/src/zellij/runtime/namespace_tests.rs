@@ -1,18 +1,14 @@
-use std::collections::VecDeque;
 use std::path::Path;
-use std::time::Duration;
-
-use portable_pty::PtySize;
-
-use crate::transport::{
-    CommandOutput, HostCommand, HostKind, HostTransport, LocalForward, PtyProcess, RunningCommand,
-    TransportError,
-};
 
 use super::{ZellijRuntime, DEVELOPMENT_SOCKET_OVERRIDE};
 use crate::zellij::ZellijError;
 
 use super::namespace::candidate_directories_for_test;
+
+mod candidates;
+mod support;
+
+use support::*;
 
 #[test]
 fn resolver_adopts_the_only_live_legacy_namespace() {
@@ -113,6 +109,32 @@ fn namespace_resolution_preserves_the_selected_configuration() {
 }
 
 #[test]
+fn branded_runtime_uses_the_standard_legacy_namespace() {
+    let runtime = ZellijRuntime::for_version(
+        "/opt/blackpepper-zellij",
+        crate::transport::PATCHED_ZELLIJ_VERSION,
+    )
+    .unwrap();
+    let mut host = ScriptedTransport::new([
+        metadata("1003", "", "", "", ""),
+        missing_socket(),
+        missing_socket(),
+    ]);
+
+    let (resolved, active) = runtime
+        .resolve_session_namespace(&mut host, "bp-workspace-version-hash")
+        .unwrap();
+
+    assert!(!active);
+    assert_eq!(host.commands[1].args[3], "/tmp/zellij-1003");
+    assert_eq!(host.commands[2].args[3], "/run/user/1003/zellij");
+    assert_eq!(
+        resolved.socket_directory.as_deref(),
+        Some("/tmp/zellij-1003")
+    );
+}
+
+#[test]
 fn resolver_adopts_the_hosts_legacy_temp_directory() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let mut host = ScriptedTransport::new([
@@ -180,93 +202,6 @@ fn unusable_legacy_root_does_not_hide_a_live_canonical_session() {
 }
 
 #[test]
-fn development_override_is_the_exclusive_test_namespace() {
-    let candidates = candidate_directories_for_test(
-        "1003",
-        None,
-        Some("/legacy/xdg"),
-        Some("/isolated/e2e"),
-        Some("/legacy/native"),
-        true,
-    )
-    .unwrap();
-
-    assert_eq!(candidates, ["/isolated/e2e"]);
-}
-
-#[test]
-fn production_ignores_the_internal_test_override() {
-    let candidates = candidate_directories_for_test(
-        "1003",
-        None,
-        None,
-        Some("/isolated/e2e"),
-        Some("/legacy/native"),
-        false,
-    )
-    .unwrap();
-
-    assert_eq!(
-        candidates,
-        [
-            "/tmp/zellij-1003",
-            "/run/user/1003/zellij",
-            "/legacy/native"
-        ]
-    );
-}
-
-#[test]
-fn candidates_include_host_temp_fallback_and_normalize_aliases() {
-    let candidates = candidate_directories_for_test(
-        "1003",
-        Some("/private/var/folders/user//"),
-        Some("/run/user/1003/./"),
-        None,
-        Some("/tmp/zellij-1003/"),
-        false,
-    )
-    .unwrap();
-
-    assert_eq!(
-        candidates,
-        [
-            "/tmp/zellij-1003",
-            "/private/var/folders/user/zellij-1003",
-            "/run/user/1003/zellij"
-        ]
-    );
-}
-
-#[test]
-fn nul_framing_keeps_malformed_legacy_values_out_of_other_fields() {
-    let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
-    let mut metadata =
-        b"1003\0/tmp\nmalformed\0relative-xdg\0ignored\nproduction\0relative-native\0".to_vec();
-    metadata[0] = b'1';
-    let mut host = ScriptedTransport::new([
-        CommandOutput {
-            success: true,
-            status: Some(0),
-            stdout: metadata,
-            stderr: Vec::new(),
-        },
-        missing_socket(),
-        missing_socket(),
-    ]);
-
-    let (resolved, active) = runtime
-        .resolve_session_namespace(&mut host, "repo-main")
-        .unwrap();
-
-    assert!(!active);
-    assert_eq!(
-        resolved.socket_directory.as_deref(),
-        Some("/tmp/zellij-1003")
-    );
-}
-
-#[test]
 fn absent_session_uses_canonical_namespace_and_forgets_cached_resurrection() {
     let runtime = ZellijRuntime::new("/opt/zellij").unwrap();
     let mut host = ScriptedTransport::new([
@@ -310,131 +245,4 @@ fn absent_session_uses_canonical_namespace_and_forgets_cached_resurrection() {
         create.env.get("ZELLIJ_SOCKET_DIR").map(String::as_str),
         Some("/tmp/zellij-1003")
     );
-}
-
-fn metadata(uid: &str, temporary: &str, xdg: &str, internal: &str, native: &str) -> CommandOutput {
-    success(&format!(
-        "{uid}\0{temporary}\0{xdg}\0{internal}\0{native}\0"
-    ))
-}
-
-fn active_session() -> CommandOutput {
-    success("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n")
-}
-
-fn missing_no_sessions() -> CommandOutput {
-    CommandOutput {
-        success: false,
-        status: Some(1),
-        stdout: Vec::new(),
-        stderr: b"There is no active session!\n".to_vec(),
-    }
-}
-
-fn missing_socket() -> CommandOutput {
-    CommandOutput {
-        success: false,
-        status: Some(3),
-        stdout: Vec::new(),
-        stderr: Vec::new(),
-    }
-}
-
-fn physical_directory(path: &str) -> CommandOutput {
-    success(&format!("{path}\n"))
-}
-
-fn missing_named(session: &str) -> CommandOutput {
-    CommandOutput {
-        success: true,
-        status: Some(0),
-        stdout: b"some-other-session\n".to_vec(),
-        stderr: format!("Session '{session}' not found. The following sessions are active:\n")
-            .into_bytes(),
-    }
-}
-
-fn success(stdout: &str) -> CommandOutput {
-    CommandOutput {
-        success: true,
-        status: Some(0),
-        stdout: stdout.as_bytes().to_vec(),
-        stderr: Vec::new(),
-    }
-}
-
-fn socket_directory(command: &HostCommand) -> &str {
-    command
-        .env
-        .get("ZELLIJ_SOCKET_DIR")
-        .expect("resolved commands pin the socket directory")
-}
-
-fn zellij_arguments(command: &HostCommand) -> &[String] {
-    &command.args
-}
-
-struct ScriptedTransport {
-    outputs: VecDeque<CommandOutput>,
-    commands: Vec<HostCommand>,
-}
-
-impl ScriptedTransport {
-    fn new(outputs: impl IntoIterator<Item = CommandOutput>) -> Self {
-        Self {
-            outputs: outputs.into_iter().collect(),
-            commands: Vec::new(),
-        }
-    }
-}
-
-impl HostTransport for ScriptedTransport {
-    fn kind(&self) -> HostKind {
-        HostKind::Local
-    }
-
-    fn spawn_exec(&mut self, _command: &HostCommand) -> Result<RunningCommand, TransportError> {
-        Err(TransportError::Unsupported("not used by this test"))
-    }
-
-    fn spawn_exec_with_stdin(
-        &mut self,
-        _command: &HostCommand,
-    ) -> Result<RunningCommand, TransportError> {
-        Err(TransportError::Unsupported("not used by this test"))
-    }
-
-    fn attach_pty(
-        &mut self,
-        _command: &HostCommand,
-        _size: PtySize,
-    ) -> Result<PtyProcess, TransportError> {
-        Err(TransportError::Unsupported("not used by this test"))
-    }
-
-    fn forward_local_port(
-        &mut self,
-        _forward: LocalForward,
-    ) -> Result<LocalForward, TransportError> {
-        Err(TransportError::Unsupported("not used by this test"))
-    }
-
-    fn cancel_local_forward(&mut self, _forward: &LocalForward) -> Result<(), TransportError> {
-        Err(TransportError::Unsupported("not used by this test"))
-    }
-
-    fn exec(&mut self, command: &HostCommand) -> Result<CommandOutput, TransportError> {
-        self.commands.push(command.clone());
-        self.outputs
-            .pop_front()
-            .ok_or(TransportError::Unsupported("unexpected command"))
-    }
-
-    fn exec_timeout(
-        &mut self,
-        command: &HostCommand,
-        _timeout: Duration,
-    ) -> Result<CommandOutput, TransportError> {
-        self.exec(command)
-    }
 }

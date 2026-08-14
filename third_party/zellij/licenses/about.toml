@@ -1,0 +1,95 @@
+# Every accepted license is permissive or file-level copyleft and is present in
+# the pinned Zellij workspace graph. `cargo about --fail` rejects anything else.
+accepted = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "MPL-2.0",
+    "BSD-3-Clause",
+    "0BSD",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "curl",
+    "LicenseRef-AWS-LC-Notice",
+]
+
+# Cover the four distributed native binaries and their embedded WASM plugins.
+targets = [
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "wasm32-wasip1",
+]
+ignore-build-dependencies = false
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+
+# These packages need cargo-about's checksum-backed license clarifications.
+workarounds = ["rustix", "wasmtime"]
+
+[unicode-ident]
+accepted = ["Unicode-DFS-2016"]
+
+# cargo-about normally sees only the Rust wrapper licenses for `-sys` crates.
+# These checksum-backed clarifications also carry the notices for native source
+# that the locked build compiles into the distributed executable.
+[curl-sys.clarify]
+license = "MIT AND curl"
+
+[[curl-sys.clarify.files]]
+path = "LICENSE"
+license = "MIT"
+checksum = "f96def8cba2793fb8582fd12ca6d4dc0ef4ee239e8c3f80e809ec43648da6199"
+
+[[curl-sys.clarify.files]]
+path = "curl/COPYING"
+license = "curl"
+checksum = "b1d7feb949ea5023552029fbe0bf5db4f23c2f85e9b8e51e18536f0ecbf9c524"
+
+[libnghttp2-sys.clarify]
+license = "MIT"
+
+[[libnghttp2-sys.clarify.files]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+
+[[libnghttp2-sys.clarify.files]]
+path = "nghttp2/COPYING"
+license = "MIT"
+checksum = "6b94f3abc1aabd0c72a7c7d92a77f79dda7c8a0cb3df839a97890b4116a2de2a"
+
+[libz-sys.clarify]
+license = "MIT AND Zlib"
+
+[[libz-sys.clarify.files]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "34c467b6945a22696d060b8fdd2379d464acb3408d4c599d3dc5fe4fa1b4c84f"
+
+[[libz-sys.clarify.files]]
+path = "src/zlib/zlib.h"
+license = "Zlib"
+checksum = "531476dbeb3455a94008fbca6780207c4080870c06f279ccd7a4e7329f844124"
+start = "Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler"
+end = "madler@alumni.caltech.edu"
+
+[openssl-src.clarify]
+license = "Apache-2.0"
+
+[[openssl-src.clarify.files]]
+path = "openssl/LICENSE.txt"
+license = "Apache-2.0"
+checksum = "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+
+[aws-lc-sys.clarify]
+license = "ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0) AND LicenseRef-AWS-LC-Notice"
+
+[[aws-lc-sys.clarify.files]]
+path = "LICENSE"
+license = "LicenseRef-AWS-LC-Notice"
+checksum = "728536b4160e051f86d7c9c388f704866b3d512cd7df97ac3516c65279523c4e"

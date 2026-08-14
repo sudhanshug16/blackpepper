@@ -16,6 +16,7 @@ mod restore;
 mod services;
 mod session_lease;
 mod startup;
+mod terminal_identity;
 #[cfg(test)]
 mod test_support;
 mod workspace;

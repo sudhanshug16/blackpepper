@@ -7,6 +7,12 @@ struct ShortWriter {
     maximum_write: usize,
 }
 
+#[test]
+fn upload_deadline_scales_for_large_binaries() {
+    assert_eq!(upload_deadline(8 * 1024 * 1024), Duration::from_secs(120));
+    assert_eq!(upload_deadline(64 * 1024 * 1024), Duration::from_secs(512));
+}
+
 impl Write for ShortWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         let accepted = buffer.len().min(self.maximum_write);

@@ -52,9 +52,14 @@ jobs:
           for source in (
               Path("scripts/test-macos-ssh-pty-e2e.py"),
               Path("scripts/fixtures/macos-ssh-pty/pty_client.py"),
+              Path("scripts/fixtures/macos-ssh-pty/remote_harness.py"),
+              Path("scripts/fixtures/zellij_runtime.py"),
           ):
               ast.parse(source.read_text(), filename=str(source))
           PY
+          python3 scripts/fixtures/zellij_runtime.py version >/dev/null
+          python3 scripts/fixtures/zellij_runtime.py \
+            asset x86_64-unknown-linux-musl >/dev/null
           scripts/test-installer.sh
           scripts/test-dev-installer.sh
           scripts/test-web-dev.sh
@@ -79,12 +84,12 @@ jobs:
       - name: SSH TUI acceptance
         env:
           BLACKPEPPER_E2E_BP: ${{ github.workspace }}/target/debug/bp
-          BLACKPEPPER_E2E_ZELLIJ_SEED: ${{ github.workspace }}/target/tui-local-e2e-data/blackpepper/sidecars/zellij/0.44.3/x86_64-unknown-linux-musl
+          BLACKPEPPER_E2E_ZELLIJ_SEED_DATA_HOME: ${{ github.workspace }}/target/tui-local-e2e-data
         run: scripts/test-tui-ssh-e2e.sh
       - name: SSH ProxyJump and host-key security acceptance
         env:
           BLACKPEPPER_E2E_BP: ${{ github.workspace }}/target/debug/bp
-          BLACKPEPPER_E2E_ZELLIJ_SEED: ${{ github.workspace }}/target/tui-local-e2e-data/blackpepper/sidecars/zellij/0.44.3/x86_64-unknown-linux-musl
+          BLACKPEPPER_E2E_ZELLIJ_SEED_DATA_HOME: ${{ github.workspace }}/target/tui-local-e2e-data
         run: scripts/test-tui-ssh-matrix-e2e.sh
 
   macos:

@@ -13,6 +13,7 @@ for requirement in tmux python3 timeout; do
     exit 1
   }
 done
+ZELLIJ_VERSION="$(python3 "$ROOT/scripts/fixtures/zellij_runtime.py" version)"
 
 BP_CANDIDATE="${BLACKPEPPER_TERMINAL_E2E_BP:-$(command -v bp-dev 2>/dev/null || true)}"
 if [ -z "$BP_CANDIDATE" ] || [ ! -x "$BP_CANDIDATE" ]; then
@@ -45,7 +46,26 @@ ZELLIJ_SOCKET_ROOT="$TEST_ROOT/z"
 LISTENER_PID=''
 SECOND_TMUX_SOCKET=''
 E2E_DATA_HOME="${BLACKPEPPER_TUI_E2E_DATA_HOME:-$ROOT/target/tui-local-e2e-data}"
+ZELLIJ_CACHE_ROOT="$E2E_DATA_HOME/blackpepper/sidecars/zellij/$ZELLIJ_VERSION"
 SIZE_LOG="$ARTIFACTS/pty-sizes.log"
+RAW_OUTPUT="$ARTIFACTS/outer-output.bin"
+
+wait_for_raw_bytes() {
+  local needle_hex="$1"
+  local label="$2"
+  for _attempt in $(seq 1 100); do
+    python3 - "$RAW_OUTPUT" "$needle_hex" <<'PY' && return
+import pathlib
+import sys
+
+data = pathlib.Path(sys.argv[1]).read_bytes()
+needle = bytes.fromhex(sys.argv[2])
+raise SystemExit(0 if needle in data else 1)
+PY
+    sleep 0.1
+  done
+  fail_e2e "outer terminal did not receive $label"
+}
 
 case "$E2E_DATA_HOME" in
   /*) ;;
@@ -73,18 +93,20 @@ unset DISPLAY WAYLAND_DISPLAY
 
 tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 150 -y 46 \
   -c "$PRIMARY" "$BP_DEV"
+tmux_e2e pipe-pane -o -t "$TMUX_SESSION:0.0" "exec cat > '$RAW_OUTPUT'"
 tmux_e2e set-option -g set-clipboard on
 tmux_e2e set-option -as terminal-features ',xterm-256color:clipboard'
+tmux_e2e set-option -g monitor-bell on
 wait_for_screen 'bp  blackpepper' startup 60
 wait_for_screen 'workspace' workspace 60
 
 for _attempt in $(seq 1 600); do
-  ZELLIJ_BIN="$(find "$E2E_DATA_HOME/blackpepper/sidecars/zellij/0.44.3" \
+  ZELLIJ_BIN="$(find "$ZELLIJ_CACHE_ROOT" \
     -type f -name zellij -perm -u+x -print -quit 2>/dev/null || true)"
   [ -n "$ZELLIJ_BIN" ] && break
   sleep 0.1
 done
-[ -n "$ZELLIJ_BIN" ] || fail_e2e 'managed Zellij 0.44.3 was not installed'
+[ -n "$ZELLIJ_BIN" ] || fail_e2e "managed Zellij $ZELLIJ_VERSION was not installed"
 
 send_enter
 wait_for_terminal_mode attached 20
@@ -129,9 +151,39 @@ TMUX_COPY="$(tmux_e2e show-buffer 2>/dev/null || true)"
 [ "$TMUX_COPY" = 'blackpepper-osc52-e2e' ] ||
   fail_e2e "outer terminal did not receive normalized OSC 52 (got: $TMUX_COPY)"
 
+run_shell_command 'bell'
+wait_for_screen 'BP_BELL_SENT' bell-source 10
+BELL_FORWARDED=''
+for _attempt in $(seq 1 100); do
+  BELL_FORWARDED="$(tmux_e2e display-message -p '#{window_bell_flag}')"
+  [ "$BELL_FORWARDED" = '1' ] && break
+  sleep 0.1
+done
+[ "$BELL_FORWARDED" = '1' ] || fail_e2e 'outer terminal did not receive BEL'
+
+if [ "${BLACKPEPPER_TERMINAL_E2E_EXPECT_NOTIFICATIONS:-0}" = '1' ]; then
+  run_shell_command 'notify'
+  wait_for_screen 'BP_OSC9_SENT' osc9-source 10
+  wait_for_raw_bytes \
+    '1b5d393b42505f4e4f54494649434154494f4e5f45324507' 'OSC 9'
+
+  # The patched Zellij client asks its immediate terminal for focus events.
+  # Blackpepper must mirror that mode before an outer CSI O can exist.
+  wait_for_raw_bytes '1b5b3f3130303468' 'focus reporting enable'
+
+  run_shell_command 'focus'
+  wait_for_screen 'BP_FOCUS_READY' focus-ready 10
+  tmux_e2e send-keys -t "$TMUX_SESSION:0.0" -H 1b 5b 4f
+  wait_for_screen 'BP_FOCUS_INPUT:1b5b4f' focus-out-delivery 10
+fi
+
 run_shell_command 'quit'
 wait_for_screen 'BP_TERMINAL_DONE' fixture-done 10
 run_tui_command ':quit'
 wait_for_session_exit 15
 
-printf 'PASS: focused terminal canvas, native Zellij scroll/search, resize, and clipboard handoff\n'
+if [ "${BLACKPEPPER_TERMINAL_E2E_EXPECT_NOTIFICATIONS:-0}" = '1' ]; then
+  wait_for_raw_bytes '1b5b3f313030346c' 'focus reporting cleanup'
+fi
+
+printf 'PASS: native Zellij scroll/search, resize, clipboard, BEL, and optional notification/focus handoff\n'

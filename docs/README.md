@@ -7,6 +7,8 @@
   remaining live visual-acceptance gap.
 - [Remote-first V1 migration](remote-first-v1.md) — the accepted move from tmux
   and hand-rolled worktrees to Zellij, Worktrunk, OpenSSH, and host registries.
+- [Private Zellij runtime](private-zellij-runtime.md) — pinned notification and
+  focus patches, private installation, session compatibility, and release gates.
 - [V1 roadmap](roadmap.md) — what is wired, what still blocks a complete V1,
   and what is deliberately deferred.
 - [Browser development terminal](web-dev.md) — loopback-only ttyd/xterm.js

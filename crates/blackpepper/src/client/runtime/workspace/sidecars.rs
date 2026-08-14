@@ -1,16 +1,21 @@
+mod managed;
+
 use super::super::{text_path, ClientRuntime};
 use crate::core::HostId;
 use crate::providers::runtime::ManagedAsset;
 use crate::transport::{
-    install_remote_in_data_home, release_asset, sha256_bytes, HostCommand, HttpDownloader,
-    ManagedTool, SidecarCache, SidecarTarget, TransportError,
+    install_remote_in_data_home, is_blackpepper_zellij_version, release_asset_for_version,
+    sha256_bytes, HostCommand, HttpDownloader, ManagedTool, SidecarCache, SidecarTarget,
+    TransportError,
 };
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// A host's own Zellij configuration is read before merging. The cap is
 /// generous for a config file and small enough that a wrong path cannot pull
 /// something huge across an SSH link.
 const MAX_HOST_CONFIG_BYTES: usize = 512 * 1024;
+const BINARY_VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl ClientRuntime {
     /// Install the configuration Zellij is launched with: the host's own file
@@ -100,6 +105,15 @@ impl ClientRuntime {
         name: &str,
         expected_version: &str,
     ) -> Result<String, String> {
+        let tool = match name {
+            "zellij" => ManagedTool::Zellij,
+            "wt" => ManagedTool::Worktrunk,
+            _ => return Err(format!("No managed executable is defined for {name}.")),
+        };
+        if tool == ManagedTool::Zellij && is_blackpepper_zellij_version(expected_version) {
+            return self.private_zellij_binary(host_id, expected_version);
+        }
+
         let lookup = HostCommand::new("sh").args([
             "-c",
             "command -v \"$1\" 2>/dev/null || true",
@@ -114,11 +128,6 @@ impl ClientRuntime {
         if !path.is_empty() && self.binary_matches(host_id, &path, expected_version)? {
             return Ok(path);
         }
-        let tool = match name {
-            "zellij" => ManagedTool::Zellij,
-            "wt" => ManagedTool::Worktrunk,
-            _ => return Err(format!("No managed sidecar is defined for {name}.")),
-        };
         let target = self.sidecar_target(host_id)?;
         let remote_data_home = if host_id == self.local_host_id {
             None
@@ -141,23 +150,38 @@ impl ClientRuntime {
         if self.binary_matches(host_id, &retained_text, expected_version)? {
             return Ok(retained_text);
         }
-        if tool.version() != expected_version {
-            return Err(format!(
-                "Managed {tool} {expected_version} is no longer installed; keep its versioned sidecar until the sessions using it have ended."
-            ));
-        }
-        let asset = release_asset(tool, target).map_err(|error| error.to_string())?;
+        let asset = release_asset_for_version(tool, expected_version, target)
+            .map_err(|_| format!(
+                "Managed {tool} {expected_version} is unavailable; its versioned executable is required until the sessions using it have ended."
+            ))?;
         let cache = SidecarCache::from_xdg().map_err(|error| error.to_string())?;
         let cached = cache
             .ensure(asset, &HttpDownloader::default())
             .map_err(|error| error.to_string())?;
         if host_id == self.local_host_id {
-            return text_path(&cached.binary_path);
+            let binary = text_path(&cached.binary_path)?;
+            return self.require_binary_version(host_id, binary, expected_version);
         }
         let data_home = remote_data_home.expect("remote hosts resolve a data directory");
         let remote = install_remote_in_data_home(self.transport_mut(host_id)?, &cached, &data_home)
             .map_err(|error| error.to_string())?;
-        text_path(&remote.binary_path)
+        let binary = text_path(&remote.binary_path)?;
+        self.require_binary_version(host_id, binary, expected_version)
+    }
+
+    fn require_binary_version(
+        &mut self,
+        host_id: HostId,
+        binary: String,
+        expected_version: &str,
+    ) -> Result<String, String> {
+        if self.binary_matches(host_id, &binary, expected_version)? {
+            Ok(binary)
+        } else {
+            Err(format!(
+                "The managed executable at {binary} does not report required version {expected_version}."
+            ))
+        }
     }
 
     pub(super) fn binary_matches(
@@ -166,10 +190,10 @@ impl ClientRuntime {
         binary: &str,
         expected_version: &str,
     ) -> Result<bool, String> {
-        let version = match self
-            .transport_mut(host_id)?
-            .exec(&HostCommand::new(binary).arg("--version"))
-        {
+        let version = match self.transport_mut(host_id)?.exec_timeout(
+            &HostCommand::new(binary).arg("--version"),
+            BINARY_VERSION_TIMEOUT,
+        ) {
             Ok(version) => version,
             // A local managed binary does not exist before its first download.
             // Treat only that spawn failure as a cache miss; transport and

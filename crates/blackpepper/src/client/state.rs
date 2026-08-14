@@ -1,4 +1,7 @@
-use super::{build_tree, ClientEvent, DisplayStatus, EmbeddedTerminal, HostConnection, HostNode};
+use super::{
+    build_tree, focus::FocusTracker, ClientEvent, DisplayStatus, EmbeddedTerminal, HostConnection,
+    HostNode,
+};
 use crate::client_config::ClientConfig;
 mod agent_run;
 mod input_modes;
@@ -77,6 +80,9 @@ pub struct ClientState {
     pub workspace_overlay_chord: Option<KeyChord>,
     pub input_modes_applied: InputModes,
     pub pending_input_mode_bytes: Vec<u8>,
+    /// Last focus state reported by the real terminal window. Hidden embedded
+    /// sessions use this to stay unfocused until the window is focused again.
+    pub(super) outer_focus: FocusTracker,
     /// Client start instant. Animation phase is derived from this so restarting
     /// the client, not the passage of a frame counter, is what resets motion.
     started: Instant,
@@ -160,6 +166,7 @@ impl ClientState {
             workspace_overlay_chord,
             input_modes_applied: InputModes::default(),
             pending_input_mode_bytes: Vec::new(),
+            outer_focus: FocusTracker::default(),
             started: Instant::now(),
         };
         state.rebuild_tree();

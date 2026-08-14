@@ -11,6 +11,7 @@ pub struct InputModes {
     pub application_keypad: bool,
     pub application_cursor: bool,
     pub bracketed_paste: bool,
+    pub focus_reporting: bool,
     pub mouse_mode: MouseProtocolMode,
     pub mouse_encoding: MouseProtocolEncoding,
 }
@@ -21,6 +22,7 @@ impl Default for InputModes {
             application_keypad: false,
             application_cursor: false,
             bracketed_paste: false,
+            focus_reporting: false,
             mouse_mode: MouseProtocolMode::None,
             mouse_encoding: MouseProtocolEncoding::Default,
         }
@@ -42,6 +44,7 @@ impl InputModes {
             application_keypad: screen.application_keypad(),
             application_cursor: screen.application_cursor(),
             bracketed_paste: screen.bracketed_paste(),
+            focus_reporting: false,
             mouse_mode: screen.mouse_protocol_mode(),
             mouse_encoding: screen.mouse_protocol_encoding(),
         }
@@ -56,6 +59,11 @@ impl InputModes {
             self.mouse_mode = MouseProtocolMode::PressRelease;
             self.mouse_encoding = MouseProtocolEncoding::Sgr;
         }
+        self
+    }
+
+    pub fn with_focus_reporting(mut self, enabled: bool) -> Self {
+        self.focus_reporting = enabled;
         self
     }
 
@@ -89,6 +97,11 @@ impl InputModes {
                 out.extend_from_slice(b"\x1b[?2004l");
             }
         }
+
+        // Outer focus reporting is owned for Blackpepper's full TUI lifetime
+        // by TerminalSessionGuard. This child flag only decides which Zellij
+        // clients receive synthetic CSI I/O; mode transitions must not toggle
+        // the real terminal's report stream.
 
         write_mouse_mode_diff(self.mouse_mode, prev.mouse_mode, out);
         write_mouse_encoding_diff(self.mouse_encoding, prev.mouse_encoding, out);
@@ -201,6 +214,14 @@ mod tests {
             ..prev
         };
         assert_eq!(next.diff_bytes(&prev), b"\x1b[?1006h");
+    }
+
+    #[test]
+    fn focus_reporting_is_not_toggled_by_child_mode_diffs() {
+        let prev = InputModes::default();
+        let next = prev.with_focus_reporting(true);
+        assert!(next.diff_bytes(&prev).is_empty());
+        assert!(prev.diff_bytes(&next).is_empty());
     }
 
     #[test]

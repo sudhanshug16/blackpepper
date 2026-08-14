@@ -26,27 +26,6 @@ fn reader_tags_output_and_exit_with_the_same_attachment() {
 }
 
 #[test]
-fn embedded_terminal_answers_text_area_size_queries() {
-    let mut protocol = TerminalQueryProtocol::default();
-
-    assert_eq!(
-        protocol.process(b"before\x1b[18tafter", 42, 137),
-        [b"\x1b[8;42;137t".to_vec()]
-    );
-    assert!(protocol.process(b"\x1b[1", 42, 137).is_empty());
-    assert_eq!(protocol.process(b"8t", 24, 80), [b"\x1b[8;24;80t".to_vec()]);
-}
-
-#[test]
-fn embedded_terminal_does_not_invent_answers_for_unknown_queries() {
-    let mut protocol = TerminalQueryProtocol::default();
-
-    assert!(protocol
-        .process(b"\x1b[14t\x1b[16t\x1b[6n", 24, 80)
-        .is_empty());
-}
-
-#[test]
 fn clipboard_outer_handoff_is_normalized_and_concise_without_text_evidence() {
     let mut outer = Vec::new();
     let notice = dispatch_clipboard(

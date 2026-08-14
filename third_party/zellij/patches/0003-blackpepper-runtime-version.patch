@@ -1,0 +1,90 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 53d102a2..3c2585a1 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4788,7 +4788,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "zellij"
+-version = "0.44.3"
++version = "0.44.3-blackpepper.1"
+ dependencies = [
+  "anyhow",
+  "clap",
+@@ -4815,7 +4815,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "zellij-client"
+-version = "0.44.3"
++version = "0.44.3-blackpepper.1"
+ dependencies = [
+  "anyhow",
+  "async-trait",
+@@ -4863,7 +4863,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "zellij-server"
+-version = "0.44.3"
++version = "0.44.3-blackpepper.1"
+ dependencies = [
+  "ansi_term",
+  "anyhow",
+@@ -4913,7 +4913,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "zellij-tile"
+-version = "0.44.3"
++version = "0.44.3-blackpepper.1"
+ dependencies = [
+  "clap",
+  "prost",
+@@ -4926,14 +4926,14 @@ dependencies = [
+ 
+ [[package]]
+ name = "zellij-tile-utils"
+-version = "0.44.3"
++version = "0.44.3-blackpepper.1"
+ dependencies = [
+  "ansi_term",
+ ]
+ 
+ [[package]]
+ name = "zellij-utils"
+-version = "0.44.3"
++version = "0.44.3-blackpepper.1"
+ dependencies = [
+  "anyhow",
+  "backtrace",
+diff --git a/Cargo.toml b/Cargo.toml
+index e25e4016..772c2567 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -15,8 +15,8 @@ rust-version.workspace = true
+ # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+ 
+ [dependencies]
+-zellij-client = { path = "zellij-client/", version = "0.44.3" }
+-zellij-server = { path = "zellij-server/", version = "0.44.3" }
++zellij-client = { path = "zellij-client/", version = "0.44.3-blackpepper.1" }
++zellij-server = { path = "zellij-server/", version = "0.44.3-blackpepper.1" }
+ zellij-utils = { workspace = true }
+ anyhow = { workspace = true }
+ clap = { workspace = true }
+@@ -71,7 +71,7 @@ members = [
+ edition = "2021"
+ license = "MIT"
+ repository = "https://github.com/zellij-org/zellij"
+-version = "0.44.3"
++version = "0.44.3-blackpepper.1"
+ # NOTE: When updating this, modify `channel` in `rust-toolchain.toml` accordingly
+ rust-version = "1.92"
+ 
+@@ -115,7 +115,7 @@ windows-sys = { version = "0.59", default-features = false }
+ names = { version = "0.14.0", default-features = false }
+ include_dir = { version = "0.7.3", default-features = false }
+ sha2 = { version = "0.10", default-features = false }
+-zellij-utils = { path = "zellij-utils/", version = "0.44.3" }
++zellij-utils = { path = "zellij-utils/", version = "0.44.3-blackpepper.1" }
+ 
+ [profile.dev-opt]
+ inherits = "dev"

@@ -10,11 +10,11 @@ BLACKPEPPER_TERMINAL_ANCHOR='bp  '
 seed_zellij_cache() {
   local destination="$1/$ZELLIJ_CACHE_RELATIVE"
   install -d -m 0700 "$destination"
-  cp "$ZELLIJ_SOURCE_BINARY" "$destination/zellij"
-  cp "$ZELLIJ_SOURCE_ARCHIVE" "$destination/zellij-x86_64-unknown-linux-musl.tar.gz"
+  cp "$ZELLIJ_SOURCE_BINARY" "$destination/$ZELLIJ_BINARY_NAME"
+  cp "$ZELLIJ_SOURCE_ARCHIVE" "$destination/$ZELLIJ_ASSET_NAME"
   printf '%s\n' "$ZELLIJ_BINARY_SHA256" > "$destination/.zellij.sha256"
-  chmod 0700 "$destination/zellij"
-  chmod 0600 "$destination/zellij-x86_64-unknown-linux-musl.tar.gz" "$destination/.zellij.sha256"
+  chmod 0700 "$destination/$ZELLIJ_BINARY_NAME"
+  chmod 0600 "$destination/$ZELLIJ_ASSET_NAME" "$destination/.zellij.sha256"
 }
 
 prepare_client() {
@@ -65,7 +65,7 @@ sidecar_mode() {
 
 assert_remote_sidecars() {
   local sidecars="$TEST_ROOT/remote/data/blackpepper/sidecars"
-  local zellij="$sidecars/zellij/0.44.3/x86_64-unknown-linux-musl/zellij"
+  local zellij="$TEST_ROOT/remote/data/$ZELLIJ_CACHE_RELATIVE/$ZELLIJ_BINARY_NAME"
   local remote_bp_host
 
   [ -x "$zellij" ] || fail 'remote Zellij sidecar is missing or not executable'
@@ -192,11 +192,11 @@ save_screen() {
 
 assert_registry() {
   local database="$1" workspace="$2" expected_state="$3"
-  python3 - "$database" "$workspace" "$expected_state" <<'PY'
+  python3 - "$database" "$workspace" "$expected_state" "$ZELLIJ_VERSION" <<'PY'
 import sqlite3
 import sys
 
-database, workspace, expected_state = sys.argv[1:]
+database, workspace, expected_state, zellij_version = sys.argv[1:]
 connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
 workspace_rows = connection.execute(
     "SELECT id, host_id FROM workspaces WHERE root_path = ?", (workspace,)
@@ -209,7 +209,10 @@ sessions = connection.execute(
 ).fetchall()
 if not sessions:
     raise SystemExit("remote workspace has no persistent session row")
-if not any(version == "0.44.3" and expected_state in state for version, state in sessions):
-    raise SystemExit(f"remote session does not include version 0.44.3 / {expected_state}: {sessions!r}")
+if not any(version == zellij_version and expected_state in state for version, state in sessions):
+    raise SystemExit(
+        f"remote session does not include version {zellij_version} / "
+        f"{expected_state}: {sessions!r}"
+    )
 PY
 }

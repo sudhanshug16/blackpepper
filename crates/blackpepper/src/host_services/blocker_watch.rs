@@ -1,5 +1,5 @@
 use super::agent_events::HostAgentEvents;
-use super::tool_runtime::{discover_exact_binary, validate_exact_binary};
+use super::tool_runtime::{discover_zellij_binary, validate_exact_binary};
 use crate::agent_status::{IntegrationHealth, Provider};
 use crate::core::{AgentRunId, CorePaths, HostRegistry, PaneId, WorkspaceId};
 use crate::status_monitor::{
@@ -88,7 +88,7 @@ pub fn watch_blockers(
     arguments: &BlockerWatchArgs,
     writer: impl Write,
 ) -> Result<(), String> {
-    let binary = discover_exact_binary("Zellij", "zellij", "zellij", &arguments.zellij_version)?;
+    let binary = discover_zellij_binary(&arguments.zellij_version)?;
     watch_blockers_with_binary(paths, registry, arguments, writer, &binary)
 }
 
@@ -101,7 +101,7 @@ pub fn watch_blockers_cancellable(
     writer: impl Write + Send + 'static,
     cancelled: Receiver<()>,
 ) -> Result<(), String> {
-    let binary = discover_exact_binary("Zellij", "zellij", "zellij", &arguments.zellij_version)?;
+    let binary = discover_zellij_binary(&arguments.zellij_version)?;
     let (monitor, runtime) = prepare_monitor(paths, registry, arguments, &binary)?;
     let mut events = HostAgentEvents::open(paths)?;
     run_host_local_subscription_cancellable_with_health(

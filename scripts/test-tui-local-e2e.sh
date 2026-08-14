@@ -12,6 +12,7 @@ for requirement in tmux git python3 ssh curl ss timeout; do
     exit 1
   }
 done
+ZELLIJ_VERSION="$(python3 "$ROOT/scripts/fixtures/zellij_runtime.py" version)"
 
 if [ "$(uname -s)" != Linux ]; then
   printf '%s\n' 'FAIL: this local acceptance harness currently requires Linux port attribution.' >&2
@@ -59,6 +60,7 @@ LISTENER_PID=''
 ZELLIJ_BIN=''
 ZELLIJ_SOCKET_ROOT="$TEST_ROOT/z"
 E2E_DATA_HOME="${BLACKPEPPER_TUI_E2E_DATA_HOME:-$ROOT/target/tui-local-e2e-data}"
+ZELLIJ_CACHE_ROOT="$E2E_DATA_HOME/blackpepper/sidecars/zellij/$ZELLIJ_VERSION"
 
 case "$E2E_DATA_HOME" in
   /*) ;;
@@ -138,13 +140,14 @@ assert_screen_has 'acme/e2e' startup-grouping
 assert_screen_lacks 'os error 2' startup-no-enoent
 
 for _attempt in $(seq 1 200); do
-  ZELLIJ_BIN="$(find "$E2E_DATA_HOME/blackpepper/sidecars/zellij/0.44.3" \
+  ZELLIJ_BIN="$(find "$ZELLIJ_CACHE_ROOT" \
     -type f -name zellij -perm -u+x -print -quit 2>/dev/null || true)"
   [ -n "$ZELLIJ_BIN" ] && break
   sleep 0.1
 done
-[ -n "$ZELLIJ_BIN" ] || fail_e2e 'managed Zellij 0.44.3 was not installed'
-[ "$($ZELLIJ_BIN --version)" = 'zellij 0.44.3' ] || fail_e2e 'managed Zellij version is not exact'
+[ -n "$ZELLIJ_BIN" ] || fail_e2e "managed Zellij $ZELLIJ_VERSION was not installed"
+[ "$($ZELLIJ_BIN --version)" = "zellij $ZELLIJ_VERSION" ] ||
+  fail_e2e 'managed Zellij version is not exact'
 prepare_backend_session
 
 set +e
@@ -360,4 +363,5 @@ run_config_rejection invalid invalid-config.toml "unknown field \`unknown_v1_opt
 run_config_rejection legacy legacy-tmux-config.toml 'Legacy [tmux] configuration found'
 
 printf 'PASS: local TUI end-to-end acceptance (%s)\n' "$BP_VERSION"
-printf 'PASS: Zellij 0.44.3, Worktrunk 0.72.0, PTY controls, workspaces, reboot restoration, services, ports, approvals, and config errors\n'
+printf 'PASS: Zellij %s, Worktrunk 0.72.0, PTY controls, workspaces, reboot restoration, services, ports, approvals, and config errors\n' \
+  "$ZELLIJ_VERSION"

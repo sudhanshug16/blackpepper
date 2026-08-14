@@ -1,0 +1,697 @@
+diff --git a/zellij-client/src/input_handler.rs b/zellij-client/src/input_handler.rs
+index cc4b4d75..d60bbccb 100644
+--- a/zellij-client/src/input_handler.rs
++++ b/zellij-client/src/input_handler.rs
+@@ -253,6 +253,14 @@ impl InputHandler {
+                             raw_bytes,
+                         });
+                 },
++                Ok((InputInstruction::TerminalFocusGained, _error_context)) => {
++                    self.os_input
++                        .send_to_server(ClientToServerMsg::TerminalFocusGained);
++                },
++                Ok((InputInstruction::TerminalFocusLost, _error_context)) => {
++                    self.os_input
++                        .send_to_server(ClientToServerMsg::TerminalFocusLost);
++                },
+                 Ok((
+                     InputInstruction::ForwardedReplyFromHostComplete { token, reply_bytes },
+                     _error_context,
+diff --git a/zellij-client/src/lib.rs b/zellij-client/src/lib.rs
+index a1fcf387..2f771115 100644
+--- a/zellij-client/src/lib.rs
++++ b/zellij-client/src/lib.rs
+@@ -53,6 +53,8 @@ const RESET_STYLE: &str = "\u{1b}[m";
+ const SHOW_CURSOR: &str = "\u{1b}[?25h";
+ const ENTER_KITTY_KEYBOARD_MODE: &str = "\u{1b}[>1u";
+ const EXIT_KITTY_KEYBOARD_MODE: &str = "\u{1b}[<1u";
++const ENABLE_FOCUS_REPORTING: &str = "\u{1b}[?1004h";
++const DISABLE_FOCUS_REPORTING: &str = "\u{1b}[?1004l";
+ const CLEAR_CLIENT_TERMINAL_ATTRIBUTES: &str = "\u{1b}[?1l\u{1b}=\u{1b}[r\u{1b}[?1000l\u{1b}[?1002l\u{1b}[?1003l\u{1b}[?1005l\u{1b}[?1006l\u{1b}[?12l";
+ /// Subscribe to host color-palette theme notifications (CSI 2031). Hosts
+ /// that support it begin emitting unsolicited DSR 997 reports on theme
+@@ -431,6 +433,8 @@ pub(crate) enum InputInstruction {
+     MouseEvent(zellij_utils::input::mouse::MouseEvent),
+     AnsiStdinInstructions(Vec<AnsiStdinInstruction>),
+     DesktopNotificationResponse(Vec<u8>),
++    TerminalFocusGained,
++    TerminalFocusLost,
+     /// The continuous host-reply parser closed a forwarding window (barrier
+     /// reply seen or timeout fired). Payload is the accumulated raw bytes
+     /// to ship to the server.
+@@ -657,6 +661,7 @@ pub fn start_remote_client(
+     stdout
+         .write_all(ENTER_KITTY_KEYBOARD_MODE.as_bytes())
+         .unwrap();
++    stdout.write_all(ENABLE_FOCUS_REPORTING.as_bytes()).unwrap();
+     stdout
+         .write_all(ENABLE_HOST_THEME_NOTIFY.as_bytes())
+         .unwrap();
+@@ -756,6 +761,7 @@ pub fn start_client(
+                 .write_all(ENTER_KITTY_KEYBOARD_MODE.as_bytes())
+                 .unwrap();
+         }
++        stdout.write_all(ENABLE_FOCUS_REPORTING.as_bytes()).unwrap();
+         // Subscribe to host CSI 2031 theme notifications and query the
+         // current mode. Sent right after CLEAR_CLIENT_TERMINAL_ATTRIBUTES
+         // so there's no window in which the host is unsubscribed.
+@@ -1416,8 +1422,9 @@ fn terminal_teardown_message(message: &str, rows: usize, include_kitty_exit: boo
+         ""
+     };
+     format!(
+-        "{}{}{}{}{}{}{}\n",
++        "{}{}{}{}{}{}{}{}\n",
+         kitty_exit,
++        DISABLE_FOCUS_REPORTING,
+         DISABLE_HOST_THEME_NOTIFY,
+         EXIT_ALTERNATE_SCREEN,
+         RESET_STYLE,
+diff --git a/zellij-client/src/stdin_ansi_parser.rs b/zellij-client/src/stdin_ansi_parser.rs
+index d6800010..4c82aa6b 100644
+--- a/zellij-client/src/stdin_ansi_parser.rs
++++ b/zellij-client/src/stdin_ansi_parser.rs
+@@ -63,6 +63,12 @@ pub enum HostReply {
+     HostTerminalThemeChanged(HostTerminalThemeMode),
+ }
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum TerminalFocusEvent {
++    Gained,
++    Lost,
++}
++
+ /// Retained alias for the pre-refactor type name used by other modules in
+ /// the client. New code should prefer `HostReply`; the alias keeps the
+ /// existing `InputInstruction::AnsiStdinInstructions(Vec<...>)` plumbing
+@@ -184,6 +190,8 @@ pub struct ParseOutput {
+     /// in the keyboard-parser path, because the residue scrubber
+     /// strips all OSC bytes before the keyboard parser sees them.
+     pub desktop_notifications: Vec<Vec<u8>>,
++    /// Host-terminal focus changes found outside bracketed paste payloads.
++    pub focus_events: Vec<TerminalFocusEvent>,
+     /// Residue bytes that were not classified as host replies. These are
+     /// the bytes the caller should feed to the keyboard parser.
+     pub residue: Vec<u8>,
+@@ -203,6 +211,8 @@ pub struct ParseOutput {
+ /// same observable behaviour as today for unterminated OSC, just
+ /// bounded.
+ const PARTIAL_BUFFER_CAP_BYTES: usize = 100 * 1024 * 1024;
++const PASTE_START_MARKER: &[u8] = b"\x1b[200~";
++const PASTE_END_MARKER: &[u8] = b"\x1b[201~";
+ 
+ /// Outcome of a single OSC/CSI walk over a byte buffer. Distinguishing
+ /// "needs more bytes" from "malformed" is what lets the residue
+@@ -221,6 +231,16 @@ enum SeqStatus {
+     Malformed,
+ }
+ 
++#[derive(Debug, Clone, Copy)]
++enum CsiStatus {
++    Complete {
++        len: usize,
++        focus_event: Option<TerminalFocusEvent>,
++    },
++    NeedMore,
++    Malformed,
++}
++
+ /// Continuous host-reply parser. Lives for the whole client session.
+ pub struct StdinAnsiParser {
+     inner: InputParser,
+@@ -232,6 +252,8 @@ pub struct StdinAnsiParser {
+     partial_osc: Vec<u8>,
+     /// Same for CSI device-control reports.
+     partial_csi: Vec<u8>,
++    /// Focus-like CSI bytes inside bracketed paste are literal pasted text.
++    in_bracketed_paste: bool,
+ }
+ 
+ impl std::fmt::Debug for StdinAnsiParser {
+@@ -240,6 +262,7 @@ impl std::fmt::Debug for StdinAnsiParser {
+             .field("active_forward", &self.active_forward)
+             .field("partial_osc_len", &self.partial_osc.len())
+             .field("partial_csi_len", &self.partial_csi.len())
++            .field("in_bracketed_paste", &self.in_bracketed_paste)
+             .finish()
+     }
+ }
+@@ -251,6 +274,7 @@ impl StdinAnsiParser {
+             active_forward: None,
+             partial_osc: Vec::new(),
+             partial_csi: Vec::new(),
++            in_bracketed_paste: false,
+         }
+     }
+ 
+@@ -317,7 +341,6 @@ impl StdinAnsiParser {
+         // Collect events first (borrow-splits the InputParser across the
+         // callback and the post-processing mutations).
+         let mut events = Vec::new();
+-        let mut residue = Vec::new();
+         self.inner.parse(
+             bytes,
+             |event| {
+@@ -392,8 +415,9 @@ impl StdinAnsiParser {
+         // other bytes pass through unchanged. The walk is stateful so
+         // an OSC/CSI sequence split across `feed()` calls is buffered
+         // rather than leaking into residue.
+-        residue.extend(self.strip_replies(bytes));
++        let (residue, focus_events) = self.strip_replies(bytes);
+         out.residue = residue;
++        out.focus_events = focus_events;
+         out.has_partial_state = !self.partial_osc.is_empty() || !self.partial_csi.is_empty();
+         out
+     }
+@@ -413,15 +437,14 @@ impl StdinAnsiParser {
+ 
+     /// Walk `bytes` (with any pending partial buffer prepended) and drop
+     /// any OSC/whitelisted-CSI sequences, returning the remaining bytes
+-    /// verbatim (keyboard residue). This is a byte-level scrubber — it
+-    /// does not produce events, only bytes.
++    /// verbatim (keyboard residue), alongside any terminal focus events.
+     ///
+     /// If the chunk ends mid-sequence, the unterminated tail is held in
+     /// `self.partial_osc` or `self.partial_csi` and prepended to the
+     /// next call's input — so the corresponding bytes never reach
+     /// residue (and never appear as spurious keypresses) while waiting
+     /// for the rest of the sequence.
+-    fn strip_replies(&mut self, bytes: &[u8]) -> Vec<u8> {
++    fn strip_replies(&mut self, bytes: &[u8]) -> (Vec<u8>, Vec<TerminalFocusEvent>) {
+         // Prepend any pending partial. At most one of (partial_osc,
+         // partial_csi) is non-empty at any time — the previous walk
+         // either completed all sequences or stopped at exactly one
+@@ -433,9 +456,31 @@ impl StdinAnsiParser {
+         working.extend_from_slice(bytes);
+ 
+         let mut out = Vec::with_capacity(working.len());
++        let mut focus_events = Vec::new();
+         let mut i = 0;
+         while i < working.len() {
+             let rest = &working[i..];
++            if self.in_bracketed_paste {
++                if rest.starts_with(PASTE_END_MARKER) {
++                    out.extend_from_slice(PASTE_END_MARKER);
++                    self.in_bracketed_paste = false;
++                    i += PASTE_END_MARKER.len();
++                    continue;
++                }
++                if rest[0] == 0x1b && PASTE_END_MARKER.starts_with(rest) {
++                    self.partial_csi = rest.to_vec();
++                    return (out, focus_events);
++                }
++                out.push(working[i]);
++                i += 1;
++                continue;
++            }
++            if rest.starts_with(PASTE_START_MARKER) {
++                out.extend_from_slice(PASTE_START_MARKER);
++                self.in_bracketed_paste = true;
++                i += PASTE_START_MARKER.len();
++                continue;
++            }
+             // OSC: ESC ] ... (BEL | ESC \)
+             if rest.len() >= 2 && rest[0] == 0x1b && rest[1] == b']' {
+                 match osc_status(rest) {
+@@ -454,7 +499,7 @@ impl StdinAnsiParser {
+                         } else {
+                             self.partial_osc = tail;
+                         }
+-                        return out;
++                        return (out, focus_events);
+                     },
+                     SeqStatus::Malformed => {
+                         out.push(working[i]);
+@@ -466,20 +511,23 @@ impl StdinAnsiParser {
+             // Whitelisted CSI report: ESC [ <params>* <intermediates>* <final>
+             if rest.len() >= 2 && rest[0] == 0x1b && rest[1] == b'[' {
+                 match csi_status(rest) {
+-                    SeqStatus::Complete(len) => {
++                    CsiStatus::Complete { len, focus_event } => {
++                        if let Some(focus_event) = focus_event {
++                            focus_events.push(focus_event);
++                        }
+                         i += len;
+                         continue;
+                     },
+-                    SeqStatus::NeedMore => {
++                    CsiStatus::NeedMore => {
+                         let tail = rest.to_vec();
+                         if tail.len() > PARTIAL_BUFFER_CAP_BYTES {
+                             out.extend_from_slice(&tail);
+                         } else {
+                             self.partial_csi = tail;
+                         }
+-                        return out;
++                        return (out, focus_events);
+                     },
+-                    SeqStatus::Malformed => {
++                    CsiStatus::Malformed => {
+                         out.push(working[i]);
+                         i += 1;
+                         continue;
+@@ -492,12 +540,12 @@ impl StdinAnsiParser {
+             // walker re-routes based on the actual second byte.
+             if rest.len() == 1 && rest[0] == 0x1b {
+                 self.partial_osc = vec![0x1b];
+-                return out;
++                return (out, focus_events);
+             }
+             out.push(working[i]);
+             i += 1;
+         }
+-        out
++        (out, focus_events)
+     }
+ }
+ 
+@@ -526,10 +574,10 @@ fn osc_status(buf: &[u8]) -> SeqStatus {
+     SeqStatus::NeedMore
+ }
+ 
+-/// Walk a whitelisted CSI report starting at the head of `buf`.
+-fn csi_status(buf: &[u8]) -> SeqStatus {
++/// Walk a whitelisted CSI report or host-terminal focus event.
++fn csi_status(buf: &[u8]) -> CsiStatus {
+     if buf.get(0) != Some(&0x1b) || buf.get(1) != Some(&b'[') {
+-        return SeqStatus::Malformed;
++        return CsiStatus::Malformed;
+     }
+     let mut i = 2;
+     let max = 256;
+@@ -537,18 +585,35 @@ fn csi_status(buf: &[u8]) -> SeqStatus {
+         let b = buf[i];
+         match b {
+             0x30..=0x3F | 0x20..=0x2F => i += 1,
+-            b't' | b'y' | b'c' | b'n' => return SeqStatus::Complete(i + 1),
+-            0x40..=0x7E => return SeqStatus::Malformed, // non-whitelisted final
+-            _ => return SeqStatus::Malformed,
++            b'I' if i == 2 => {
++                return CsiStatus::Complete {
++                    len: i + 1,
++                    focus_event: Some(TerminalFocusEvent::Gained),
++                }
++            },
++            b'O' if i == 2 => {
++                return CsiStatus::Complete {
++                    len: i + 1,
++                    focus_event: Some(TerminalFocusEvent::Lost),
++                }
++            },
++            b't' | b'y' | b'c' | b'n' => {
++                return CsiStatus::Complete {
++                    len: i + 1,
++                    focus_event: None,
++                }
++            },
++            0x40..=0x7E => return CsiStatus::Malformed, // non-whitelisted final
++            _ => return CsiStatus::Malformed,
+         }
+     }
+     if i >= max {
+         // CSI ran past the cap without terminating — treat as malformed
+         // so the leading byte falls through to residue and parsing
+         // resumes from the next position.
+-        SeqStatus::Malformed
++        CsiStatus::Malformed
+     } else {
+-        SeqStatus::NeedMore
++        CsiStatus::NeedMore
+     }
+ }
+ 
+diff --git a/zellij-client/src/stdin_ansi_parser_tests.rs b/zellij-client/src/stdin_ansi_parser_tests.rs
+index b34aa343..7b887792 100644
+--- a/zellij-client/src/stdin_ansi_parser_tests.rs
++++ b/zellij-client/src/stdin_ansi_parser_tests.rs
+@@ -1,6 +1,6 @@
+ //! Unit tests for the continuous host-reply parser.
+ 
+-use super::{schedule_forward_timeout, HostReply, StdinAnsiParser};
++use super::{schedule_forward_timeout, HostReply, StdinAnsiParser, TerminalFocusEvent};
+ use std::sync::{Arc, Mutex};
+ use std::time::Duration;
+ 
+@@ -104,6 +104,56 @@ fn keyboard_residue_passes_through_unchanged() {
+     assert_eq!(residue, b"\x1b[A");
+ }
+ 
++#[test]
++fn extracts_focus_events_outside_bracketed_paste() {
++    let mut parser = StdinAnsiParser::new();
++    let out = parser.feed(b"before\x1b[Ibetween\x1b[Oafter");
++
++    assert_eq!(out.residue, b"beforebetweenafter");
++    assert_eq!(
++        out.focus_events,
++        vec![TerminalFocusEvent::Gained, TerminalFocusEvent::Lost]
++    );
++}
++
++#[test]
++fn extracts_fragmented_focus_event() {
++    let mut parser = StdinAnsiParser::new();
++    let first = parser.feed(b"\x1b[");
++    let second = parser.feed(b"I");
++
++    assert!(first.residue.is_empty());
++    assert!(second.residue.is_empty());
++    assert!(first.focus_events.is_empty());
++    assert_eq!(second.focus_events, vec![TerminalFocusEvent::Gained]);
++}
++
++#[test]
++fn preserves_focus_sequences_inside_bracketed_paste() {
++    let mut parser = StdinAnsiParser::new();
++    let pasted = b"\x1b[200~before\x1b[Ibetween\x1b[Oafter\x1b[201~";
++    let out = parser.feed(pasted);
++
++    assert_eq!(out.residue, pasted);
++    assert!(out.focus_events.is_empty());
++}
++
++#[test]
++fn preserves_focus_sequences_inside_fragmented_bracketed_paste() {
++    let mut parser = StdinAnsiParser::new();
++    let first = parser.feed(b"\x1b[20");
++    let second = parser.feed(b"0~before\x1b[I");
++    let third = parser.feed(b"after\x1b[20");
++    let fourth = parser.feed(b"1~");
++
++    let residue = [first.residue, second.residue, third.residue, fourth.residue].concat();
++    assert_eq!(residue, b"\x1b[200~before\x1b[Iafter\x1b[201~");
++    assert!(first.focus_events.is_empty());
++    assert!(second.focus_events.is_empty());
++    assert!(third.focus_events.is_empty());
++    assert!(fourth.focus_events.is_empty());
++}
++
+ #[test]
+ fn mixed_keyboard_and_reply_extracts_both_cleanly() {
+     // Arrow keys bracketing a pixel-dim reply — residue should be just
+diff --git a/zellij-client/src/stdin_handler.rs b/zellij-client/src/stdin_handler.rs
+index c33e0dbf..8400e1c9 100644
+--- a/zellij-client/src/stdin_handler.rs
++++ b/zellij-client/src/stdin_handler.rs
+@@ -1,6 +1,6 @@
+ use crate::keyboard_parser::{KittyKeyboardParser, KittyParseOutcome};
+ use crate::os_input_output::ClientOsApi;
+-use crate::stdin_ansi_parser::StdinAnsiParser;
++use crate::stdin_ansi_parser::{StdinAnsiParser, TerminalFocusEvent};
+ #[cfg(windows)]
+ use crate::stdin_handler_windows::enable_vt_input;
+ use crate::InputInstruction;
+@@ -134,6 +134,13 @@ pub(crate) fn stdin_loop(
+                             let _ = send_input_instructions
+                                 .send(InputInstruction::DesktopNotificationResponse(payload));
+                         }
++                        for focus_event in parse_output.focus_events {
++                            let instruction = match focus_event {
++                                TerminalFocusEvent::Gained => InputInstruction::TerminalFocusGained,
++                                TerminalFocusEvent::Lost => InputInstruction::TerminalFocusLost,
++                            };
++                            let _ = send_input_instructions.send(instruction);
++                        }
+                         let has_partial = parse_output.has_partial_state;
+                         let residue = parse_output.residue;
+                         if residue.is_empty() {
+diff --git a/zellij-server/src/route.rs b/zellij-server/src/route.rs
+index 43771a67..6c62a82e 100644
+--- a/zellij-server/src/route.rs
++++ b/zellij-server/src/route.rs
+@@ -2568,6 +2568,22 @@ pub(crate) fn route_thread_main(
+                                 retry_queue
+                             );
+                         },
++                        ClientToServerMsg::TerminalFocusGained => {
++                            let _ = send_to_screen_or_retry_queue!(
++                                senders,
++                                ScreenInstruction::TerminalFocusGained(client_id),
++                                instruction,
++                                retry_queue
++                            );
++                        },
++                        ClientToServerMsg::TerminalFocusLost => {
++                            let _ = send_to_screen_or_retry_queue!(
++                                senders,
++                                ScreenInstruction::TerminalFocusLost(client_id),
++                                instruction,
++                                retry_queue
++                            );
++                        },
+                         ClientToServerMsg::ForwardedReplyFromHost {
+                             token,
+                             ref reply_bytes,
+diff --git a/zellij-server/src/screen.rs b/zellij-server/src/screen.rs
+index 35107c0e..abcfd716 100644
+--- a/zellij-server/src/screen.rs
++++ b/zellij-server/src/screen.rs
+@@ -500,6 +500,8 @@ pub enum ScreenInstruction {
+         completion_tx: Option<NotificationEnd>,
+     },
+     TerminalResize(Size),
++    TerminalFocusGained(ClientId),
++    TerminalFocusLost(ClientId),
+     TerminalPixelDimensions(PixelDimensions),
+     TerminalBackgroundColor(String),
+     TerminalForegroundColor(String),
+@@ -978,6 +980,8 @@ impl From<&ScreenInstruction> for ScreenContext {
+             ScreenInstruction::RenameTabWithId(..) => ScreenContext::RenameTabWithId,
+             ScreenInstruction::BreakPanesToTabWithId { .. } => ScreenContext::BreakPanesToTabWithId,
+             ScreenInstruction::TerminalResize(..) => ScreenContext::TerminalResize,
++            ScreenInstruction::TerminalFocusGained(..) => ScreenContext::WriteCharacter,
++            ScreenInstruction::TerminalFocusLost(..) => ScreenContext::WriteCharacter,
+             ScreenInstruction::TerminalPixelDimensions(..) => {
+                 ScreenContext::TerminalPixelDimensions
+             },
+@@ -7261,6 +7265,22 @@ pub(crate) fn screen_thread_main(
+                 screen.log_and_report_session_state()?; // update tabs so that the ui indication will be send to the plugins
+                 screen.render(None)?;
+             },
++            ScreenInstruction::TerminalFocusGained(client_id) => {
++                active_tab_and_connected_client_id!(
++                    screen,
++                    client_id,
++                    |tab: &mut Tab, client_id: ClientId| tab
++                        .send_focus_event_to_active_pane(client_id)
++                );
++            },
++            ScreenInstruction::TerminalFocusLost(client_id) => {
++                active_tab_and_connected_client_id!(
++                    screen,
++                    client_id,
++                    |tab: &mut Tab, client_id: ClientId| tab
++                        .send_unfocus_event_to_active_pane(client_id)
++                );
++            },
+             ScreenInstruction::TerminalPixelDimensions(pixel_dimensions) => {
+                 screen.update_pixel_dimensions(pixel_dimensions);
+             },
+diff --git a/zellij-server/src/tab/mod.rs b/zellij-server/src/tab/mod.rs
+index 62f232ce..96b1b5ff 100644
+--- a/zellij-server/src/tab/mod.rs
++++ b/zellij-server/src/tab/mod.rs
+@@ -2532,6 +2532,30 @@ impl Tab {
+             self.get_active_pane_mut(client_id)
+         }
+     }
++    pub fn send_focus_event_to_active_pane(&self, client_id: ClientId) {
++        if let Some(PaneId::Terminal(terminal_id)) = self.get_active_pane_id(client_id) {
++            if let Some(focus_event) = self
++                .get_active_pane(client_id)
++                .and_then(|pane| pane.focus_event())
++            {
++                let _ = self
++                    .os_api
++                    .write_to_tty_stdin(terminal_id, focus_event.as_bytes());
++            }
++        }
++    }
++    pub fn send_unfocus_event_to_active_pane(&self, client_id: ClientId) {
++        if let Some(PaneId::Terminal(terminal_id)) = self.get_active_pane_id(client_id) {
++            if let Some(unfocus_event) = self
++                .get_active_pane(client_id)
++                .and_then(|pane| pane.unfocus_event())
++            {
++                let _ = self
++                    .os_api
++                    .write_to_tty_stdin(terminal_id, unfocus_event.as_bytes());
++            }
++        }
++    }
+     pub fn get_active_pane_id(&self, client_id: ClientId) -> Option<PaneId> {
+         if self.floating_panes.panes_are_visible() {
+             self.floating_panes.get_active_pane_id(client_id)
+diff --git a/zellij-server/src/tab/unit/tab_integration_tests.rs b/zellij-server/src/tab/unit/tab_integration_tests.rs
+index 85d2630d..e985b9d5 100644
+--- a/zellij-server/src/tab/unit/tab_integration_tests.rs
++++ b/zellij-server/src/tab/unit/tab_integration_tests.rs
+@@ -14964,3 +14964,33 @@ fn hidden_cursor_still_emits_cup_for_host_terminal_positioning() {
+         "Show-cursor sequence must not be present when app has hidden the cursor"
+     );
+ }
++
++#[test]
++fn host_terminal_focus_events_reach_opted_in_active_pane() {
++    let size = Size { cols: 80, rows: 24 };
++    let client_id = 1;
++    let os_api = Box::new(FakeInputOutput::default());
++    let mut tab = create_new_tab_with_os_api(size, ModeInfo::default(), &os_api);
++
++    tab.handle_pty_bytes(1, b"\x1b[?1004h".to_vec()).unwrap();
++    tab.send_unfocus_event_to_active_pane(client_id);
++    tab.send_focus_event_to_active_pane(client_id);
++
++    assert_eq!(
++        os_api.tty_stdin_bytes.lock().unwrap().get(&1),
++        Some(&b"\x1b[O\x1b[I".to_vec())
++    );
++}
++
++#[test]
++fn host_terminal_focus_events_skip_pane_that_did_not_opt_in() {
++    let size = Size { cols: 80, rows: 24 };
++    let client_id = 1;
++    let os_api = Box::new(FakeInputOutput::default());
++    let tab = create_new_tab_with_os_api(size, ModeInfo::default(), &os_api);
++
++    tab.send_unfocus_event_to_active_pane(client_id);
++    tab.send_focus_event_to_active_pane(client_id);
++
++    assert!(os_api.tty_stdin_bytes.lock().unwrap().is_empty());
++}
+diff --git a/zellij-utils/assets/prost_ipc/client_server_contract.rs b/zellij-utils/assets/prost_ipc/client_server_contract.rs
+index 142609f7..b9cbf1fb 100644
+--- a/zellij-utils/assets/prost_ipc/client_server_contract.rs
++++ b/zellij-utils/assets/prost_ipc/client_server_contract.rs
+@@ -2879,7 +2879,7 @@ impl WebSharing {
+ #[allow(clippy::derive_partial_eq_without_eq)]
+ #[derive(Clone, PartialEq, ::prost::Message)]
+ pub struct ClientToServerMsg {
+-    #[prost(oneof="client_to_server_msg::Message", tags="1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20")]
++    #[prost(oneof="client_to_server_msg::Message", tags="1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22")]
+     pub message: ::core::option::Option<client_to_server_msg::Message>,
+ }
+ /// Nested message and enum types in `ClientToServerMsg`.
+@@ -2927,6 +2927,10 @@ pub mod client_to_server_msg {
+         ForwardedReplyFromHost(super::ForwardedReplyFromHostMsg),
+         #[prost(message, tag="20")]
+         HostTerminalThemeChanged(super::HostTerminalThemeChangedMsg),
++        #[prost(message, tag="21")]
++        TerminalFocusGained(super::TerminalFocusGainedMsg),
++        #[prost(message, tag="22")]
++        TerminalFocusLost(super::TerminalFocusLostMsg),
+     }
+ }
+ #[allow(clippy::derive_partial_eq_without_eq)]
+@@ -3023,6 +3027,16 @@ pub struct ClientExitedMsg {
+ /// Empty message
+ #[allow(clippy::derive_partial_eq_without_eq)]
+ #[derive(Clone, PartialEq, ::prost::Message)]
++pub struct TerminalFocusGainedMsg {
++}
++/// Empty message
++#[allow(clippy::derive_partial_eq_without_eq)]
++#[derive(Clone, PartialEq, ::prost::Message)]
++pub struct TerminalFocusLostMsg {
++}
++/// Empty message
++#[allow(clippy::derive_partial_eq_without_eq)]
++#[derive(Clone, PartialEq, ::prost::Message)]
+ pub struct KillSessionMsg {
+ }
+ /// Empty message (just indicates connection status request)
+diff --git a/zellij-utils/src/client_server_contract/client_to_server.proto b/zellij-utils/src/client_server_contract/client_to_server.proto
+index 834feccd..302c75a8 100644
+--- a/zellij-utils/src/client_server_contract/client_to_server.proto
++++ b/zellij-utils/src/client_server_contract/client_to_server.proto
+@@ -25,6 +25,8 @@ message ClientToServerMsg {
+     DesktopNotificationResponseMsg desktop_notification_response = 18;
+     ForwardedReplyFromHostMsg forwarded_reply_from_host = 19;
+     HostTerminalThemeChangedMsg host_terminal_theme_changed = 20;
++    TerminalFocusGainedMsg terminal_focus_gained = 21;
++    TerminalFocusLostMsg terminal_focus_lost = 22;
+   }
+ }
+ 
+@@ -86,6 +88,14 @@ message ClientExitedMsg {
+   // Empty message
+ }
+ 
++message TerminalFocusGainedMsg {
++  // Empty message
++}
++
++message TerminalFocusLostMsg {
++  // Empty message
++}
++
+ message KillSessionMsg {
+   // Empty message
+ }
+diff --git a/zellij-utils/src/ipc.rs b/zellij-utils/src/ipc.rs
+index a837a0af..b4ab0755 100644
+--- a/zellij-utils/src/ipc.rs
++++ b/zellij-utils/src/ipc.rs
+@@ -156,6 +156,8 @@ pub enum ClientToServerMsg {
+     DesktopNotificationResponse {
+         raw_bytes: Vec<u8>,
+     },
++    TerminalFocusGained,
++    TerminalFocusLost,
+     /// Raw reply bytes observed by the client inside a forwarding window
+     /// closed by the Primary-DA barrier. The server routes these bytes
+     /// verbatim to the pane whose app issued the whitelisted query
+diff --git a/zellij-utils/src/ipc/protobuf_conversion.rs b/zellij-utils/src/ipc/protobuf_conversion.rs
+index 8025d66f..92d483c5 100644
+--- a/zellij-utils/src/ipc/protobuf_conversion.rs
++++ b/zellij-utils/src/ipc/protobuf_conversion.rs
+@@ -13,8 +13,8 @@ use crate::{
+         QueryTerminalSizeMsg, RenamedSessionMsg, RenderMsg,
+         ServerToClientMsg as ProtoServerToClientMsg, StartWebServerMsg, SubscribeToPaneRendersMsg,
+         SubscribedPaneClosedMsg, SwitchSessionMsg, TabMetadata as ProtoTabMetadata,
+-        TerminalPixelDimensionsMsg, TerminalResizeMsg, UnblockCliPipeInputMsg,
+-        UnblockInputThreadMsg, WebServerStartedMsg,
++        TerminalFocusGainedMsg, TerminalFocusLostMsg, TerminalPixelDimensionsMsg,
++        TerminalResizeMsg, UnblockCliPipeInputMsg, UnblockInputThreadMsg, WebServerStartedMsg,
+     },
+     data::{HostTerminalThemeMode, InputMode, PaneId},
+     errors::prelude::*,
+@@ -132,6 +132,12 @@ impl From<ClientToServerMsg> for ProtoClientToServerMsg {
+                     DesktopNotificationResponseMsg { raw_bytes },
+                 )
+             },
++            ClientToServerMsg::TerminalFocusGained => {
++                client_to_server_msg::Message::TerminalFocusGained(TerminalFocusGainedMsg {})
++            },
++            ClientToServerMsg::TerminalFocusLost => {
++                client_to_server_msg::Message::TerminalFocusLost(TerminalFocusLostMsg {})
++            },
+             ClientToServerMsg::ForwardedReplyFromHost { token, reply_bytes } => {
+                 client_to_server_msg::Message::ForwardedReplyFromHost(ForwardedReplyFromHostMsg {
+                     token,
+@@ -274,6 +280,12 @@ impl TryFrom<ProtoClientToServerMsg> for ClientToServerMsg {
+                     raw_bytes: msg.raw_bytes,
+                 })
+             },
++            Some(client_to_server_msg::Message::TerminalFocusGained(_)) => {
++                Ok(ClientToServerMsg::TerminalFocusGained)
++            },
++            Some(client_to_server_msg::Message::TerminalFocusLost(_)) => {
++                Ok(ClientToServerMsg::TerminalFocusLost)
++            },
+             Some(client_to_server_msg::Message::ForwardedReplyFromHost(msg)) => {
+                 Ok(ClientToServerMsg::ForwardedReplyFromHost {
+                     token: msg.token,
+diff --git a/zellij-utils/src/ipc/tests/roundtrip_tests.rs b/zellij-utils/src/ipc/tests/roundtrip_tests.rs
+index 4847b679..a7e6d611 100644
+--- a/zellij-utils/src/ipc/tests/roundtrip_tests.rs
++++ b/zellij-utils/src/ipc/tests/roundtrip_tests.rs
+@@ -3569,6 +3569,8 @@ fn test_client_messages() {
+     test_client_roundtrip!(ClientToServerMsg::HostTerminalThemeChanged {
+         mode: HostTerminalThemeMode::Light,
+     });
++    test_client_roundtrip!(ClientToServerMsg::TerminalFocusGained);
++    test_client_roundtrip!(ClientToServerMsg::TerminalFocusLost);
+ }
+ 
+ fn test_server_messages() {

@@ -14,6 +14,7 @@ for requirement in git python3 readlink tmux timeout; do
     exit 1
   }
 done
+ZELLIJ_VERSION="$(python3 "$ROOT/scripts/fixtures/zellij_runtime.py" version)"
 
 if [ "$(uname -s)" != Linux ]; then
   printf '%s\n' 'FAIL: the agent PTY acceptance harness currently requires Linux.' >&2
@@ -65,6 +66,7 @@ TMUX_SOCKET="$TEST_ROOT/tmux.sock"
 TMUX_SESSION='bp-agent-e2e'
 ZELLIJ_SOCKET_ROOT="$TEST_ROOT/z"
 E2E_DATA_HOME="${BLACKPEPPER_AGENT_E2E_DATA_HOME:-$ROOT/target/tui-local-e2e-data}"
+ZELLIJ_CACHE_ROOT="$E2E_DATA_HOME/blackpepper/sidecars/zellij/$ZELLIJ_VERSION"
 E2E_SECRET='BP_AGENT_E2E_SECRET_MUST_NEVER_PERSIST_9e7b51'
 ZELLIJ_BIN=''
 
@@ -116,13 +118,13 @@ unset OPENCODE_CONFIG_CONTENT
 start_client
 attach_workspace
 for _attempt in $(seq 1 200); do
-  ZELLIJ_BIN="$(find "$E2E_DATA_HOME/blackpepper/sidecars/zellij/0.44.3" \
+  ZELLIJ_BIN="$(find "$ZELLIJ_CACHE_ROOT" \
     -type f -name zellij -perm -u+x -print -quit 2>/dev/null || true)"
   [ -n "$ZELLIJ_BIN" ] && break
   sleep 0.1
 done
-if [ -z "$ZELLIJ_BIN" ] || [ "$($ZELLIJ_BIN --version)" != 'zellij 0.44.3' ]; then
-  fail_agent_e2e 'exact managed Zellij 0.44.3 was not available'
+if [ -z "$ZELLIJ_BIN" ] || [ "$($ZELLIJ_BIN --version)" != "zellij $ZELLIJ_VERSION" ]; then
+  fail_agent_e2e "exact managed Zellij $ZELLIJ_VERSION was not available"
 fi
 
 for provider in codex claude opencode; do

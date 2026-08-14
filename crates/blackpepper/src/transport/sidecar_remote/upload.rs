@@ -12,10 +12,10 @@ use std::time::{Duration, Instant};
 
 const UPLOAD_BUFFER_BYTES: usize = 256 * 1024;
 pub(super) const UPLOAD_STALL_TIMEOUT: Duration = Duration::from_secs(30);
-pub(super) const UPLOAD_TOTAL_TIMEOUT: Duration = Duration::from_secs(120);
+const UPLOAD_MINIMUM_DEADLINE: Duration = Duration::from_secs(120);
+const UPLOAD_MINIMUM_BYTES_PER_SECOND: u64 = 128 * 1024;
 const UPLOAD_WATCH_INTERVAL: Duration = Duration::from_millis(250);
 const UPLOAD_WRITE_RETRY: Duration = Duration::from_millis(10);
-const UPLOAD_EOF_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Stream one local file into an already-spawned host command. The caller
 /// remains responsible for remote checksum verification and atomic publish.
@@ -38,8 +38,12 @@ pub(crate) fn upload_file_to_child(
         .take_stdin()
         .ok_or(SidecarInstallError::MissingUploadStdin)?;
     let child = stream_upload(child, local, stdin, total)?;
+    // Writing all bytes to the local SSH pipe does not mean OpenSSH has
+    // flushed its channel or the remote `cat` has committed them yet. Give
+    // that final phase the same size-aware budget as the transfer itself;
+    // the command wait still observes scoped cancellation.
     child
-        .wait_with_output_timeout(UPLOAD_EOF_TIMEOUT)
+        .wait_with_output_timeout(upload_deadline(total))
         .map_err(Into::into)
 }
 
@@ -84,6 +88,7 @@ fn watch_upload(
     total: u64,
 ) -> Result<RunningCommand, SidecarInstallError> {
     let started = Instant::now();
+    let deadline = upload_deadline(total);
     let mut last_progress = started;
     let mut last_transferred = 0;
     loop {
@@ -114,7 +119,7 @@ fn watch_upload(
             last_transferred = transferred;
             last_progress = Instant::now();
         }
-        let timed_out = started.elapsed() >= UPLOAD_TOTAL_TIMEOUT;
+        let timed_out = started.elapsed() >= deadline;
         let stalled = last_progress.elapsed() >= UPLOAD_STALL_TIMEOUT;
         let cancelled = CommandCancellation::scope_is_cancelled();
         if timed_out || stalled || cancelled {
@@ -134,6 +139,12 @@ fn watch_upload(
     }
 }
 
+pub(super) fn upload_deadline(total: u64) -> Duration {
+    let transfer_seconds =
+        total.saturating_add(UPLOAD_MINIMUM_BYTES_PER_SECOND - 1) / UPLOAD_MINIMUM_BYTES_PER_SECOND;
+    UPLOAD_MINIMUM_DEADLINE.max(Duration::from_secs(transfer_seconds))
+}
+
 fn upload_interrupted(
     cancelled: bool,
     timed_out: bool,
@@ -151,6 +162,7 @@ fn upload_interrupted(
         SidecarInstallError::UploadTimedOut {
             transferred,
             total,
+            deadline_seconds: upload_deadline(total).as_secs(),
             cancellation_error,
         }
     } else {

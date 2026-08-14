@@ -1,0 +1,368 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 86362a16..72fc0eb2 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+ 
+ ## [Unreleased]
++* feat: forward OSC 9 and OSC 777 desktop notifications to host terminal (https://github.com/zellij-org/zellij/pull/5099)
+ 
+ ## [0.44.3] - 2026-05-13
+ * fix(windows): bump windows-sys to 0.59 to align manifest with code, fixing source builds via `cargo install`/`cargo binstall` (https://github.com/zellij-org/zellij/pull/5139)
+diff --git a/zellij-server/src/panes/grid.rs b/zellij-server/src/panes/grid.rs
+index 9f6134cb..64cee886 100644
+--- a/zellij-server/src/panes/grid.rs
++++ b/zellij-server/src/panes/grid.rs
+@@ -108,6 +108,52 @@ pub(crate) fn namespace_notification_id(metadata: &str, pane_id: u32) -> String
+     }
+ }
+ 
++/// Maximum length (chars) accepted for any single field in a legacy
++/// desktop-notification OSC. Longer inputs are truncated. Bounds total
++/// emitted size and limits abuse from runaway programs.
++pub(crate) const LEGACY_NOTIFICATION_FIELD_MAX_LEN: usize = 1024;
++
++/// Strip control characters from a notification field so a malicious or
++/// buggy program cannot inject escape sequences (additional OSC, CSI,
++/// title-set, etc.) into the host terminal via the notification body.
++/// Removes C0 controls, DEL, and the C1 range. Preserves printable text
++/// (including non-ASCII UTF-8) and tab.
++pub(crate) fn sanitize_legacy_notification_field(input: &str) -> String {
++    input
++        .chars()
++        .filter(|c| {
++            // Allow tab; reject all other C0, DEL, and C1 controls.
++            *c == '\t' || (!c.is_control() && !matches!(*c as u32, 0x80..=0x9F))
++        })
++        .take(LEGACY_NOTIFICATION_FIELD_MAX_LEN)
++        .collect()
++}
++
++/// Parsed and validated legacy desktop notification, ready to be
++/// re-emitted to the host terminal in canonical form. Variants
++/// correspond to the de-facto pre-OSC-99 notification protocols that
++/// modern terminals (WezTerm, iTerm2, Kitty, Alacritty) recognize.
++#[derive(Debug, Clone)]
++pub enum LegacyDesktopNotification {
++    /// rxvt-style: `ESC ] 9 ; <text> BEL`
++    Osc9 { text: String },
++    /// urxvt-extended notify: `ESC ] 777 ; notify ; <title> ; <body> BEL`
++    Osc777Notify { title: String, body: String },
++}
++
++impl LegacyDesktopNotification {
++    /// Re-emit in canonical form. Always uses BEL terminator for
++    /// consistency; all common host terminals accept it.
++    pub fn to_canonical_bytes(&self) -> Vec<u8> {
++        match self {
++            LegacyDesktopNotification::Osc9 { text } => format!("\x1b]9;{}\x07", text).into_bytes(),
++            LegacyDesktopNotification::Osc777Notify { title, body } => {
++                format!("\x1b]777;notify;{};{}\x07", title, body).into_bytes()
++            },
++        }
++    }
++}
++
+ use vte::{Params, Perform};
+ use zellij_utils::{consts::VERSION, shared::version_number};
+ 
+@@ -652,6 +698,11 @@ pub struct Grid {
+     /// Zellij should forward to the host terminal; the host's reply is
+     /// later routed back to this pane's pty.
+     pub pending_forwarded_queries: Vec<crate::host_query::HostQuery>,
++    /// Pending legacy (pre-OSC-99) desktop notifications: rxvt-style
++    /// OSC 9 and urxvt-extended OSC 777 `notify`. Each entry has been
++    /// parsed, sanitized, and length-bounded; it is re-emitted to the
++    /// host terminal in canonical form rather than passed through raw.
++    pub pending_legacy_desktop_notifications: Vec<LegacyDesktopNotification>,
+     ui_component_bytes: Option<Vec<u8>>,
+     style: Style,
+     debug: bool,
+@@ -971,6 +1022,7 @@ impl Grid {
+             pending_osc7_cwd: None,
+             pending_desktop_notifications: Vec::new(),
+             pending_forwarded_queries: Vec::new(),
++            pending_legacy_desktop_notifications: Vec::new(),
+             ui_component_bytes: None,
+             style,
+             debug,
+@@ -3776,6 +3828,58 @@ impl Perform for Grid {
+                 }
+             },
+ 
++            // Legacy desktop notifications: rxvt-style OSC 9 and
++            // urxvt-extended OSC 777. We do NOT pass these through raw;
++            // instead we parse the documented shape, sanitize each field
++            // (stripping control chars, bounding length), and re-emit a
++            // canonical sequence. This prevents a program inside a pane
++            // from injecting arbitrary escape sequences into the host
++            // terminal via the notification body.
++            b"9" => {
++                // Shape: OSC 9 ; <text> ST.  `text` may itself contain
++                // semicolons, so rejoin params[1..].
++                if params.len() < 2 {
++                    return;
++                }
++                let text: String = params[1..]
++                    .iter()
++                    .flat_map(|x| str::from_utf8(x))
++                    .collect::<Vec<&str>>()
++                    .join(";");
++                let text = sanitize_legacy_notification_field(&text);
++                if text.is_empty() {
++                    return;
++                }
++                self.pending_legacy_desktop_notifications
++                    .push(LegacyDesktopNotification::Osc9 { text });
++            },
++            b"777" => {
++                // Shape: OSC 777 ; <subcommand> ; <args...> ST.
++                // We only handle the `notify` subcommand (notification
++                // delivery); other subcommands like `preexec`/`precmd`
++                // are intentionally dropped because they are not
++                // notifications and forwarding them could leak shell
++                // hooks across the multiplexer boundary.
++                if params.len() < 4 || params[1] != b"notify" {
++                    return;
++                }
++                let title: String = std::iter::once(params[2])
++                    .flat_map(|x| str::from_utf8(x))
++                    .collect();
++                let title = sanitize_legacy_notification_field(&title);
++                let body: String = params[3..]
++                    .iter()
++                    .flat_map(|x| str::from_utf8(x))
++                    .collect::<Vec<&str>>()
++                    .join(";");
++                let body = sanitize_legacy_notification_field(&body);
++                if title.is_empty() && body.is_empty() {
++                    return;
++                }
++                self.pending_legacy_desktop_notifications
++                    .push(LegacyDesktopNotification::Osc777Notify { title, body });
++            },
++
+             _ => {
+                 if self.debug {
+                     log::warn!("Unhandled osc: {:?}", params);
+diff --git a/zellij-server/src/panes/terminal_pane.rs b/zellij-server/src/panes/terminal_pane.rs
+index 477185a4..5e71d6ee 100644
+--- a/zellij-server/src/panes/terminal_pane.rs
++++ b/zellij-server/src/panes/terminal_pane.rs
+@@ -647,6 +647,15 @@ impl Pane for TerminalPane {
+         self.grid.pending_desktop_notifications.drain(..).collect()
+     }
+ 
++    fn drain_legacy_desktop_notifications(
++        &mut self,
++    ) -> Vec<crate::panes::grid::LegacyDesktopNotification> {
++        self.grid
++            .pending_legacy_desktop_notifications
++            .drain(..)
++            .collect()
++    }
++
+     fn drain_osc7_cwd(&mut self) -> Option<std::path::PathBuf> {
+         self.grid.pending_osc7_cwd.take()
+     }
+diff --git a/zellij-server/src/tab/mod.rs b/zellij-server/src/tab/mod.rs
+index 1b8f12e9..62f232ce 100644
+--- a/zellij-server/src/tab/mod.rs
++++ b/zellij-server/src/tab/mod.rs
+@@ -447,6 +447,11 @@ pub trait Pane {
+     fn drain_desktop_notifications(&mut self) -> Vec<(String, String)> {
+         vec![]
+     }
++    fn drain_legacy_desktop_notifications(
++        &mut self,
++    ) -> Vec<crate::panes::grid::LegacyDesktopNotification> {
++        vec![]
++    }
+     fn drain_osc7_cwd(&mut self) -> Option<std::path::PathBuf> {
+         None
+     }
+@@ -2831,6 +2836,7 @@ impl Tab {
+             }
+             let clipboard_update = terminal_output.drain_clipboard_update();
+             let desktop_notifications = terminal_output.drain_desktop_notifications();
++            let legacy_notifications = terminal_output.drain_legacy_desktop_notifications();
+             let osc7_cwd = terminal_output.drain_osc7_cwd();
+             for message in messages_to_pty {
+                 self.write_to_pane_id_without_preprocessing(message, PaneId::Terminal(pid))
+@@ -2852,6 +2858,10 @@ impl Tab {
+                 self.forward_desktop_notifications(desktop_notifications, pid)
+                     .with_context(err_context)?;
+             }
++            if !legacy_notifications.is_empty() {
++                self.forward_legacy_desktop_notifications(legacy_notifications)
++                    .with_context(err_context)?;
++            }
+             if let Some(path) = osc7_cwd {
+                 let _ = self
+                     .senders
+@@ -4846,6 +4856,34 @@ impl Tab {
+             .with_context(err_context)?;
+         Ok(())
+     }
++    fn forward_legacy_desktop_notifications(
++        &self,
++        notifications: Vec<crate::panes::grid::LegacyDesktopNotification>,
++    ) -> Result<()> {
++        let err_context =
++            || "failed to forward legacy desktop notifications to host terminal".to_string();
++        let mut output = Output::default();
++        let all_clients: HashSet<ClientId> = {
++            self.connected_clients_in_app
++                .borrow()
++                .keys()
++                .copied()
++                .collect()
++        };
++        output.add_clients(&all_clients, self.link_handler.clone(), None);
++        for notification in notifications {
++            let bytes = notification.to_canonical_bytes();
++            // Safe: to_canonical_bytes() builds from already-sanitized
++            // fields, so the result is always valid UTF-8.
++            let raw = String::from_utf8(bytes).with_context(err_context)?;
++            output.add_post_vte_instruction_to_multiple_clients(all_clients.iter().copied(), &raw);
++        }
++        let serialized_output = output.serialize().with_context(err_context)?;
++        self.senders
++            .send_to_server(ServerInstruction::Render(Some(serialized_output)))
++            .with_context(err_context)?;
++        Ok(())
++    }
+     pub fn visible(&mut self, visible: bool) -> Result<()> {
+         let pids_in_this_tab = self.tiled_panes.pane_ids().filter_map(|p| match p {
+             PaneId::Plugin(pid) => Some(pid),
+diff --git a/zellij-server/src/tab/unit/tab_integration_tests.rs b/zellij-server/src/tab/unit/tab_integration_tests.rs
+index 46e796b6..85d2630d 100644
+--- a/zellij-server/src/tab/unit/tab_integration_tests.rs
++++ b/zellij-server/src/tab/unit/tab_integration_tests.rs
+@@ -14596,6 +14596,125 @@ fn osc99_grid_parses_and_stores_notification() {
+     );
+ }
+ 
++fn fresh_grid_for_legacy_osc_test() -> crate::panes::grid::Grid {
++    use crate::panes::grid::Grid;
++    use crate::panes::link_handler::LinkHandler;
++    let sixel_image_store = Rc::new(RefCell::new(SixelImageStore::default()));
++    let terminal_emulator_color_codes = Rc::new(RefCell::new(HashMap::new()));
++    let character_cell_size = Rc::new(RefCell::new(Some(SizeInPixels {
++        width: 8,
++        height: 21,
++    })));
++    Grid::new(
++        24,
++        80,
++        Rc::new(RefCell::new(Palette::default())),
++        terminal_emulator_color_codes,
++        Rc::new(RefCell::new(LinkHandler::new())),
++        character_cell_size,
++        sixel_image_store,
++        Style::default(),
++        false,
++        true,
++        true,
++        true,
++        false,
++    )
++}
++
++fn feed_bytes(grid: &mut crate::panes::grid::Grid, bytes: &[u8]) {
++    let mut vte_parser = vte::Parser::new();
++    for &byte in bytes {
++        vte_parser.advance(grid, byte);
++    }
++}
++
++#[test]
++fn osc9_grid_parses_and_stores_notification() {
++    use crate::panes::grid::LegacyDesktopNotification;
++    let mut grid = fresh_grid_for_legacy_osc_test();
++    feed_bytes(&mut grid, b"\x1b]9;hello world\x07");
++    assert_eq!(grid.pending_legacy_desktop_notifications.len(), 1);
++    match grid.pending_legacy_desktop_notifications.first().unwrap() {
++        LegacyDesktopNotification::Osc9 { text } => assert_eq!(text, "hello world"),
++        other => panic!("expected Osc9, got {:?}", other),
++    }
++}
++
++#[test]
++fn osc777_notify_grid_parses_and_stores_notification() {
++    use crate::panes::grid::LegacyDesktopNotification;
++    let mut grid = fresh_grid_for_legacy_osc_test();
++    feed_bytes(&mut grid, b"\x1b]777;notify;Title;Body\x07");
++    assert_eq!(grid.pending_legacy_desktop_notifications.len(), 1);
++    match grid.pending_legacy_desktop_notifications.first().unwrap() {
++        LegacyDesktopNotification::Osc777Notify { title, body } => {
++            assert_eq!(title, "Title");
++            assert_eq!(body, "Body");
++        },
++        other => panic!("expected Osc777Notify, got {:?}", other),
++    }
++}
++
++#[test]
++fn osc777_non_notify_subcommand_is_dropped() {
++    let mut grid = fresh_grid_for_legacy_osc_test();
++    feed_bytes(&mut grid, b"\x1b]777;preexec;some command\x07");
++    feed_bytes(&mut grid, b"\x1b]777;precmd;more data\x07");
++    feed_bytes(&mut grid, b"\x1b]777;cwd;/tmp\x07");
++    assert!(grid.pending_legacy_desktop_notifications.is_empty());
++}
++
++#[test]
++fn osc9_strips_control_chars_from_text() {
++    // Direct unit-level check on the sanitizer: any control char that
++    // sneaks into a payload (whether via partial VTE parse, malformed
++    // input, or simply embedded C0/DEL/C1 bytes) must not survive into
++    // what we re-emit. This guards the property that the host terminal
++    // receives only printable text.
++    use crate::panes::grid::sanitize_legacy_notification_field;
++    let dirty = "before\x01\x07\x1b\x7fmid\u{0085}after";
++    let clean = sanitize_legacy_notification_field(dirty);
++    assert_eq!(clean, "beforemidafter");
++}
++
++#[test]
++fn legacy_notification_field_preserves_unicode_and_tab() {
++    use crate::panes::grid::sanitize_legacy_notification_field;
++    let s = "안녕\thello \u{1F600}";
++    assert_eq!(sanitize_legacy_notification_field(s), s);
++}
++
++#[test]
++fn legacy_notification_field_is_length_capped() {
++    use crate::panes::grid::{LegacyDesktopNotification, LEGACY_NOTIFICATION_FIELD_MAX_LEN};
++    let mut grid = fresh_grid_for_legacy_osc_test();
++    let mut bytes = b"\x1b]9;".to_vec();
++    bytes.extend(std::iter::repeat(b'a').take(LEGACY_NOTIFICATION_FIELD_MAX_LEN + 500));
++    bytes.push(0x07);
++    feed_bytes(&mut grid, &bytes);
++    match grid.pending_legacy_desktop_notifications.first().unwrap() {
++        LegacyDesktopNotification::Osc9 { text } => {
++            assert_eq!(text.chars().count(), LEGACY_NOTIFICATION_FIELD_MAX_LEN);
++        },
++        other => panic!("expected Osc9, got {:?}", other),
++    }
++}
++
++#[test]
++fn legacy_notification_canonical_emit_uses_bel_and_fixed_template() {
++    use crate::panes::grid::LegacyDesktopNotification;
++    let osc9 = LegacyDesktopNotification::Osc9 {
++        text: "x".to_string(),
++    };
++    assert_eq!(osc9.to_canonical_bytes(), b"\x1b]9;x\x07");
++    let osc777 = LegacyDesktopNotification::Osc777Notify {
++        title: "T".to_string(),
++        body: "B".to_string(),
++    };
++    assert_eq!(osc777.to_canonical_bytes(), b"\x1b]777;notify;T;B\x07");
++}
++
+ #[test]
+ fn osc99_namespace_denormalize_roundtrip() {
+     // Test that namespace_notification_id and denormalize_notification_response

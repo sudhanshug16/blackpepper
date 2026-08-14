@@ -10,8 +10,25 @@ use super::sidecar_manifest;
 mod error;
 pub use error::SidecarError;
 
+/// The release used by new sessions. Activation switches this to
+/// [`PATCHED_ZELLIJ_VERSION`] only after all four private assets are published
+/// and their archive digests are pinned in the manifest.
 pub const ZELLIJ_VERSION: &str = "0.44.3";
+pub const LEGACY_ZELLIJ_VERSION: &str = "0.44.3";
+pub const PATCHED_ZELLIJ_VERSION: &str = "0.44.3-blackpepper.1";
 pub const WORKTRUNK_VERSION: &str = "0.72.0";
+
+/// Private Zellij builds must never be satisfied by an executable from PATH.
+pub fn is_blackpepper_zellij_version(version: &str) -> bool {
+    let Some((upstream, generation)) = version.rsplit_once("-blackpepper.") else {
+        return false;
+    };
+    !generation.is_empty()
+        && generation.bytes().all(|byte| byte.is_ascii_digit())
+        && upstream.split('.').all(|component| {
+            !component.is_empty() && component.bytes().all(|byte| byte.is_ascii_digit())
+        })
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ManagedTool {
@@ -119,8 +136,14 @@ pub struct ReleaseAsset {
     pub asset_name: &'static str,
     pub url: &'static str,
     pub trusted_sha256: Option<&'static str>,
+    /// SHA-256 of the extracted executable, pinned independently of the archive.
+    pub binary_sha256: Option<&'static str>,
     pub archive: ArchiveKind,
     pub binary_name: &'static str,
+    /// Optional license file distributed beside a Blackpepper-owned binary.
+    pub license_name: Option<&'static str>,
+    /// SHA-256 of `license_name` when a license is declared.
+    pub license_sha256: Option<&'static str>,
 }
 
 impl ReleaseAsset {
@@ -160,7 +183,15 @@ pub fn release_asset(
     tool: ManagedTool,
     target: SidecarTarget,
 ) -> Result<&'static ReleaseAsset, SidecarError> {
-    sidecar_manifest::release_asset(tool, target)
+    release_asset_for_version(tool, tool.version(), target)
+}
+
+pub fn release_asset_for_version(
+    tool: ManagedTool,
+    version: &str,
+    target: SidecarTarget,
+) -> Result<&'static ReleaseAsset, SidecarError> {
+    sidecar_manifest::release_asset(tool, version, target)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,18 +212,33 @@ pub fn select_runtime(
     target: SidecarTarget,
     installed: Option<SystemRuntime>,
 ) -> Result<RuntimeSelection, SidecarError> {
+    select_runtime_for_version(tool, tool.version(), target, installed)
+}
+
+pub fn select_runtime_for_version(
+    tool: ManagedTool,
+    version: &str,
+    target: SidecarTarget,
+    installed: Option<SystemRuntime>,
+) -> Result<RuntimeSelection, SidecarError> {
+    let requires_managed = tool == ManagedTool::Zellij && is_blackpepper_zellij_version(version);
     if let Some(installed) = installed {
-        let version = installed
+        let installed_version = installed
             .version
             .split_whitespace()
             .last()
             .unwrap_or_default()
             .trim_start_matches('v');
-        if !installed.binary.as_os_str().is_empty() && version == tool.version() {
+        if !requires_managed
+            && !installed.binary.as_os_str().is_empty()
+            && installed_version == version
+        {
             return Ok(RuntimeSelection::System(installed));
         }
     }
-    Ok(RuntimeSelection::Managed(release_asset(tool, target)?))
+    Ok(RuntimeSelection::Managed(release_asset_for_version(
+        tool, version, target,
+    )?))
 }
 
 pub fn sha256_bytes(bytes: &[u8]) -> String {
