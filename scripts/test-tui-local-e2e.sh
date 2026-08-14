@@ -5,6 +5,8 @@ ROOT="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 FIXTURES="$ROOT/scripts/fixtures/tui-local-e2e"
 # shellcheck source=scripts/fixtures/tui-local-e2e/harness-lib.sh
 source "$FIXTURES/harness-lib.sh"
+# shellcheck source=scripts/fixtures/tui-local-e2e/zellij-session-lib.sh
+source "$FIXTURES/zellij-session-lib.sh"
 
 for requirement in tmux git python3 ssh curl ss timeout; do
   command -v "$requirement" >/dev/null 2>&1 || {
@@ -69,12 +71,22 @@ case "$E2E_DATA_HOME" in
   *) printf 'FAIL: BLACKPEPPER_TUI_E2E_DATA_HOME must be absolute: %s\n' "$E2E_DATA_HOME" >&2; exit 1 ;;
 esac
 
-trap cleanup_e2e EXIT HUP INT TERM
+# Preserve a signal's nonzero status through one EXIT cleanup invocation.
+trap cleanup_e2e EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 install -d -m 0700 \
   "$ARTIFACTS" "$PRIMARY/.blackpepper" "$TEMP_HOME/.ssh" \
   "$TEST_ROOT/config/worktrunk" "$TEST_ROOT/state" "$TEST_ROOT/run" \
   "$TEST_ROOT/cache" "$ZELLIJ_SOCKET_ROOT" "$E2E_DATA_HOME"
+EMPTY_ZELLIJ_SOCKET_CHECK=''
+if ! EMPTY_ZELLIJ_SOCKET_CHECK="$(active_zellij_session_sockets)"; then
+  fail_e2e 'empty Zellij socket inspection returned a failure status'
+fi
+[ -z "$EMPTY_ZELLIJ_SOCKET_CHECK" ] ||
+  fail_e2e "new isolated Zellij socket root was not empty: $EMPTY_ZELLIJ_SOCKET_CHECK"
 cp "$FIXTURES/config.toml" "$PRIMARY/.blackpepper/config.toml"
 printf '%s\n' '# Blackpepper local TUI acceptance fixture' > "$PRIMARY/README.md"
 git -C "$PRIMARY" init --initial-branch=main --quiet
@@ -288,7 +300,7 @@ run_shell_command "printf \"\\nBP_E2E_OVERLAY:%s\\n\" \"\$PWD\""
 wait_for_screen "BP_E2E_OVERLAY:$PEER" workspace-overlay-peer 10
 
 run_tui_command ':worktree create e2e-created --base main'
-wait_for_screen ':approve' worktree-create-review 30
+wait_for_screen 'approval binds to this exact Worktrunk command' worktree-create-review 30
 assert_screen_has 'repository' worktree-create-repository
 assert_screen_has 'mutation' worktree-create-mutation
 assert_screen_has 'project hooks' worktree-create-hooks
@@ -303,7 +315,7 @@ wait_for_screen "Registered worktree $CREATED" worktree-create-approved 45
 assert_screen_has 'e2e-created' worktree-created-tree
 
 run_tui_command ':worktree remove'
-wait_for_screen ':approve' worktree-remove-review 30
+wait_for_screen 'approval binds to this exact Worktrunk command' worktree-remove-review 30
 assert_screen_has 'repository' worktree-remove-repository
 assert_screen_has 'mutation' worktree-remove-mutation
 assert_screen_has 'project hooks' worktree-remove-hooks
@@ -320,9 +332,7 @@ wait_for_path_absent "$CREATED" 20
 run_tui_command ':quit'
 wait_for_session_exit 15
 ZELLIJ_SOCKET_DIR="$ZELLIJ_SOCKET_ROOT" "$ZELLIJ_BIN" kill-all-sessions -y
-ZELLIJ_AFTER_REBOOT="$(ZELLIJ_SOCKET_DIR="$ZELLIJ_SOCKET_ROOT" "$ZELLIJ_BIN" \
-  list-sessions --short --no-formatting 2>/dev/null || true)"
-[ -z "$ZELLIJ_AFTER_REBOOT" ] || fail_e2e 'simulated reboot left a Zellij session running'
+wait_for_no_zellij_session_sockets 'simulated reboot' 15
 
 tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 180 -y 52 \
   -c "$PRIMARY" "$BP_DEV"
@@ -372,9 +382,7 @@ wait_for_screen 'Disconnected from e2e; sessions remain running.' host-disconnec
 run_tui_command ':quit'
 wait_for_session_exit 15
 
-ZELLIJ_LEFTOVERS="$(ZELLIJ_SOCKET_DIR="$ZELLIJ_SOCKET_ROOT" "$ZELLIJ_BIN" \
-  list-sessions --short --no-formatting 2>/dev/null || true)"
-[ -z "$ZELLIJ_LEFTOVERS" ] || fail_e2e "isolated Zellij sessions remained: $ZELLIJ_LEFTOVERS"
+wait_for_no_zellij_session_sockets 'explicit workspace termination' 15
 
 run_config_rejection invalid invalid-config.toml "unknown field \`unknown_v1_option\`"
 run_config_rejection legacy legacy-tmux-config.toml 'Legacy [tmux] configuration found'

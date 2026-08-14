@@ -1,11 +1,16 @@
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use crate::transport::{HostCommand, HostTransport};
 
 use super::super::model::{checked, parse_sessions, ClientOperation, ZellijError};
 use super::validation::validate_name;
 use super::{ZellijRuntime, DEVELOPMENT_SOCKET_OVERRIDE, METADATA_TIMEOUT};
+
+const SESSION_EXIT_TIMEOUT: Duration = Duration::from_secs(5);
+const SESSION_EXIT_POLL_INTERVAL: Duration = Duration::from_millis(25);
+const SESSION_KILL_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl ZellijRuntime {
     pub fn list_sessions_command(&self) -> HostCommand {
@@ -85,9 +90,58 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<(), ZellijError> {
+        self.kill_session_with_timeout(
+            host,
+            session,
+            SESSION_EXIT_TIMEOUT,
+            SESSION_EXIT_POLL_INTERVAL,
+        )
+    }
+
+    fn kill_session_with_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: Duration,
+        poll_interval: Duration,
+    ) -> Result<(), ZellijError> {
         self.enforce_client_safety(host, session, ClientOperation::Destroy)?;
         let command = self.command(["kill-session", session]);
-        checked(host.exec(&command)?, "kill Zellij session")?;
-        Ok(())
+        // A timed-out kill leaves the registry non-exited. The next leased
+        // operation therefore reconciles this same deterministic session name
+        // instead of assuming an unknown mutation succeeded.
+        checked(
+            host.exec_timeout(&command, SESSION_KILL_COMMAND_TIMEOUT)?,
+            "kill Zellij session",
+        )?;
+
+        // On Unix the Zellij CLI only sends KillSession IPC before exiting.
+        // Do not let callers reuse this deterministic name until the old
+        // server has stopped accepting exact-session client queries.
+        let deadline = Instant::now() + timeout;
+        loop {
+            if !self.session_is_active(host, session)? {
+                return Ok(());
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                return Err(ZellijError::InvalidOutput(format!(
+                    "Zellij session {session:?} remained active for {}ms after kill-session; refusing to mark it exited",
+                    timeout.as_millis()
+                )));
+            }
+            std::thread::sleep(poll_interval.min(deadline.saturating_duration_since(now)));
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn kill_session_with_timeout_for_test(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: Duration,
+        poll_interval: Duration,
+    ) -> Result<(), ZellijError> {
+        self.kill_session_with_timeout(host, session, timeout, poll_interval)
     }
 }

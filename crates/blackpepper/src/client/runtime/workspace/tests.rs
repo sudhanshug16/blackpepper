@@ -1,4 +1,8 @@
-use super::{provisional_attachment_count, session::zellij_session_name, ClientRuntime};
+use super::{
+    provisional_attachment_count,
+    session::{latest_non_exited_zellij_session, zellij_session_name},
+    ClientRuntime,
+};
 use crate::client::runtime::HostSlot;
 use crate::core::{
     CorePaths, HostRegistry, SessionBackend, SessionRecord, SessionState, SingletonLock,
@@ -90,6 +94,47 @@ fn exited_current_generation_reuses_its_registry_identity_on_reopen() {
             .unwrap(),
         [reopened]
     );
+}
+
+#[test]
+fn newer_exited_history_does_not_shadow_the_current_zellij_session() {
+    let host_id = crate::core::HostId::new();
+    let workspace = WorkspaceRecord::new(host_id, "/tmp/private-zellij-selection");
+    let mut current = SessionRecord::new(
+        workspace.id,
+        SessionBackend::Zellij,
+        crate::transport::ZELLIJ_VERSION,
+        "bp-current",
+    );
+    current.state = SessionState::Running;
+    current.created_at_ms = 10;
+    current.updated_at_ms = 10;
+    let mut newer_external = SessionRecord::new(
+        workspace.id,
+        SessionBackend::External("fixture".to_owned()),
+        "1",
+        "external-newer",
+    );
+    newer_external.state = SessionState::Running;
+    newer_external.created_at_ms = 20;
+    newer_external.updated_at_ms = 20;
+    let mut newest_exited = SessionRecord::new(
+        workspace.id,
+        SessionBackend::Zellij,
+        "0.44.3-blackpepper.2",
+        "bp-newest-exited",
+    );
+    newest_exited.state = SessionState::Exited;
+    newest_exited.created_at_ms = 30;
+    newest_exited.updated_at_ms = 30;
+
+    let sessions = [current.clone(), newer_external, newest_exited.clone()];
+
+    assert_eq!(
+        latest_non_exited_zellij_session(&sessions).map(|session| session.id),
+        Some(current.id)
+    );
+    assert!(latest_non_exited_zellij_session(&[newest_exited]).is_none());
 }
 
 #[test]
