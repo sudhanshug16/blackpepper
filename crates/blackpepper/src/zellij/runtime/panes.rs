@@ -1,9 +1,9 @@
 use crate::transport::{HostCommand, HostTransport};
 
 use super::super::model::{
-    checked, classify_pane_process, parse_panes, PaneProcessState, ZellijError, ZellijPane,
-    ZellijTab,
+    classify_pane_process, PaneProcessState, ZellijError, ZellijPane, ZellijTab,
 };
+use super::metadata::read_json;
 use super::validation::{validate_name, validate_pane_selector, validate_typed_pane_selector};
 use super::{ZellijRuntime, METADATA_TIMEOUT};
 
@@ -18,12 +18,33 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<Vec<ZellijTab>, ZellijError> {
-        let output = checked(
-            host.exec_timeout(&self.list_tabs_command(session)?, METADATA_TIMEOUT)?,
+        self.list_tabs_with_timeout(host, session, METADATA_TIMEOUT)
+    }
+
+    fn list_tabs_with_timeout(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: std::time::Duration,
+    ) -> Result<Vec<ZellijTab>, ZellijError> {
+        read_json(
+            host,
+            &self.list_tabs_command(session)?,
             "list Zellij tabs",
-        )?;
-        serde_json::from_slice(&output.stdout)
-            .map_err(|error| ZellijError::InvalidOutput(format!("invalid tab JSON: {error}")))
+            "Timeout listing tabs",
+            "tab",
+            timeout,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn list_tabs_with_timeout_for_test(
+        &self,
+        host: &mut dyn HostTransport,
+        session: &str,
+        timeout: std::time::Duration,
+    ) -> Result<Vec<ZellijTab>, ZellijError> {
+        self.list_tabs_with_timeout(host, session, timeout)
     }
 
     /// Build the long-lived host-local viewport subscription used by the
@@ -56,11 +77,14 @@ impl ZellijRuntime {
         host: &mut dyn HostTransport,
         session: &str,
     ) -> Result<Vec<ZellijPane>, ZellijError> {
-        let output = checked(
-            host.exec_timeout(&self.list_panes_command(session)?, METADATA_TIMEOUT)?,
+        read_json(
+            host,
+            &self.list_panes_command(session)?,
             "list Zellij panes",
-        )?;
-        parse_panes(&output.stdout)
+            "Timeout listing panes",
+            "pane",
+            METADATA_TIMEOUT,
+        )
     }
 
     /// Observe a pane without attaching to or focusing its Zellij session.

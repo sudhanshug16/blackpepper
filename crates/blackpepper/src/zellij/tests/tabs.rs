@@ -66,19 +66,16 @@ fn ensure_tab_restores_the_only_attached_clients_previous_tab() {
         ["--session", "repo-main", "action", "go-to-tab-by-id", "3"]
     );
     assert_eq!(host.timeouts.len(), 8);
-    assert_eq!(
-        host.timeouts[..3],
-        [
-            Duration::from_secs(2),
-            Duration::from_secs(5),
-            Duration::from_secs(5),
-        ]
-    );
+    assert!(host.timeouts[..2]
+        .iter()
+        .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(2)));
+    assert_eq!(host.timeouts[2], Duration::from_secs(5));
     assert!(host.timeouts[3..5]
         .iter()
         .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(5)));
-    assert_eq!(host.timeouts[5], Duration::from_secs(2));
-    assert_eq!(host.timeouts[6], Duration::from_secs(5));
+    assert!(host.timeouts[5..7]
+        .iter()
+        .all(|timeout| !timeout.is_zero() && *timeout <= Duration::from_secs(2)));
     assert_eq!(host.timeouts[7], Duration::from_secs(5));
 }
 

@@ -2,6 +2,9 @@ use super::super::super::runtime::{ClientRuntime, ForwardCleanupBatch, ForwardCl
 use super::super::super::{ClientState, HostConnection};
 use crate::core::{HostId, HostPeriodicRefresh};
 use std::collections::BTreeSet;
+use std::time::Duration;
+
+const BACKGROUND_NOTICE_DURATION: Duration = Duration::from_secs(5);
 
 pub(super) fn forward_cleanup(
     state: &mut ClientState,
@@ -58,26 +61,31 @@ pub(super) fn refresh(
                 .ports
                 .insert(host_id, crate::ports::failed_probe(error.clone()));
             mark_host_agents_failed(state, host_id, &error);
-            state.set_output(format!(
-                "Background refresh failed on host {host_id}: {error}"
-            ));
+            state.set_transient_output(
+                format!("Background refresh failed on host {host_id}: {error}"),
+                BACKGROUND_NOTICE_DURATION,
+            );
             return None;
         }
     };
     if refresh.host_id != host_id {
-        state.set_output(format!(
-            "Background refresh was rejected because host {host_id} reported identity {}.",
-            refresh.host_id
-        ));
+        state.set_transient_output(
+            format!(
+                "Background refresh was rejected because host {host_id} reported identity {}.",
+                refresh.host_id
+            ),
+            BACKGROUND_NOTICE_DURATION,
+        );
         return None;
     }
     let snapshot = match runtime.apply_periodic_registry(&refresh) {
         Ok(snapshot) => snapshot,
         Err(error) => {
             mark_host_agents_failed(state, host_id, &error);
-            state.set_output(format!(
-                "Registry refresh failed on host {host_id}: {error}"
-            ));
+            state.set_transient_output(
+                format!("Registry refresh failed on host {host_id}: {error}"),
+                BACKGROUND_NOTICE_DURATION,
+            );
             return None;
         }
     };
@@ -93,10 +101,13 @@ pub(super) fn refresh(
     let watcher_errors = runtime.ensure_periodic_blocker_watchers(&refresh, state.event_tx.clone());
     notices.extend(watcher_errors);
     if !notices.is_empty() {
-        state.set_output(format!(
-            "Background refresh on host {host_id}: {}",
-            notices.join(" | ")
-        ));
+        state.set_transient_output(
+            format!(
+                "Background refresh on host {host_id}: {}",
+                notices.join(" | ")
+            ),
+            BACKGROUND_NOTICE_DURATION,
+        );
     }
     (!cleanup.is_empty()).then_some(cleanup)
 }
@@ -115,6 +126,28 @@ pub(super) fn merge_refresh_state(
             .and_then(|runs| runs.iter_mut().find(|run| run.run_id == *run_id))
         {
             run.apply_host_snapshot(snapshot.clone());
+        }
+    }
+    // Apply observation-pipeline failures after snapshots: the host includes
+    // the last known snapshot for diagnostics, but it must not make failed
+    // observation look authoritative. The next valid snapshot clears it.
+    for (run_id, error) in &refresh.agent_observation_errors {
+        if let Some(run) = state
+            .agent_runs
+            .values_mut()
+            .flatten()
+            .find(|run| run.run_id == *run_id)
+        {
+            // Exit is a durable monotonic event. A cleanup or later read
+            // warning remains in the transient footer, but must not turn an
+            // authoritative exit back into an unknown state.
+            if run
+                .snapshot
+                .as_ref()
+                .is_none_or(|snapshot| snapshot.state != crate::agent_status::AgentState::Exited)
+            {
+                run.mark_snapshot_error(error.clone());
+            }
         }
     }
     update_client_counts(state, host_id, refresh);

@@ -52,6 +52,10 @@ pub struct HostPeriodicRefresh {
     pub ports: PortSnapshot,
     pub agent_runs: Vec<HostAgentRun>,
     pub agent_snapshots: BTreeMap<AgentRunId, HostAgentSnapshot>,
+    /// Observation-pipeline failures are transient client state, not durable
+    /// agent events. A later authoritative snapshot clears the matching error.
+    #[serde(default)]
+    pub agent_observation_errors: BTreeMap<AgentRunId, String>,
     pub watchable_agent_runs: Vec<AgentRunId>,
     pub connected_clients: BTreeMap<WorkspaceId, usize>,
     pub client_count_errors: BTreeMap<WorkspaceId, String>,

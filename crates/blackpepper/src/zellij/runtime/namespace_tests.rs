@@ -20,6 +20,8 @@ fn resolver_adopts_the_only_live_legacy_namespace() {
         active_session(),
         physical_directory("/custom/runtime/zellij"),
         missing_named("repo-main"),
+        missing_named("repo-main"),
+        missing_named("repo-main"),
         active_session(),
     ]);
 
@@ -208,6 +210,8 @@ fn absent_session_uses_canonical_namespace_and_forgets_cached_resurrection() {
         metadata("1003", "relative", "also-relative", "", "relative-native"),
         missing_socket(),
         missing_socket(),
+        missing_no_sessions(),
+        missing_no_sessions(),
         missing_no_sessions(),
         success(""),
     ]);

@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
-use crate::transport::{CommandOutput, HostTransport, TransportError};
+use crate::transport::{HostTransport, TransportError};
 
 use super::super::super::model::{checked, parse_panes, ZellijError, ZellijPane, ZellijTab};
+use super::super::metadata::transient_metadata_result;
 use super::super::{ZellijRuntime, METADATA_TIMEOUT};
 
 pub(super) const TAB_CREATION_RECONCILE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -181,17 +182,4 @@ impl ZellijRuntime {
         let output = checked(output, "list Zellij panes")?;
         parse_panes(&output.stdout).map(Some)
     }
-}
-
-fn transient_metadata_result(output: &CommandOutput, timeout_message: &str) -> bool {
-    if output.success
-        && output.stderr.is_empty()
-        && output.stdout.iter().all(u8::is_ascii_whitespace)
-    {
-        return true;
-    }
-    !output.success
-        && output.status == Some(2)
-        && output.stdout.is_empty()
-        && std::str::from_utf8(&output.stderr).ok().map(str::trim) == Some(timeout_message)
 }
