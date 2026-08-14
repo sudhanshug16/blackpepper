@@ -8,8 +8,11 @@ active_zellij_session_sockets() {
   local socket
   [ -d "$contract_root" ] || return 0
   for socket in "$contract_root"/*; do
-    [ -S "$socket" ] && printf '%s\n' "${socket##*/}"
-  done | LC_ALL=C sort
+    if [ -S "$socket" ]; then
+      printf '%s\n' "${socket##*/}"
+    fi
+  done
+  return 0
 }
 
 wait_for_no_zellij_session_sockets() {

@@ -81,6 +81,12 @@ install -d -m 0700 \
   "$ARTIFACTS" "$PRIMARY/.blackpepper" "$TEMP_HOME/.ssh" \
   "$TEST_ROOT/config/worktrunk" "$TEST_ROOT/state" "$TEST_ROOT/run" \
   "$TEST_ROOT/cache" "$ZELLIJ_SOCKET_ROOT" "$E2E_DATA_HOME"
+EMPTY_ZELLIJ_SOCKET_CHECK=''
+if ! EMPTY_ZELLIJ_SOCKET_CHECK="$(active_zellij_session_sockets)"; then
+  fail_e2e 'empty Zellij socket inspection returned a failure status'
+fi
+[ -z "$EMPTY_ZELLIJ_SOCKET_CHECK" ] ||
+  fail_e2e "new isolated Zellij socket root was not empty: $EMPTY_ZELLIJ_SOCKET_CHECK"
 cp "$FIXTURES/config.toml" "$PRIMARY/.blackpepper/config.toml"
 printf '%s\n' '# Blackpepper local TUI acceptance fixture' > "$PRIMARY/README.md"
 git -C "$PRIMARY" init --initial-branch=main --quiet
