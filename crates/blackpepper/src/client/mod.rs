@@ -5,6 +5,7 @@ mod catalog;
 mod command;
 mod completion;
 mod control;
+mod focus;
 mod model;
 mod mouse;
 mod render;

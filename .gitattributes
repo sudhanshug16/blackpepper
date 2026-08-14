@@ -1,0 +1,2 @@
+# Unified diffs encode empty context lines as a single space.
+third_party/zellij/patches/*.patch -whitespace

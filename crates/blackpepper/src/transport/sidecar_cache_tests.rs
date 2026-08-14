@@ -12,6 +12,8 @@ use super::{
     SidecarCache, SidecarDownloader, SidecarError, SidecarTarget,
 };
 
+mod remote;
+
 struct BytesDownloader {
     bytes: Vec<u8>,
     calls: AtomicUsize,
@@ -180,38 +182,6 @@ fn cache_symlink_is_not_followed() {
     assert_eq!(std::fs::read(outside).unwrap(), b"do not overwrite");
 }
 
-#[cfg(unix)]
-#[test]
-fn verified_binary_upload_is_atomic_and_executable() {
-    let archive = regular_archive(ArchiveKind::TarGz, "zellij", b"remote-zellij");
-    let asset = synthetic_asset(ArchiveKind::TarGz, "zellij", &archive);
-    let temporary = TempDir::new().unwrap();
-    let cache = SidecarCache::at(temporary.path().join("cache"));
-    let cached = cache.ensure(asset, &BytesDownloader::new(archive)).unwrap();
-    let remote_home = temporary.path().join("remote-home");
-    std::fs::create_dir(&remote_home).unwrap();
-
-    let installed = install_remote(&mut LocalTransport, &cached, &remote_home).unwrap();
-    assert_eq!(
-        std::fs::read(&installed.binary_path).unwrap(),
-        b"remote-zellij"
-    );
-    assert_eq!(installed.binary_sha256, cached.binary_sha256);
-    assert_private_mode(&installed.binary_path, 0o700);
-    assert_private_mode(&remote_home.join(".local/share/blackpepper"), 0o700);
-    assert!(installed
-        .binary_path
-        .parent()
-        .unwrap()
-        .read_dir()
-        .unwrap()
-        .all(|entry| !entry
-            .unwrap()
-            .file_name()
-            .to_string_lossy()
-            .ends_with(".upload")));
-}
-
 fn regular_archive(kind: ArchiveKind, binary: &'static str, contents: &[u8]) -> Vec<u8> {
     compress(kind, &archive_with_files(&[(binary, contents)]))
 }
@@ -297,8 +267,11 @@ fn synthetic_asset_for_target(
         asset_name: "test-sidecar.tar",
         url: "https://example.invalid/test-sidecar.tar",
         trusted_sha256: Some(checksum),
+        binary_sha256: None,
         archive,
         binary_name,
+        license_name: None,
+        license_sha256: None,
     }))
 }
 

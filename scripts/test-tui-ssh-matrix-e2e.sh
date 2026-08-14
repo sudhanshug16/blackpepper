@@ -35,20 +35,7 @@ BP_BINARY="$(resolve_bp_binary)"
 BP_HOST_BINARY="$(dirname "$BP_BINARY")/bp-host"
 [ -x "$BP_HOST_BINARY" ] || fail "bp-host must be beside the tested client: $BP_HOST_BINARY"
 
-ZELLIJ_CACHE_RELATIVE='blackpepper/sidecars/zellij/0.44.3/x86_64-unknown-linux-musl'
-ZELLIJ_ARCHIVE_SHA256='0f7c346788627f506c0a28296517768633cff24fc822a739f8264b640ecad751'
-ZELLIJ_BINARY_SHA256='397481870c4fc3bae646cd7613cde3a1cebdc204558a6cb9a7c603d4c852fc90'
-ZELLIJ_SOURCE_DIR="${BLACKPEPPER_E2E_ZELLIJ_SEED:-$ORIGINAL_HOME/.local/share/$ZELLIJ_CACHE_RELATIVE}"
-ZELLIJ_SOURCE_BINARY="$ZELLIJ_SOURCE_DIR/zellij"
-ZELLIJ_SOURCE_ARCHIVE="$ZELLIJ_SOURCE_DIR/zellij-x86_64-unknown-linux-musl.tar.gz"
-[ -x "$ZELLIJ_SOURCE_BINARY" ] || fail "verified Zellij cache is missing: $ZELLIJ_SOURCE_BINARY"
-[ -f "$ZELLIJ_SOURCE_ARCHIVE" ] || fail "verified Zellij archive is missing: $ZELLIJ_SOURCE_ARCHIVE"
-[ "$("$ZELLIJ_SOURCE_BINARY" --version)" = 'zellij 0.44.3' ] ||
-  fail "Zellij seed is not version 0.44.3: $ZELLIJ_SOURCE_BINARY"
-[ "$(sha256sum "$ZELLIJ_SOURCE_ARCHIVE" | awk '{print $1}')" = "$ZELLIJ_ARCHIVE_SHA256" ] ||
-  fail 'Zellij seed archive checksum does not match the pinned release'
-[ "$(sha256sum "$ZELLIJ_SOURCE_BINARY" | awk '{print $1}')" = "$ZELLIJ_BINARY_SHA256" ] ||
-  fail 'Zellij seed binary checksum does not match the pinned release'
+load_zellij_seed "$SCRIPT_DIR"
 
 JUMP_PORT="$(choose_port)"
 TARGET_PORT="$(choose_port)"

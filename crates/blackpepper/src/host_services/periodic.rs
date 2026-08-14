@@ -1,5 +1,5 @@
 use super::agent_events::{AgentRunContext, HostAgentEvents};
-use super::tool_runtime::discover_exact_binary;
+use super::tool_runtime::discover_zellij_binary;
 use crate::core::{
     AgentProcessObservation, CorePaths, HostAgentRun, HostPeriodicRefresh, HostRegistry,
     SessionBackend, SessionState, WorkspaceId,
@@ -209,7 +209,7 @@ fn session_groups(
 fn observe_session(group: SessionGroup) -> SessionObservation {
     let mut result = SessionObservation::default();
     let observed = (|| -> Result<SessionSnapshot, String> {
-        let binary = discover_exact_binary("Zellij", "zellij", "zellij", &group.version)?;
+        let binary = discover_zellij_binary(&group.version)?;
         let binary = binary
             .to_str()
             .ok_or_else(|| "Zellij binary path is not valid UTF-8.".to_owned())?;

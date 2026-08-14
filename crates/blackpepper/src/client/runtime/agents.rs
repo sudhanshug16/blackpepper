@@ -3,11 +3,15 @@ use crate::agent_status::Provider;
 use crate::client::ClientEvent;
 use crate::core::{AgentRunBinding, AgentRunId, PaneId, WorkspaceId};
 use crate::providers::runtime::{build_launch, ProviderKind, AGENT_RUN_ID_ENV};
-use crate::transport::HostCommand;
 use std::path::Path;
 use std::sync::mpsc::Sender;
 
+mod command;
 mod integration;
+
+#[cfg(test)]
+use command::apply_agent_environment_with;
+use command::{apply_agent_environment, initial_agent_command};
 
 #[derive(Debug, Clone)]
 pub(crate) struct SpawnedAgent {
@@ -78,9 +82,20 @@ impl ClientRuntime {
                 return Err(format!("{error}{cleanup}"));
             }
         };
-        for (key, value) in workspace_env {
-            launch.env.entry(key).or_insert(value);
-        }
+        // Stock Zellij drops the notification protocol selected by terminal
+        // identity, so expose it only when this workspace's recorded runtime
+        // has the matching transport patch. This also keeps old sessions safe
+        // after Blackpepper activates a newer runtime for new sessions.
+        let session_generation = match self.current_or_new_session(&workspace) {
+            Ok(session) => session.backend_version,
+            Err(error) => {
+                let cleanup = self.cleanup_assets_note(workspace.host_id, &launch.assets);
+                return Err(format!("{error}{cleanup}"));
+            }
+        };
+        let terminal_identity_supported =
+            crate::transport::is_blackpepper_zellij_version(&session_generation);
+        apply_agent_environment(&mut launch, workspace_env, terminal_identity_supported);
         if let Err(error) =
             self.preflight_integration(workspace.host_id, &workspace.root_path, &launch)
         {
@@ -116,14 +131,7 @@ impl ClientRuntime {
             ));
         }
 
-        let mut arguments = launch
-            .env
-            .iter()
-            .map(|(key, value)| format!("{key}={value}"))
-            .collect::<Vec<_>>();
-        arguments.push(launch.program.clone());
-        arguments.extend(launch.args.iter().cloned());
-        let initial = HostCommand::new("env").args(arguments);
+        let initial = initial_agent_command(&launch);
         let name = format!("agent-{run_id}");
         let tab_result = self.transport_mut(workspace.host_id).and_then(|transport| {
             zellij
@@ -274,3 +282,7 @@ impl ClientRuntime {
         Ok(spawned)
     }
 }
+
+#[cfg(test)]
+#[path = "agents/tests.rs"]
+mod tests;

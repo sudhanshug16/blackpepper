@@ -3,6 +3,14 @@ use crate::terminal::InputModes;
 
 impl ClientState {
     pub fn update_input_modes(&mut self) {
+        let displayed = (self.mode == ClientMode::Work)
+            .then_some(self.active_workspace)
+            .flatten();
+        let outer_focused = self.outer_focus.focused();
+        for (workspace_id, terminal) in &mut self.terminals {
+            terminal.sync_visibility_focus(displayed == Some(*workspace_id), outer_focused);
+        }
+
         let desired = match self.mode {
             ClientMode::Manage => InputModes::manage_interface(),
             ClientMode::Work => self

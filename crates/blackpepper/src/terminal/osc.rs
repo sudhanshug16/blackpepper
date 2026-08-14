@@ -1,12 +1,19 @@
 //! Bounded OSC handling needed when Blackpepper is the outer terminal.
 //!
-//! Zellij remains responsible for copy mode and emits OSC 52 writes. Clipboard
-//! reads are intentionally ignored so a remote process cannot exfiltrate the
-//! client's clipboard through an otherwise ordinary terminal query.
+//! The embedded terminal emits clipboard and notification-related sequences
+//! which the client validates here. Clipboard reads are intentionally ignored
+//! so a remote process cannot exfiltrate the client's clipboard through an
+//! otherwise ordinary terminal query.
+
+mod notification;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use notification::notification_sequence;
 
 const MAX_CLIPBOARD_BYTES: usize = 1024 * 1024;
+// OSC 777 carries two independently capped UTF-8 fields. Four bytes per
+// Unicode scalar plus command framing is the largest valid split sequence.
+const MAX_NOTIFICATION_OSC_BYTES: usize = notification::MAX_NOTIFICATION_FIELD_CHARS * 8 + 32;
 // A 1 MiB clipboard value expands under base64. Keep the parser bounded while
 // still accepting the documented decoded limit when an OSC write is split.
 const MAX_PENDING_OSC_BYTES: usize = MAX_CLIPBOARD_BYTES.div_ceil(3) * 4 + 16;
@@ -14,6 +21,7 @@ const MAX_PENDING_OSC_BYTES: usize = MAX_CLIPBOARD_BYTES.div_ceil(3) * 4 + 16;
 #[derive(Debug, PartialEq, Eq)]
 pub enum OscAction {
     WriteToPty(Vec<u8>),
+    WriteToOuter(Vec<u8>),
     SetClipboard {
         target: ClipboardTarget,
         text: String,
@@ -69,6 +77,13 @@ impl OscProtocol {
         let mut actions = Vec::new();
         let mut index = 0;
         while index < bytes.len() {
+            // Preserve terminal bells for the real outer terminal instead of
+            // only feeding them to Blackpepper's screen parser.
+            if bytes[index] == 0x07 {
+                push_outer(&mut actions, &[0x07]);
+                index += 1;
+                continue;
+            }
             if bytes[index] != 0x1b || bytes.get(index + 1) != Some(&b']') {
                 index += 1;
                 continue;
@@ -89,7 +104,15 @@ impl OscProtocol {
             }
             let Some((body_end, next)) = end else {
                 let remainder = &bytes[start..];
-                if remainder.len() <= MAX_PENDING_OSC_BYTES {
+                let maximum = if remainder.starts_with(b"\x1b]9;")
+                    || remainder.starts_with(b"\x1b]777;")
+                    || remainder.starts_with(b"\x1b]99;")
+                {
+                    MAX_NOTIFICATION_OSC_BYTES
+                } else {
+                    MAX_PENDING_OSC_BYTES
+                };
+                if remainder.len() <= maximum {
                     self.pending.extend_from_slice(remainder);
                 }
                 break;
@@ -110,6 +133,12 @@ impl OscProtocol {
         }
         if body.starts_with(b"11;?") {
             actions.push(OscAction::WriteToPty(color_response(11, self.background)));
+            return;
+        }
+        if body.starts_with(b"9;") || body.starts_with(b"777;") || body.starts_with(b"99;") {
+            if let Some(sequence) = notification_sequence(body) {
+                push_outer(actions, &sequence);
+            }
             return;
         }
         let Some(rest) = body.strip_prefix(b"52;") else {
@@ -136,6 +165,17 @@ impl OscProtocol {
         if let Ok(text) = String::from_utf8(decoded) {
             actions.push(OscAction::SetClipboard { target, text });
         }
+    }
+}
+
+/// Keep adjacent outer-terminal bytes in one write. A noisy process can emit
+/// thousands of BELs in one PTY read; forwarding each as its own allocation
+/// and stdout flush would stall Blackpepper's event loop.
+fn push_outer(actions: &mut Vec<OscAction>, bytes: &[u8]) {
+    if let Some(OscAction::WriteToOuter(sequence)) = actions.last_mut() {
+        sequence.extend_from_slice(bytes);
+    } else {
+        actions.push(OscAction::WriteToOuter(bytes.to_vec()));
     }
 }
 
@@ -166,86 +206,5 @@ fn color_response(kind: u8, rgb: (u8, u8, u8)) -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn handles_split_clipboard_write_without_returning_evidence() {
-        let mut protocol = OscProtocol::new((1, 2, 3), (4, 5, 6));
-        assert!(protocol.process(b"\x1b").is_empty());
-        assert!(protocol.process(b"]52;c;aGV").is_empty());
-        assert_eq!(
-            protocol.process(b"sbG8=\x1b\\"),
-            vec![OscAction::SetClipboard {
-                target: ClipboardTarget::System,
-                text: "hello".to_string(),
-            }]
-        );
-    }
-
-    #[test]
-    fn preserves_primary_selection_and_rejects_unknown_targets() {
-        let mut protocol = OscProtocol::new((1, 2, 3), (4, 5, 6));
-        assert_eq!(
-            protocol.process(b"\x1b]52;p;aGVsbG8=\x07"),
-            vec![OscAction::SetClipboard {
-                target: ClipboardTarget::Primary,
-                text: "hello".to_string(),
-            }]
-        );
-        assert!(protocol.process(b"\x1b]52;s;aGVsbG8=\x07").is_empty());
-    }
-
-    #[test]
-    fn clipboard_read_is_ignored() {
-        let mut protocol = OscProtocol::new((1, 2, 3), (4, 5, 6));
-        assert!(protocol.process(b"\x1b]52;c;?\x07").is_empty());
-    }
-
-    #[test]
-    fn outer_clipboard_write_is_bounded_and_normalized() {
-        assert_eq!(
-            clipboard_write_sequence(ClipboardTarget::System, "hello"),
-            Some(b"\x1b]52;c;aGVsbG8=\x07".to_vec())
-        );
-        assert_eq!(
-            clipboard_write_sequence(ClipboardTarget::Primary, "hello"),
-            Some(b"\x1b]52;p;aGVsbG8=\x07".to_vec())
-        );
-        assert!(clipboard_write_sequence(
-            ClipboardTarget::System,
-            &"x".repeat(MAX_CLIPBOARD_BYTES + 1)
-        )
-        .is_none());
-    }
-
-    #[test]
-    fn split_clipboard_write_accepts_the_full_decoded_limit() {
-        let text = "x".repeat(MAX_CLIPBOARD_BYTES);
-        let sequence = clipboard_write_sequence(ClipboardTarget::System, &text).unwrap();
-        let split = sequence.len() - 1;
-        let mut protocol = OscProtocol::new((1, 2, 3), (4, 5, 6));
-
-        assert!(protocol.process(&sequence[..split]).is_empty());
-        let actions = protocol.process(&sequence[split..]);
-        assert!(matches!(
-            actions.as_slice(),
-            [OscAction::SetClipboard {
-                target: ClipboardTarget::System,
-                text: decoded,
-            }] if decoded.len() == MAX_CLIPBOARD_BYTES
-        ));
-    }
-
-    #[test]
-    fn replies_to_terminal_color_queries() {
-        let mut protocol = OscProtocol::new((1, 2, 3), (4, 5, 6));
-        assert_eq!(
-            protocol.process(b"\x1b]10;?\x07\x1b]11;?\x07"),
-            vec![
-                OscAction::WriteToPty(b"\x1b]10;rgb:0101/0202/0303\x07".to_vec()),
-                OscAction::WriteToPty(b"\x1b]11;rgb:0404/0505/0606\x07".to_vec()),
-            ]
-        );
-    }
-}
+#[path = "osc/tests.rs"]
+mod tests;

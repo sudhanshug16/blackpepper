@@ -35,11 +35,12 @@ pub use command::{CommandOutput, HostCommand, ProcessSpec, RunningCommand};
 pub use local::LocalTransport;
 pub use pty::{PtyExit, PtyProcess};
 pub use sidecar::{
-    release_asset, select_runtime, sha256_bytes, sha256_file, ArchiveKind, ManagedTool,
-    ReleaseAsset, RuntimeSelection, SidecarError, SidecarTarget, SystemRuntime, VerifiedArchive,
-    WORKTRUNK_VERSION, ZELLIJ_VERSION,
+    is_blackpepper_zellij_version, release_asset, release_asset_for_version, select_runtime,
+    select_runtime_for_version, sha256_bytes, sha256_file, ArchiveKind, ManagedTool, ReleaseAsset,
+    RuntimeSelection, SidecarError, SidecarTarget, SystemRuntime, VerifiedArchive,
+    LEGACY_ZELLIJ_VERSION, PATCHED_ZELLIJ_VERSION, WORKTRUNK_VERSION, ZELLIJ_VERSION,
 };
-pub use sidecar_cache::{CachedSidecar, SidecarCache};
+pub use sidecar_cache::{local_data_home, CachedSidecar, SidecarCache};
 pub use sidecar_download::{HttpDownloader, SidecarDownloader};
 pub(crate) use sidecar_remote::upload_file_to_child;
 pub use sidecar_remote::{

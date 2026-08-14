@@ -1,0 +1,65 @@
+diff --git a/xtask/src/build.rs b/xtask/src/build.rs
+index 53ab8ade..4c56cfab 100644
+--- a/xtask/src/build.rs
++++ b/xtask/src/build.rs
+@@ -43,7 +43,7 @@ pub fn build(sh: &Shell, flags: flags::Build) -> anyhow::Result<()> {
+             crate::status(msg);
+             println!("{}", msg);
+ 
+-            let mut base_cmd = cmd!(sh, "{cargo} build --target wasm32-wasip1");
++            let mut base_cmd = cmd!(sh, "{cargo} build --locked --target wasm32-wasip1");
+             if flags.release {
+                 base_cmd = base_cmd.arg("--release");
+             }
+@@ -84,7 +84,7 @@ pub fn build(sh: &Shell, flags: flags::Build) -> anyhow::Result<()> {
+             crate::status(&msg);
+             println!("{}", msg);
+ 
+-            let mut base_cmd = cmd!(sh, "{cargo} build");
++            let mut base_cmd = cmd!(sh, "{cargo} build --locked");
+             if flags.release {
+                 base_cmd = base_cmd.arg("--release");
+             } else {
+diff --git a/xtask/src/ci.rs b/xtask/src/ci.rs
+index c7348ed0..7c95066c 100644
+--- a/xtask/src/ci.rs
++++ b/xtask/src/ci.rs
+@@ -228,11 +228,11 @@ fn cross_compile(sh: &Shell, target: &OsString, no_web: bool) -> anyhow::Result<
+ 
+     crate::cargo()
+         .and_then(|cargo| {
+-            cmd!(sh, "{cargo} install mandown").run()?;
++            cmd!(sh, "{cargo} install --locked --version 1.1.0 mandown").run()?;
+             Ok(cargo)
+         })
+         .and_then(|cargo| {
+-            cmd!(sh, "{cargo} install cross")
++            cmd!(sh, "{cargo} install --locked --version 0.2.5 cross")
+                 .run()
+                 .map_err(anyhow::Error::new)
+         })
+@@ -257,7 +257,7 @@ fn cross_compile(sh: &Shell, target: &OsString, no_web: bool) -> anyhow::Result<
+                     .context("Failed to check web features for cross compilation")?
+                 {
+                     Some(features) => {
+-                        let mut cmd = cmd!(sh, "{cross} build --verbose --release --target {target} --no-default-features");
++                        let mut cmd = cmd!(sh, "{cross} build --locked --verbose --release --target {target} --no-default-features");
+                         if !features.is_empty() {
+                             cmd = cmd.arg("--features").arg(features);
+                         }
+@@ -265,13 +265,13 @@ fn cross_compile(sh: &Shell, target: &OsString, no_web: bool) -> anyhow::Result<
+                     },
+                     None => {
+                         // Main crate doesn't have web_server_capability, build normally
+-                        cmd!(sh, "{cross} build --verbose --release --target {target}")
++                        cmd!(sh, "{cross} build --locked --verbose --release --target {target}")
+                             .run()
+                             .map_err(anyhow::Error::new)
+                     },
+                 }
+             } else {
+-                cmd!(sh, "{cross} build --verbose --release --target {target}")
++                cmd!(sh, "{cross} build --locked --verbose --release --target {target}")
+                     .run()
+                     .map_err(anyhow::Error::new)
+             }

@@ -22,6 +22,7 @@ sys.path.insert(
 from pty_client import PtyClient, PtyFailure  # noqa: E402
 from remote_harness import (  # noqa: E402
     AcceptanceFailure,
+    acceptance_zellij_version,
     cleanup_remote,
     create_remote_root,
     launch_command,
@@ -180,9 +181,11 @@ def run_acceptance(client: PtyClient, timeout: float) -> None:
 def main() -> int:
     args = arguments()
     root = ""
+    zellij_version = ""
     client: PtyClient | None = None
     transcript: Path | None = args.artifacts
     try:
+        zellij_version = acceptance_zellij_version()
         ghostty_version = require_macos()
         root, bp_version = create_remote_root(args.target, args.bp_path)
         client = PtyClient(
@@ -207,8 +210,8 @@ def main() -> int:
             transcript.write_bytes(client.output)
         if client is not None:
             client.close()
-        if root:
-            cleanup_remote(args.target, root)
+        if root and zellij_version:
+            cleanup_remote(args.target, root, zellij_version)
 
 
 if __name__ == "__main__":

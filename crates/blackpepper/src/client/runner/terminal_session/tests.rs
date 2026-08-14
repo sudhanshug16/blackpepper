@@ -117,8 +117,11 @@ fn failed_setup_steps_remain_armed_for_rollback() {
         fail_write: Some(1),
         ..RecordingWriter::default()
     };
-    guard.enter_alternate_screen(&mut setup_writer).unwrap_err();
+    guard
+        .enter_alternate_screen_with(&mut setup_writer, |writer| writer.write_all(b"ALT"))
+        .unwrap_err();
     assert!(guard.alternate_screen_armed);
+    assert!(guard.input_modes_armed);
 
     let mut cleanup_writer = RecordingWriter::default();
     guard.restore_with(&mut cleanup_writer, || Ok(())).unwrap();
@@ -126,6 +129,26 @@ fn failed_setup_steps_remain_armed_for_rollback() {
         cleanup_writer.bytes,
         [CONSERVATIVE_INPUT_RESET, LEAVE_ALTERNATE_SCREEN].concat()
     );
+}
+
+#[test]
+fn entering_the_tui_enables_outer_focus_reports_before_any_workspace_attaches() {
+    let mut guard = TerminalSessionGuard::new();
+    let mut writer = RecordingWriter::default();
+
+    guard
+        .enter_alternate_screen_with(&mut writer, |writer| writer.write_all(b"ALT"))
+        .unwrap();
+
+    assert_eq!(
+        writer.bytes,
+        [b"ALT".as_slice(), ENABLE_FOCUS_REPORTING].concat()
+    );
+    assert!(guard.input_modes_armed);
+    assert!(guard.alternate_screen_armed);
+    guard.input_modes_armed = false;
+    guard.alternate_screen_armed = false;
+    guard.flush_armed = false;
 }
 
 #[test]

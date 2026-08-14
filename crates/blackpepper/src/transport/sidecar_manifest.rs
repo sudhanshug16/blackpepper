@@ -12,8 +12,11 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "0f7c346788627f506c0a28296517768633cff24fc822a739f8264b640ecad751",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarGz,
         binary_name: "zellij",
+        license_name: None,
+        license_sha256: None,
     },
     ReleaseAsset {
         tool: ManagedTool::Zellij,
@@ -24,8 +27,11 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "15e6534d42644d66973d136c590c49739dcfd6a1a2a0d3d917973f16c81b45fb",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarGz,
         binary_name: "zellij",
+        license_name: None,
+        license_sha256: None,
     },
     ReleaseAsset {
         tool: ManagedTool::Zellij,
@@ -36,8 +42,11 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "59f803faa32cd4e5f316f0dc2d3b7a5530a72553e38ad939286471848a418eeb",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarGz,
         binary_name: "zellij",
+        license_name: None,
+        license_sha256: None,
     },
     ReleaseAsset {
         tool: ManagedTool::Zellij,
@@ -48,8 +57,11 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "b6acf83a7739cf5f0f4e9bd47709642d4d98acbbf8c34d4a12c6e706f531da61",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarGz,
         binary_name: "zellij",
+        license_name: None,
+        license_sha256: None,
     },
     ReleaseAsset {
         tool: ManagedTool::Worktrunk,
@@ -60,8 +72,11 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "e91bc7ceb0623942a797317f56541a825d6a36e24d055985a8299d30345be346",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarXz,
         binary_name: "wt",
+        license_name: None,
+        license_sha256: None,
     },
     ReleaseAsset {
         tool: ManagedTool::Worktrunk,
@@ -72,8 +87,11 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "2f6b45fd0592e4b0f66ca3c34cbaf90c7643a7eaabf8a9c4b0e12d48251a086c",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarXz,
         binary_name: "wt",
+        license_name: None,
+        license_sha256: None,
     },
     ReleaseAsset {
         tool: ManagedTool::Worktrunk,
@@ -84,8 +102,11 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "2356bee43a6688a03d24b27dd18ce0db1f4666f111ee06f3c829d1f248472401",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarXz,
         binary_name: "wt",
+        license_name: None,
+        license_sha256: None,
     },
     ReleaseAsset {
         tool: ManagedTool::Worktrunk,
@@ -96,18 +117,22 @@ const ASSETS: &[ReleaseAsset] = &[
         trusted_sha256: Some(
             "7e6cf79a3ef67559240431aae93c137d9a2b28a8ccdb55b64edead904b21ff73",
         ),
+        binary_sha256: None,
         archive: ArchiveKind::TarXz,
         binary_name: "wt",
+        license_name: None,
+        license_sha256: None,
     },
 ];
 
 pub(crate) fn release_asset(
     tool: ManagedTool,
+    version: &str,
     target: SidecarTarget,
 ) -> Result<&'static ReleaseAsset, SidecarError> {
     let asset = ASSETS
         .iter()
-        .find(|asset| asset.tool == tool && asset.target == target)
+        .find(|asset| asset.tool == tool && asset.version == version && asset.target == target)
         .ok_or(SidecarError::UnsupportedAsset { tool, target })?;
     asset.checksum()?;
     Ok(asset)

@@ -2,13 +2,59 @@ use super::*;
 
 #[test]
 fn manifest_has_trusted_assets_for_every_supported_target() {
+    let mut identities = std::collections::BTreeSet::new();
     for asset in sidecar_manifest::assets() {
-        assert_eq!(asset.version, asset.tool.version());
+        assert!(identities.insert((asset.tool, asset.version, asset.target)));
         assert_eq!(asset.checksum().unwrap().len(), 64);
         assert!(asset.url.starts_with("https://github.com/"));
         assert!(asset.url.ends_with(asset.asset_name));
+        assert_eq!(asset.license_name.is_some(), asset.license_sha256.is_some());
+        if is_blackpepper_zellij_version(asset.version) {
+            assert_eq!(asset.binary_sha256.unwrap().len(), 64);
+            assert_eq!(asset.license_name, Some("LICENSES.html"));
+        }
     }
     assert_eq!(sidecar_manifest::assets().len(), 8);
+}
+
+#[test]
+fn historical_zellij_assets_remain_addressable_by_recorded_version() {
+    let asset = release_asset_for_version(
+        ManagedTool::Zellij,
+        LEGACY_ZELLIJ_VERSION,
+        SidecarTarget::MacOsAarch64,
+    )
+    .unwrap();
+
+    assert_eq!(asset.version, LEGACY_ZELLIJ_VERSION);
+    assert!(asset.url.contains("zellij-org/zellij/releases"));
+}
+
+#[test]
+fn branded_zellij_is_always_a_managed_runtime() {
+    assert!(is_blackpepper_zellij_version(PATCHED_ZELLIJ_VERSION));
+    assert!(is_blackpepper_zellij_version("0.44.3-blackpepper.7"));
+    assert!(is_blackpepper_zellij_version("0.45.0-blackpepper.1"));
+    assert!(!is_blackpepper_zellij_version(LEGACY_ZELLIJ_VERSION));
+    assert!(!is_blackpepper_zellij_version("0.44.3-blackpepper."));
+    assert!(!is_blackpepper_zellij_version("0.44.3-blackpepper.dev"));
+    let installed = SystemRuntime {
+        binary: PathBuf::from("/usr/bin/zellij"),
+        version: format!("zellij {PATCHED_ZELLIJ_VERSION}"),
+    };
+
+    // The private manifest is deliberately absent until its artifacts have
+    // been published. Reaching lookup instead of accepting PATH proves the
+    // system executable cannot satisfy the branded runtime.
+    assert!(matches!(
+        select_runtime_for_version(
+            ManagedTool::Zellij,
+            PATCHED_ZELLIJ_VERSION,
+            SidecarTarget::LinuxX86_64,
+            Some(installed),
+        ),
+        Err(SidecarError::UnsupportedAsset { .. })
+    ));
 }
 
 #[test]

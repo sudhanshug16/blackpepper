@@ -10,6 +10,7 @@ use xz2::read::XzDecoder;
 use super::sidecar::{ArchiveKind, ReleaseAsset, SidecarError};
 
 const MAX_BINARY_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_LICENSE_BYTES: u64 = 1024 * 1024;
 
 /// Extract exactly the named executable from an already verified archive.
 ///
@@ -20,20 +21,59 @@ pub(crate) fn extract_binary(
     archive_path: &Path,
     output: &mut File,
 ) -> Result<(), SidecarError> {
+    extract_named_file(
+        asset,
+        archive_path,
+        asset.binary_name,
+        MAX_BINARY_BYTES,
+        output,
+    )
+}
+
+pub(crate) fn extract_license(
+    asset: &ReleaseAsset,
+    archive_path: &Path,
+    license_name: &str,
+    output: &mut File,
+) -> Result<(), SidecarError> {
+    extract_named_file(asset, archive_path, license_name, MAX_LICENSE_BYTES, output)
+}
+
+fn extract_named_file(
+    asset: &ReleaseAsset,
+    archive_path: &Path,
+    expected_name: &str,
+    maximum_bytes: u64,
+    output: &mut File,
+) -> Result<(), SidecarError> {
     let archive = File::open(archive_path).map_err(|source| SidecarError::Io {
         operation: format!("failed to open verified archive {}", archive_path.display()),
         source,
     })?;
 
     match asset.archive {
-        ArchiveKind::TarGz => scan_archive(asset, Archive::new(GzDecoder::new(archive)), output),
-        ArchiveKind::TarXz => scan_archive(asset, Archive::new(XzDecoder::new(archive)), output),
+        ArchiveKind::TarGz => scan_archive(
+            asset,
+            Archive::new(GzDecoder::new(archive)),
+            expected_name,
+            maximum_bytes,
+            output,
+        ),
+        ArchiveKind::TarXz => scan_archive(
+            asset,
+            Archive::new(XzDecoder::new(archive)),
+            expected_name,
+            maximum_bytes,
+            output,
+        ),
     }
 }
 
 fn scan_archive<R: Read>(
     asset: &ReleaseAsset,
     mut archive: Archive<R>,
+    expected_name: &str,
+    maximum_bytes: u64,
     output: &mut File,
 ) -> Result<(), SidecarError> {
     let entries = archive.entries().map_err(|error| invalid(asset, error))?;
@@ -61,13 +101,13 @@ fn scan_archive<R: Read>(
                 ),
             });
         }
-        if path.file_name() != Some(OsStr::new(asset.binary_name)) {
+        if path.file_name() != Some(OsStr::new(expected_name)) {
             continue;
         }
         if found {
             return Err(SidecarError::InvalidArchive {
                 asset: asset.asset_name.to_string(),
-                message: format!("contains more than one {} binary", asset.binary_name),
+                message: format!("contains more than one {expected_name} file"),
             });
         }
 
@@ -75,19 +115,19 @@ fn scan_archive<R: Read>(
             .header()
             .size()
             .map_err(|error| invalid(asset, error))?;
-        if declared_size > MAX_BINARY_BYTES {
+        if declared_size > maximum_bytes {
             return Err(SidecarError::InvalidArchive {
                 asset: asset.asset_name.to_string(),
                 message: format!(
-                    "{} is larger than the {}-byte binary limit",
+                    "{} is larger than the {}-byte file limit",
                     path.display(),
-                    MAX_BINARY_BYTES
+                    maximum_bytes
                 ),
             });
         }
-        let copied = io::copy(&mut entry.by_ref().take(MAX_BINARY_BYTES + 1), output)
+        let copied = io::copy(&mut entry.by_ref().take(maximum_bytes + 1), output)
             .map_err(|error| invalid(asset, error))?;
-        if copied > MAX_BINARY_BYTES || copied != declared_size {
+        if copied > maximum_bytes || copied != declared_size {
             return Err(SidecarError::InvalidArchive {
                 asset: asset.asset_name.to_string(),
                 message: format!("{} has an invalid or oversized payload", path.display()),
@@ -99,7 +139,7 @@ fn scan_archive<R: Read>(
     if !found {
         return Err(SidecarError::InvalidArchive {
             asset: asset.asset_name.to_string(),
-            message: format!("does not contain the expected {} binary", asset.binary_name),
+            message: format!("does not contain the expected {expected_name} file"),
         });
     }
     output.flush().map_err(|source| SidecarError::Io {

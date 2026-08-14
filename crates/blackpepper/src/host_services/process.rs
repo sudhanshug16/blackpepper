@@ -2,6 +2,10 @@ use std::ffi::OsStr;
 use std::io::{self, Read};
 use std::process::{Command, ExitStatus, Stdio};
 
+mod timeout;
+
+pub(super) use timeout::run_bounded_timeout;
+
 #[cfg(unix)]
 use super::worktrunk_lock::{RegisteredProcessGroup, RepositoryLock};
 #[cfg(unix)]
@@ -29,6 +33,7 @@ const GATED_PTY_EXEC: &str = "IFS= read -r bp_gate || exit 125\n\
     shift\n\
     exec \"$@\"\n";
 
+#[derive(Debug)]
 pub(super) struct BoundedOutput {
     pub status: ExitStatus,
     pub stdout: Vec<u8>,

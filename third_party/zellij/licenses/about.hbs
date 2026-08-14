@@ -1,0 +1,42 @@
+<!--
+Copyright 2020-2024, Embark Studios
+SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Blackpepper patched Zellij runtime licenses</title>
+</head>
+<body>
+    <main>
+        <h1>Blackpepper patched Zellij runtime licenses</h1>
+        <p>
+            This file contains license notices for Zellij and the locked Rust
+            packages used to build the Blackpepper-managed Zellij executable.
+        </p>
+        <h2>License summary</h2>
+        <ul>
+        {{#each overview}}
+            <li>{{name}} ({{count}} packages)</li>
+        {{/each}}
+        </ul>
+        <h2>License texts</h2>
+        {{#each licenses}}
+        <section>
+            <h3>{{name}}</h3>
+            <p>Used by:</p>
+            <ul>
+            {{#each used_by}}
+                <li>
+                    {{crate.name}} {{crate.version}}
+                    {{#if crate.repository}}({{crate.repository}}){{else}}(https://crates.io/crates/{{crate.name}}){{/if}}
+                </li>
+            {{/each}}
+            </ul>
+            <pre>{{text}}</pre>
+        </section>
+        {{/each}}
+    </main>
+</body>
+</html>

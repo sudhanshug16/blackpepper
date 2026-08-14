@@ -7,6 +7,11 @@ import shlex
 import shutil
 import subprocess
 import sys
+from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from zellij_runtime import MetadataError, current_zellij_version  # noqa: E402
 
 
 ROOT_PREFIX = "/tmp/blackpepper-macos-ssh-pty."
@@ -64,6 +69,13 @@ def remote(target: str, script: str, timeout: float = 20.0) -> str:
     return result.stdout.strip()
 
 
+def acceptance_zellij_version() -> str:
+    try:
+        return current_zellij_version()
+    except (MetadataError, OSError) as error:
+        raise AcceptanceFailure(f"could not resolve the current Zellij pin: {error}") from error
+
+
 def create_remote_root(target: str, bp_path: str) -> tuple[str, str]:
     if not target or target.startswith("-") or any(c.isspace() for c in target):
         raise AcceptanceFailure("target must be one SSH host token without options")
@@ -97,14 +109,16 @@ printf '%s\\n%s\\n' "$root" "$version"
     return lines[0], lines[1]
 
 
-def cleanup_remote(target: str, root: str) -> None:
+def cleanup_remote(target: str, root: str, zellij_version: str) -> None:
     if not root.startswith(ROOT_PREFIX):
         return
     quoted = shlex.quote(root)
+    quoted_zellij_version = shlex.quote(zellij_version)
     script = f"""
 set -u
 root={quoted}
-zellij=$(find "$HOME/.local/share/blackpepper/sidecars/zellij/0.44.3" \
+zellij_version={quoted_zellij_version}
+zellij=$(find "$HOME/.local/share/blackpepper/sidecars/zellij/$zellij_version" \
   -type f -name zellij -perm -u+x -print -quit 2>/dev/null || true)
 if test -n "$zellij"; then
   ZELLIJ_SOCKET_DIR="$root/z" "$zellij" kill-all-sessions -y \

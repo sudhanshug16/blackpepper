@@ -26,7 +26,7 @@ kill_registered_zellij_sessions() {
   [ -x "$binary" ] && [ -f "$registry" ] || return 0
   while IFS= read -r session; do
     printf '%s\n' "$session" | grep -Eq \
-      '^bp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || continue
+      '^bp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-[0-9a-f]{12})?$' || continue
     ZELLIJ_SOCKET_DIR="/tmp/zellij-$(id -u)" \
       "$binary" kill-session "$session" >/dev/null 2>&1 || true
   done < <(python3 - "$registry" 2>/dev/null <<'PY'
@@ -98,6 +98,56 @@ cleanup() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "$1 is required"
+}
+
+load_zellij_seed() {
+  local scripts_root="$1" output seed_data_home digest_file cached_digest
+  local -a metadata
+  output="$(
+    python3 "$scripts_root/fixtures/zellij_runtime.py" \
+      asset x86_64-unknown-linux-musl
+  )" || fail 'could not resolve the current Zellij acceptance asset'
+  mapfile -t metadata <<< "$output"
+  [ "${#metadata[@]}" -eq 5 ] || fail 'current Zellij acceptance metadata is incomplete'
+
+  ZELLIJ_VERSION="${metadata[0]}"
+  ZELLIJ_CACHE_RELATIVE="${metadata[1]}"
+  ZELLIJ_ASSET_NAME="${metadata[2]}"
+  ZELLIJ_MANIFEST_BINARY_SHA256="${metadata[3]}"
+  ZELLIJ_BINARY_NAME="${metadata[4]}"
+  if [ -n "${BLACKPEPPER_E2E_ZELLIJ_SEED:-}" ]; then
+    ZELLIJ_SOURCE_DIR="$BLACKPEPPER_E2E_ZELLIJ_SEED"
+  else
+    seed_data_home="${BLACKPEPPER_E2E_ZELLIJ_SEED_DATA_HOME:-$ORIGINAL_HOME/.local/share}"
+    ZELLIJ_SOURCE_DIR="$seed_data_home/$ZELLIJ_CACHE_RELATIVE"
+  fi
+  ZELLIJ_SOURCE_BINARY="$ZELLIJ_SOURCE_DIR/$ZELLIJ_BINARY_NAME"
+  ZELLIJ_SOURCE_ARCHIVE="$ZELLIJ_SOURCE_DIR/$ZELLIJ_ASSET_NAME"
+  digest_file="$ZELLIJ_SOURCE_DIR/.zellij.sha256"
+
+  [ -x "$ZELLIJ_SOURCE_BINARY" ] ||
+    fail "verified Zellij $ZELLIJ_VERSION cache is missing: $ZELLIJ_SOURCE_BINARY"
+  [ -f "$ZELLIJ_SOURCE_ARCHIVE" ] ||
+    fail "verified Zellij archive is missing: $ZELLIJ_SOURCE_ARCHIVE"
+  [ -f "$digest_file" ] || fail "verified Zellij binary digest is missing: $digest_file"
+  cached_digest="$(tr -d '\r\n' < "$digest_file")"
+  printf '%s\n' "$cached_digest" | grep -Eq '^[0-9a-f]{64}$' ||
+    fail "verified Zellij binary digest is invalid: $digest_file"
+
+  [ "$("$ZELLIJ_SOURCE_BINARY" --version)" = "zellij $ZELLIJ_VERSION" ] ||
+    fail "Zellij seed is not version $ZELLIJ_VERSION: $ZELLIJ_SOURCE_BINARY"
+  ZELLIJ_BINARY_SHA256="$(
+    python3 "$scripts_root/fixtures/zellij_runtime.py" \
+      archive-binary-sha256 x86_64-unknown-linux-musl "$ZELLIJ_SOURCE_ARCHIVE"
+  )" || fail "could not verify the Zellij seed archive for $ZELLIJ_VERSION"
+  [ "$cached_digest" = "$ZELLIJ_BINARY_SHA256" ] ||
+    fail "Zellij cached digest does not match its pinned archive for $ZELLIJ_VERSION"
+  [ "$(sha256sum "$ZELLIJ_SOURCE_BINARY" | awk '{print $1}')" = "$ZELLIJ_BINARY_SHA256" ] ||
+    fail "Zellij seed binary checksum is invalid for $ZELLIJ_VERSION: $ZELLIJ_SOURCE_BINARY"
+  if [ "$ZELLIJ_MANIFEST_BINARY_SHA256" != - ] &&
+    [ "$ZELLIJ_BINARY_SHA256" != "$ZELLIJ_MANIFEST_BINARY_SHA256" ]; then
+    fail "Zellij seed binary checksum is not manifest-pinned for $ZELLIJ_VERSION"
+  fi
 }
 
 resolve_bp_binary() {

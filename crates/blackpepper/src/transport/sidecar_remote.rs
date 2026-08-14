@@ -18,6 +18,8 @@ pub(crate) use upload::upload_file_to_child;
 pub struct RemoteSidecar {
     pub binary_path: PathBuf,
     pub binary_sha256: String,
+    pub license_path: Option<PathBuf>,
+    pub license_sha256: Option<String>,
 }
 
 #[derive(Debug)]
@@ -42,6 +44,7 @@ pub enum SidecarInstallError {
     UploadTimedOut {
         transferred: u64,
         total: u64,
+        deadline_seconds: u64,
         cancellation_error: Option<String>,
     },
     UploadCancelled {
@@ -88,11 +91,12 @@ impl fmt::Display for SidecarInstallError {
             Self::UploadTimedOut {
                 transferred,
                 total,
+                deadline_seconds,
                 cancellation_error,
             } => {
                 write!(
                     formatter,
-                    "managed sidecar upload exceeded its 120-second deadline after {transferred}/{total} bytes"
+                    "managed sidecar upload exceeded its {deadline_seconds}-second deadline after {transferred}/{total} bytes"
                 )?;
                 write_cancellation_error(formatter, cancellation_error)
             }
@@ -169,6 +173,15 @@ fn install_plan(
             "uploading remote sidecar",
             upload_file_to_child(child, &plan.local_binary)?,
         )?;
+        if let (Some(local_license), Some(command)) =
+            (&plan.local_license, plan.receive_license_command())
+        {
+            let child = transport.spawn_exec_with_stdin(&command)?;
+            require_success(
+                "uploading remote sidecar license",
+                upload_file_to_child(child, local_license)?,
+            )?;
+        }
         require_success(
             "verifying remote sidecar",
             transport.exec_timeout(&plan.verify_and_commit_command(), SIDECAR_COMMAND_TIMEOUT)?,
@@ -176,6 +189,8 @@ fn install_plan(
         Ok(RemoteSidecar {
             binary_path: plan.remote_binary.clone(),
             binary_sha256: plan.binary_sha256.clone(),
+            license_path: plan.remote_license.clone(),
+            license_sha256: plan.license_sha256.clone(),
         })
     })();
 
@@ -231,6 +246,6 @@ mod tests {
             error.to_string(),
             "managed sidecar upload stopped making progress after 12/34 bytes"
         );
-        assert!(upload::UPLOAD_STALL_TIMEOUT < upload::UPLOAD_TOTAL_TIMEOUT);
+        assert!(upload::UPLOAD_STALL_TIMEOUT < upload::upload_deadline(64 * 1024 * 1024));
     }
 }

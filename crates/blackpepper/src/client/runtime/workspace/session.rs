@@ -1,6 +1,6 @@
 use super::super::{session_lease::SessionInitializationLease, ClientRuntime};
 use crate::core::{SessionBackend, SessionRecord, SessionState, WorkspaceId, WorkspaceRecord};
-use crate::transport::PtyProcess;
+use crate::transport::{is_blackpepper_zellij_version, sha256_bytes, PtyProcess};
 use crate::zellij::ZellijRuntime;
 use portable_pty::PtySize;
 use std::path::Path;
@@ -357,7 +357,24 @@ impl ClientRuntime {
             workspace.id,
             SessionBackend::Zellij,
             crate::transport::ZELLIJ_VERSION,
-            format!("bp-{}", workspace.id),
+            zellij_session_name(workspace.id, crate::transport::ZELLIJ_VERSION),
         ))
     }
+}
+
+const BRANDED_SESSION_HASH_LENGTH: usize = 12;
+
+/// Keep stock sessions discoverable by released Blackpepper clients while
+/// preventing a branded client from attaching to a stock or older branded
+/// server that implements a different terminal-forwarding contract.
+pub(super) fn zellij_session_name(workspace_id: WorkspaceId, version: &str) -> String {
+    let legacy_name = format!("bp-{workspace_id}");
+    if !is_blackpepper_zellij_version(version) {
+        return legacy_name;
+    }
+    let version_hash = sha256_bytes(version.as_bytes());
+    format!(
+        "{legacy_name}-{}",
+        &version_hash[..BRANDED_SESSION_HASH_LENGTH]
+    )
 }

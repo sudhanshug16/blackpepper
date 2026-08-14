@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(unix)]
+use std::time::Duration;
 
 #[test]
 fn captures_fixed_command_without_a_shell() {
@@ -6,6 +8,21 @@ fn captures_fixed_command_without_a_shell() {
     assert!(output.status.success());
     assert_eq!(output.stdout, b"hello world");
     assert!(!output.truncated);
+}
+
+#[cfg(unix)]
+#[test]
+fn timed_probe_kills_descendants_and_returns_promptly() {
+    let started = std::time::Instant::now();
+    let error = run_bounded_timeout(
+        OsStr::new("sh"),
+        ["-c", "(trap '' TERM; sleep 30) & wait"],
+        Duration::from_millis(100),
+    )
+    .unwrap_err();
+
+    assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+    assert!(started.elapsed() < Duration::from_secs(3));
 }
 
 #[cfg(unix)]

@@ -12,6 +12,7 @@ for requirement in git id python3 tmux; do
     exit 1
   }
 done
+ZELLIJ_VERSION="$(python3 "$ROOT/scripts/fixtures/zellij_runtime.py" version)"
 
 if [ "$(uname -s)" != Linux ]; then
   printf '%s\n' 'FAIL: the Zellij socket namespace acceptance requires Linux.' >&2
@@ -74,6 +75,7 @@ CANONICAL_SOCKET="/tmp/zellij-$(id -u)"
 SECOND_XDG_SOCKET="$SECOND_RUNTIME/zellij"
 STANDARD_XDG_SOCKET="/run/user/$(id -u)/zellij"
 E2E_DATA_HOME="${BLACKPEPPER_ZELLIJ_NAMESPACE_E2E_DATA_HOME:-$ROOT/target/tui-local-e2e-data}"
+ZELLIJ_CACHE_ROOT="$E2E_DATA_HOME/blackpepper/sidecars/zellij/$ZELLIJ_VERSION"
 NAMESPACE_TOKEN="namespace-$BUILD_ID-$$"
 
 case "$E2E_DATA_HOME" in
@@ -189,7 +191,7 @@ PY
 
 valid_backend_session() {
   printf '%s\n' "$1" | grep -Eq \
-    '^bp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    '^bp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-[0-9a-f]{12})?$'
 }
 
 assert_single_canonical_namespace() {
@@ -237,7 +239,7 @@ cleanup_namespace_e2e() {
     valid_backend_session "$discovered" && BACKEND_SESSION="$discovered"
   fi
   if [ -z "$ZELLIJ_BIN" ]; then
-    ZELLIJ_BIN="$(find "$E2E_DATA_HOME/blackpepper/sidecars/zellij/0.44.3" \
+    ZELLIJ_BIN="$(find "$ZELLIJ_CACHE_ROOT" \
       -type f -name zellij -perm -u+x -print -quit 2>/dev/null || true)"
   fi
   if [ -n "$ZELLIJ_BIN" ] && [ -x "$ZELLIJ_BIN" ] && [ -n "$BACKEND_SESSION" ]; then
@@ -291,13 +293,13 @@ tmux -S "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 150 -y 46 \
 wait_for_screen 'workspace' first-workspace 60
 
 for _attempt in $(seq 1 600); do
-  ZELLIJ_BIN="$(find "$E2E_DATA_HOME/blackpepper/sidecars/zellij/0.44.3" \
+  ZELLIJ_BIN="$(find "$ZELLIJ_CACHE_ROOT" \
     -type f -name zellij -perm -u+x -print -quit 2>/dev/null || true)"
   [ -n "$ZELLIJ_BIN" ] && break
   sleep 0.1
 done
-[ -n "$ZELLIJ_BIN" ] || fail_e2e 'managed Zellij 0.44.3 was not installed'
-[ "$($ZELLIJ_BIN --version)" = 'zellij 0.44.3' ] ||
+[ -n "$ZELLIJ_BIN" ] || fail_e2e "managed Zellij $ZELLIJ_VERSION was not installed"
+[ "$($ZELLIJ_BIN --version)" = "zellij $ZELLIJ_VERSION" ] ||
   fail_e2e 'managed Zellij version is not exact'
 
 BACKEND_SESSION="$(session_from_registry)"
