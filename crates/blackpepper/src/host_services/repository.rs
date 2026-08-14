@@ -48,6 +48,7 @@ pub(super) fn register(
         .workspaces
         .into_iter()
         .find(|workspace| workspace.host_id == host_id && workspace.root_path == root_text);
+    let new_registration = existing.is_none();
     let mut workspace = existing.unwrap_or_else(|| WorkspaceRecord::new(host_id, &root_text));
     let detected = detect_local(&root, host_id)
         .map_err(|error| format!("Could not inspect repository: {error}"))?;
@@ -56,9 +57,15 @@ pub(super) fn register(
         workspace.display_name = display_name;
     }
     workspace.touch();
-    registry
-        .upsert_workspace(&workspace)
-        .map_err(|error| error.to_string())?;
+    if new_registration {
+        workspace = registry
+            .insert_workspace_or_existing(&workspace)
+            .map_err(|error| error.to_string())?;
+    } else {
+        registry
+            .upsert_workspace(&workspace)
+            .map_err(|error| error.to_string())?;
+    }
     Ok(workspace)
 }
 

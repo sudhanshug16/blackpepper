@@ -64,8 +64,10 @@ impl ClientRuntime {
 
         let mut workspace = WorkspaceRecord::new(host_id, root_text);
         workspace.repository = detect_local(&root, host_id)?.map(|detected| detected.identity);
-        self.persist_workspace(&workspace)?;
-        Ok(workspace.id)
+        self.registry
+            .insert_workspace_or_existing(&workspace)
+            .map(|registered| registered.id)
+            .map_err(|error| error.to_string())
     }
 
     pub(crate) fn find_workspace(&self, selector: &str) -> Result<WorkspaceRecord, String> {
