@@ -1,7 +1,8 @@
 use super::{provisional_attachment_count, session::zellij_session_name, ClientRuntime};
 use crate::client::runtime::HostSlot;
 use crate::core::{
-    CorePaths, HostRegistry, SessionBackend, SessionRecord, SingletonLock, WorkspaceRecord,
+    CorePaths, HostRegistry, SessionBackend, SessionRecord, SessionState, SingletonLock,
+    WorkspaceRecord,
 };
 use crate::transport::LocalTransport;
 use std::collections::BTreeMap;
@@ -58,6 +59,36 @@ fn workspace_without_a_live_session_uses_the_current_zellij_generation() {
     assert_eq!(
         selected.backend_session_id,
         zellij_session_name(workspace.id, crate::transport::ZELLIJ_VERSION)
+    );
+}
+
+#[test]
+fn exited_current_generation_reuses_its_registry_identity_on_reopen() {
+    let (_root, runtime) = local_runtime();
+    let workspace = WorkspaceRecord::new(runtime.local_host_id, "/tmp/private-zellij-reopen");
+    runtime.registry.upsert_workspace(&workspace).unwrap();
+    let mut exited = SessionRecord::new(
+        workspace.id,
+        SessionBackend::Zellij,
+        crate::transport::ZELLIJ_VERSION,
+        zellij_session_name(workspace.id, crate::transport::ZELLIJ_VERSION),
+    );
+    exited.state = SessionState::Exited;
+    runtime.registry.upsert_session(&exited).unwrap();
+
+    let mut reopened = runtime.current_or_new_session(&workspace).unwrap();
+
+    assert_eq!(reopened.id, exited.id);
+    assert_eq!(reopened.state, SessionState::Exited);
+    reopened.state = SessionState::Starting;
+    reopened.touch();
+    runtime.registry.upsert_session(&reopened).unwrap();
+    assert_eq!(
+        runtime
+            .registry
+            .sessions_for_workspace(workspace.id)
+            .unwrap(),
+        [reopened]
     );
 }
 
